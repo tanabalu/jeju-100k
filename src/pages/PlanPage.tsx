@@ -206,7 +206,15 @@ export function PlanPage() {
                 标识落在每段线中间，避开相邻路线共享的端点；有真实轨迹的按轨迹画线，其余连途经点。
                 底图加载失败时自动降级为离线示意图，位置信息不受影响。
               </p>
-              <RouteMap trails={planTrails} lines={planLines} badges={planBadges} hotels={planHotels} sights={planSights} height={380} />
+              <RouteMap
+                trails={planTrails}
+                lines={planLines}
+                badges={planBadges}
+                hotels={planHotels}
+                sights={planSights}
+                height={380}
+                fixedZoom={10}
+              />
             </section>
           )}
 

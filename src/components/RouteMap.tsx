@@ -167,6 +167,18 @@ interface RouteMapProps {
   hotels?: Hotel[]
   sights?: Sight[]
   height?: number
+  /**
+   * 固定缩放级别（比例尺）：给了就**不做几何自适应**，视图始终停在这一级，
+   * 只把中心挪到路线包围盒中心。行程篮用 10。
+   *
+   * 为什么是「固定」而不是「自适应」：底部比例尺 `L.control.scale`（maxWidth 120px）
+   * 的读数**完全由缩放级别决定**，120px 在 10 级正好显示「10 km」，掉一级到 9 级
+   * 直接跳到「30 km」（Leaflet 只取 1/2/3/5/10×10ⁿ 这几档）。行程篮的路段常铺满
+   * 全岛，`fitBounds` 会把视野压到 9 级 → 读数变 30 km。
+   *
+   * ⚠️ 单条路线的地图（详情页 / 后台选点）**别传**，让 `fitBounds` 贴紧路线。
+   */
+  fixedZoom?: number
   /** 开启后点击地图可取点 */
   pickable?: boolean
   onPick?: (p: { lng: number; lat: number }) => void
@@ -230,6 +242,7 @@ export function RouteMap({
   hotels = [],
   sights = [],
   height = 420,
+  fixedZoom,
   pickable = false,
   onPick,
 }: RouteMapProps) {
@@ -244,6 +257,9 @@ export function RouteMap({
   pickRef.current = onPick
   const styleRef = useRef<MapStyle>(settings.mapStyle ?? 'standard')
   styleRef.current = settings.mapStyle ?? 'standard'
+  /** 固定比例尺（不传 = 自适应）；建图时读一次即可 */
+  const fixedZoomRef = useRef(fixedZoom)
+  fixedZoomRef.current = fixedZoom
 
   const [status, setStatus] = useState<Status>('ready')
   const [tip, setTip] = useState('')
@@ -286,7 +302,8 @@ export function RouteMap({
     try {
       const map = L.map(el, {
         center: JEJU_CENTER,
-        zoom: DEFAULT_ZOOM,
+        // 固定比例尺优先；没指定就先摆在 10 级，等下面的自适应按几何收紧
+        zoom: fixedZoomRef.current ?? DEFAULT_ZOOM,
         /** 与瓦片图源一致的上限，避免用户一路放大到没有瓦片的层级 */
         maxZoom: 19,
         zoomControl: true,
@@ -391,12 +408,16 @@ export function RouteMap({
     ].join('|')
     if (key === fitKeyRef.current) return
     fitKeyRef.current = key
-    if (coords.length === 1) {
+    const fixed = fixedZoomRef.current
+    if (fixed != null) {
+      // 固定比例尺：只把中心挪到路线中间，缩放级别不动（建图时已设成 fixed）
+      map.setView(L.latLngBounds(coords).getCenter(), fixed, { animate: false })
+    } else if (coords.length === 1) {
       map.setView(coords[0], 14, { animate: false })
     } else {
       map.fitBounds(L.latLngBounds(coords), { padding: [60, 60], maxZoom: 15 })
     }
-  }, [status, points, trails, lines, drawSegs, markers, hotels, sights])
+  }, [status, points, trails, lines, drawSegs, markers, hotels, sights, fixedZoom])
 
   const fallbackBox = useMemo(
     () => project(drawSegs, markers, hotels, sights),
