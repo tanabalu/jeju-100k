@@ -68,6 +68,8 @@ python3 scripts/fetch_elevation.py --force    # 忽略缓存全部重抓
 | 素材管理 | `/admin` | 路线增删改（含编号）；途经点支持地图点选与上下调序；住宿、看点（多图）、相册（本地上传自动压缩或外链）；JSON 导入导出 |
 | 设置 | `/settings` | 地图底图样式、清空数据 |
 
+> 页脚署名：底图服务 OpenStreetMap、数据来源 **jejuolletrailguide.net**（Jeju Olle Trail 官方英文指南）；该站同时列在页脚「友情链接」里（外链一律新开标签页 + `rel="noopener noreferrer"`）。友链列表在 `src/App.tsx` 的 `FRIEND_LINKS`，加一条即可。
+
 凑百公里的典型用法：主线平均 15~20 km，**挑 6 条左右就到 100 km**；想走完全岛就把目标设成 437。
 
 ## 3. 数据存哪

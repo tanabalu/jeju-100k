@@ -156,6 +156,49 @@ h3 {
   text-align: center;
 }
 
+.footer-line {
+  margin: 0;
+}
+
+.footer-line + .footer-line {
+  margin-top: 6px;
+}
+
+/* 友链：改 flex 换行，条目多了也不会撑出横向滚动 */
+.footer-friends {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.footer-tag {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--line-soft);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.footer-link {
+  color: var(--brand);
+  /* 虚线下划线区分普通文字，hover 变实线 */
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+
+.footer-link:hover {
+  text-decoration-style: solid;
+}
+
+/* 外链标记：提示会新开标签页 */
+.footer-link::after {
+  content: ' ↗';
+  font-size: 10px;
+}
+
 /* ---------- 通用控件 ---------- */
 .btn {
   display: inline-flex;
