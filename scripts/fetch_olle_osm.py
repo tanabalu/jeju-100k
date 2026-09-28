@@ -11,8 +11,10 @@
 用法：
     python3 scripts/fetch_olle_osm.py                    # 全量抓取并导出
     python3 scripts/fetch_olle_osm.py --dry              # 只报告覆盖情况，不写文件
+    python3 scripts/fetch_olle_osm.py --dry --broad      # 顺带确认「还差的编号」OSM 里有没有
     python3 scripts/fetch_olle_osm.py --only 01 07-1     # 只抓这几条（排查用）
     python3 scripts/fetch_olle_osm.py --alias 03-A=03    # OSM 里的变体编号映射到你的编号
+    python3 scripts/fetch_olle_osm.py --max-coverage 1.25  # 比官方长 25% 以上的一律不导出
     python3 scripts/fetch_olle_osm.py --endpoint https://overpass.kumi.systems/api/interpreter
     python3 scripts/fetch_olle_osm.py --dump-raw raw.json # 存原始响应，便于离线排查
 
@@ -30,7 +32,12 @@
   3. **中途命中就地把 way 劈开**：取继续往前走的那一半，另一半放回池子（标记为支线，
      只在没有其它候选时才用）。
   4. **不许做全局最近邻**：环线/交叉路口会被带偏，拼出一条来回折返的线。
-  5. 接不上就**收尾、从池子里另起一段**（不是硬连一条直线）。段与段之间就是 OSM
+  5. **拒绝「闭合旁路」**：走完候选 way 若会落回链子**内部**已走过的节点，那它是
+     绕一圈回到原路的**替代支线**（OSM 常把 A/B 变体、无障碍路线塞进同一个关系），
+     不是「往前走」。收下它会把绕行线接到终点后面 —— 实走里程会**比官方还长**，
+     而这是不可能的（实测 03 长 42%、07 长 56%、09 长 53% 都是它造成的）。
+     这类段默认剔出几何与里程，报表如实写明剔了多长；`--keep-parallel` 可保留。
+  6. 接不上就**收尾、从池子里另起一段**（不是硬连一条直线）。段与段之间就是 OSM
      真没画的地方，导出成 MultiLineString，前端画出来是有缺口的折线 —— 不伪造。
 
 ⚠️ 两个诚实的边界：
@@ -77,6 +84,11 @@ JOIN_TOL_M = 60.0
 MAX_GAP_FRAC = 0.35
 # 实走里程 / 官方里程 低于它，说明这条关系只画了一部分，默认不导出
 MIN_COVERAGE = 0.60
+# 判定「并联段」（两端都接回主线）时，端点离主线多近算接上
+PARALLEL_TOL_M = 120.0
+# ⚠️ 实走里程 / 官方里程 **高于**它 = 关系里混了替代支线/重复段（线比官方长是不可能的）。
+#    默认只提示不拦（提示里会说清「多半混了替代支线」），要拦就 --max-coverage 1.25。
+MAX_COVERAGE = 1.30
 
 # 올레길 / 제주올레 / Jeju Olle Trail 后面的编号；允许 1 / 01 / 1-1 / 3-A / 3(A) 这些写法。
 # ⚠️ 后面的字母后缀必须整体可选，否则「올레길 19코스」这种最普通的写法会匹配失败；
@@ -197,6 +209,61 @@ def index_relations(elements):
     return {e["id"]: e for e in elements if e.get("type") == "relation"}
 
 
+def dedupe_elements(elements):
+    """按 (type, id) 去重。补抓子关系后可能和主查询的结果重叠，不去重会让同一条关系
+    在报表里出现两行、还会重复参与「留覆盖更好那条」的比选。"""
+    seen, out = set(), []
+    for e in elements or []:
+        k = (e.get("type"), e.get("id"))
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(e)
+    return out
+
+
+def missing_child_ids(elements):
+    """返回「被当作成员引用、但这次没取回几何」的子关系 id。
+
+    ⚠️ `out geom` 不会递归进子关系，所以 superroute 的成员（子关系）必须单独取一次。
+    正常靠查询里的 `rel(br.r)` 一句带走；但**部分镜像不支持 `br()`，会回 HTTP 400**，
+    降级之后就只能指望子关系自己也被 name/ref 过滤器命中 —— 名字写法不同的那些会静默丢失。
+    这里算出缺口，再用 rel(id:...) 精确补一次，跟 `br()` 支不支持无关。
+    """
+    have = {e.get("id") for e in elements if e.get("type") == "relation"}
+    want = []
+    for e in elements or []:
+        if e.get("type") != "relation":
+            continue
+        for m in e.get("members") or []:
+            if m.get("type") == "relation" and m.get("ref") not in have:
+                want.append(m["ref"])
+    return sorted(set(want))
+
+
+def build_children_query(ids):
+    return (
+        "[out:json][timeout:300];\n"
+        f"rel(id:{','.join(str(i) for i in ids)});\n"
+        "out geom;\n"
+    )
+
+
+def build_broad_query():
+    """不带 name/ref/network 过滤，把框里**所有** hiking/foot/walking 的 route 关系列出来。
+
+    用途只有一个：回答「还差的那些编号（12/13/15/17/21…）OSM 里到底有没有」。
+    正常查询靠名字命中，名字写法不对就漏；这一遍只看名字，能确认是「真没有」还是「没匹配上」。
+    """
+    s, w, n, e = BBOX
+    return (
+        "[out:json][timeout:600];\n"
+        f'rel({s},{w},{n},{e})["type"~"^(route|superroute)$"]'
+        '["route"~"^(hiking|foot|walking)$"];\n'
+        "out tags;\n"
+    )
+
+
 def ways_of(rel, rel_index=None, _seen=None):
     """取出关系下所有 way 的几何。
 
@@ -303,6 +370,31 @@ def _endpoint_degree(pool):
     return deg
 
 
+def _seg_links(segments, tol=PARALLEL_TOL_M):
+    """给每一段标注「两端是不是都接回了主线」。
+
+    判据：该段**两个**端点都落在「其它段的节点」附近。
+
+      - **缺口续段**：被断口隔开的那一端离主线上千米，必然不满足 → 不会被误判，
+        它的长度该算进实走里程；
+      - **并联段**（替代支线）：比如 OSM 里把「올레길5 (Ollegil 5) wheelchair」
+        这种无障碍替代线、A/B 变体也放在同一个关系里，缝合后它会变成一段
+        **两端都挂回主线** 的独立段 —— 它的长度是**重复**的，算进实走里程
+        就会让这条线比官方还长（实测 03 长 42%、07 长 56%、09 长 53%）。
+
+    只做标注，不擅自丢弃 —— 由调用方决定是提示还是剔除。
+    """
+    info = []
+    for i, s in enumerate(segments):
+        others = [p for j, t in enumerate(segments) if j != i for p in t]
+        ends = [
+            any(haversine_m(ep, p) <= tol for p in others)
+            for ep in (s[0], s[-1])
+        ] if others else [False, False]
+        info.append({"km": path_len_m(s) / 1000.0, "both": all(ends), "ends": ends})
+    return info
+
+
 def _splice(seg, w2, hit, step, forward, pool, stats):
     """把命中的 way 接进 seg：forward=True 接在尾部，False 插到头部。
 
@@ -332,11 +424,20 @@ def _grow(seg, pool, forward, join_tol, stats):
     候选排序：① 节点级命中优先于「就近接上」；② 同档里**直行优先**（转角最小）——
     偶来各条线大量交叉共享路径，不按直行选会顺着岔路跑到别的线上去；
     ③ 再同档才看是不是支线。
+
+    ⚠️ **还会拒绝「闭合旁路」**：如果走完候选 way 会落回链子**内部**已经走过的节点，
+    那它不是一个「往前走」的候选，而是一条绕一圈回到原路的替代线
+    （OSM 常把 A/B 变体、无障碍路线塞在同一个关系里）。收下它会把绕行线接到终点后面，
+    里程凭空多出好几公里（实测正是 03 长 42%、07 长 56%、09 长 53% 的成因）。
+    正确做法是**不收**，让它自己成一段，再按「并联段」处理（见 `_seg_links`）。
+    两端不在「内部」排除范围内 —— 环线（如牛岛 01-1）要靠它们收口。
     """
     while True:
         anchor = seg[-1] if forward else seg[0]
         k = _key(anchor)
         in_dir = _incoming_dir(seg) if forward else _incoming_dir(seg[::-1])
+        # 链子内部（去掉两端）已经走过的节点：落回这里 = 闭合旁路
+        interior = {_key(p) for p in seg[1:-1]} if len(seg) > 2 else set()
         cands = []
         for wi, w2 in enumerate(pool):
             pts = w2["pts"]
@@ -346,8 +447,13 @@ def _grow(seg, pool, forward, join_tol, stats):
                 # 首选：节点级命中 —— OSM 共享节点坐标必然完全一致，可信度最高
                 for step in (1, -1):
                     ni = hit + step
-                    if 0 <= ni <= last:
-                        cands.append((0, _turn_to(in_dir, anchor, pts[ni]), wi, hit, step, w2["spur"]))
+                    if not (0 <= ni <= last):
+                        continue
+                    arrive = pts[last] if step > 0 else pts[0]
+                    if _key(arrive) in interior:
+                        stats["bypass"] += 1
+                        continue
+                    cands.append((0, _turn_to(in_dir, anchor, pts[ni]), wi, hit, step, w2["spur"]))
                 continue
             # 退一步：端点落在容差内（OSM 里少画了几米、两边没共享节点）
             for pi, step in ((0, 1), (last, -1)):
@@ -371,14 +477,18 @@ def _grow(seg, pool, forward, join_tol, stats):
         seg = _splice(seg, w2, hit, step, forward, pool, stats)
 
 
-def join_ways(ways, join_tol=JOIN_TOL_M):
+def join_ways(ways, join_tol=JOIN_TOL_M, keep_parallel=False):
     """把无序的 way 集合缝成尽量连续的分段折线（算法说明见模块 docstring）。
 
     返回 (segments, gaps, stats)：
       segments — 分段折线 [[(lng, lat), ...], ...]；段与段之间是 OSM 真没画的地方，
                  **不要连线**，前端按多段绘制会自然留出缺口
       gaps     — [{'m': 断口米数, 'from': [lng, lat], 'to': [lng, lat]}]，供报告用
-      stats    — 诊断计数（岔路口、中途劈开、直行胜出等）
+      stats    — 诊断计数（岔路口、中途劈开、闭合旁路、并联段…）
+
+    keep_parallel=False（默认）会把**并联段**（两端都接回主线的替代支线）剔除，
+    因为它们的长度是重复的，算进去会让实走里程比官方还长。
+    要保留原样看，传 True。
     """
     pool = [
         {"id": w.get("id"), "role": w.get("role", ""), "pts": list(w["pts"]), "spur": False}
@@ -387,10 +497,12 @@ def join_ways(ways, join_tol=JOIN_TOL_M):
     ]
     if not pool:
         return [], [], {"ways": 0, "segments": 0, "junction": 0, "split": 0,
-                        "backtrack": 0, "near": 0, "nearM": 0.0, "spurDropped": 0.0}
+                        "backtrack": 0, "bypass": 0, "near": 0, "nearM": 0.0,
+                        "spurDropped": 0.0, "segInfo": [], "parallelM": 0.0,
+                        "parallelN": 0, "parallelDropped": False}
 
     stats = {"ways": len(pool), "junction": 0, "split": 0, "backtrack": 0,
-             "near": 0, "nearM": 0.0, "spurDropped": 0.0}
+             "bypass": 0, "near": 0, "nearM": 0.0, "spurDropped": 0.0}
     segments, seg_spur = [], []
 
     while pool:
@@ -429,6 +541,24 @@ def join_ways(ways, join_tol=JOIN_TOL_M):
     segments = kept
     stats["spurDropped"] = dropped_m
 
+    # 并联段（两端都接回主线）= 替代支线/同一段走了两遍。它会直接抬高实走里程，
+    # 而那是不对的 —— 一条线不可能比它自己长。默认剔除（--keep-parallel 保留），
+    # 剔除后**必须重算断口**，否则断口会指向已经被丢掉的那一段。
+    info = _seg_links(segments)
+    stats["segInfo"] = info
+    # ⚠️ 这两个数**无论剔不剔除都要算**：报表靠它们解释「里程为什么虚高」，
+    #    开了 --keep-parallel 就只是不剔除，说明照样要给。
+    stats["parallelM"] = sum(x["km"] for x in info if x["both"]) * 1000.0
+    stats["parallelN"] = sum(1 for x in info if x["both"])
+    if not keep_parallel and stats["parallelN"]:
+        keep_idx = [i for i, x in enumerate(info) if not x["both"]]
+        segments = [segments[i] for i in keep_idx]
+        stats["segInfo"] = [info[i] for i in keep_idx]
+        stats["parallelDropped"] = True
+    else:
+        stats["parallelDropped"] = False
+
+    stats["segments"] = len(segments)
     # 断口 = 相邻两段之间最近的「端点对」距离（段顺序本身不代表行程顺序）
     gaps = []
     for a, b in zip(segments, segments[1:]):
@@ -441,7 +571,6 @@ def join_ways(ways, join_tol=JOIN_TOL_M):
         d, p1, p2 = min(options, key=lambda o: o[0])
         gaps.append({"m": d, "from": list(p1), "to": list(p2)})
 
-    stats["segments"] = len(segments)
     return segments, gaps, stats
 
 
@@ -478,20 +607,37 @@ def geojson_for(code, rel, segments, gaps, km):
     }
 
 
-def verdict_of(km, gap_m, official, min_cov=MIN_COVERAGE, max_frac=MAX_GAP_FRAC):
-    """给一行数据下判定：✅ 可用 / ⚠️ 有缺段 / ⛔ 太零碎"""
+def verdict_of(km, gap_m, official, min_cov=MIN_COVERAGE, max_frac=MAX_GAP_FRAC,
+               max_cov=None):
+    """给一行数据下判定：✅ 可用 / ⚠️ 有缺段 / ⛔ 太零碎
+
+    ⚠️ **实走里程比官方还长是「拼错了」的信号，不是「数据更全」**：
+    一条线不可能比它自己长。出现这种情况基本只有一个原因 ——
+    关系里混进了**替代支线**（A/B 变体、无障碍路线）或重复段，
+    缝合后它们变成两端都接回主线的「并联段」（见 `_seg_links`）。
+    默认只提示（因为那几公里仍是真实的 OSM 数据，比拿直线糊上去强），
+    传 max_cov 就能把它升级成一票否决。
+    """
     walk_m = km * 1000
     frac = gap_m / (walk_m + gap_m) if (walk_m + gap_m) > 0 else 0.0
     cov = (km / official) if official else None
-    bad = []
+    bad, warn = [], []
     if cov is not None and cov < min_cov:
         bad.append(f"只画到 {cov * 100:.0f}%")
     if frac > max_frac:
         bad.append(f"断口占 {frac * 100:.0f}%")
+    if cov is not None and max_cov and cov > max_cov:
+        bad.append(f"比官方长 {cov * 100 - 100:.0f}%（含替代支线）")
     if bad:
         return "⛔", "、".join(bad)
-    if frac > 0.05 or (cov is not None and abs(cov - 1) > 0.15):
-        return "⚠️", f"断口 {frac * 100:.0f}%" + (f"、覆盖 {cov * 100:.0f}%" if cov else "")
+    if frac > 0.05:
+        warn.append(f"断口 {frac * 100:.0f}%")
+    if cov is not None and abs(cov - 1) > 0.15:
+        warn.append(f"覆盖 {cov * 100:.0f}%")
+        if cov > MAX_COVERAGE:
+            warn.append("比官方长，关系里多半混了替代支线")
+    if warn:
+        return "⚠️", "、".join(warn)
     return "✅", ""
 
 
@@ -506,11 +652,19 @@ def main():
                     help="接不上时允许就近接上的距离（米）")
     ap.add_argument("--min-coverage", type=float, default=MIN_COVERAGE,
                     help="实走里程/官方里程 低于它就判定不可用")
+    ap.add_argument("--max-coverage", type=float, default=None,
+                    help="实走里程/官方里程 高于它就判定不可用（默认只提示不拦）")
     ap.add_argument("--max-gap-frac", type=float, default=MAX_GAP_FRAC,
                     help="断口占比高于它就判定不可用")
     ap.add_argument("--keep-bad", action="store_true",
                     help="判定 ⛔ 的也照样导出（默认跳过，避免半条线冒充整条）")
+    ap.add_argument("--keep-parallel", action="store_true",
+                    help="保留并联段（两端接回主线的替代支线）。默认剔除，"
+                         "否则实走里程会比官方还长")
     ap.add_argument("--dump-raw", help="把 Overpass 原始响应存到这个文件（离线排查用）")
+    ap.add_argument("--broad", action="store_true",
+                    help="额外列出框里所有 hiking 关系（含名字没匹配上的），"
+                         "用来确认「还差的编号」是 OSM 真没有还是没匹配上")
     ap.add_argument("--dry", action="store_true", help="只报告，不写文件")
     args = ap.parse_args()
 
@@ -521,15 +675,33 @@ def main():
     try:
         data = overpass(args.endpoint, build_query(with_children=True))
     except QueryRejected as err:
-        # 降级：去掉 `rel(br.r)` 再试一次。取不全总比整跑挂掉强，但要明说。
-        print(f"⚠️ Overpass 拒绝了带子关系的查询（{err}），去掉子关系那一步重试。")
-        print("   → 被拆成「父关系 + 子关系」的线这次可能取不全，"
-              "报表里会表现成「里程偏短 + 断口很大」，别当成数据本身缺失。\n")
+        # 降级：这个 endpoint 不认 `rel(br.r)`。**不能就此认命** ——
+        # 子关系里那些名字没含「올레/Olle」的会静默消失（里程偏短 + 断口巨大）。
+        # 先跑不带子关系的查询，再从结果里读出「被引用但没取回」的子关系 id，精确补一次。
+        print(f"⚠️ 该 endpoint 不支持 rel(br.r)（{err}），改用「先取父、再按 id 补子关系」。")
         data = overpass(args.endpoint, build_query(with_children=False))
     if args.dump_raw:
         with open(args.dump_raw, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False)
         print(f"原始响应已存：{args.dump_raw}")
+
+    elements = dedupe_elements(data.get("elements", []))
+    want = missing_child_ids(elements)
+    if want:
+        print(f"补取子关系 {len(want)} 个（父关系引用了它们，但几何还没到手）……")
+        for i in range(0, len(want), 40):
+            chunk = want[i:i + 40]
+            try:
+                more = overpass(args.endpoint, build_children_query(chunk))
+            except QueryRejected as err:
+                print(f"  ⚠️ 这批被拒（{err}），这 {len(chunk)} 个子关系会缺几何：{chunk}")
+                continue
+            elements.extend(more.get("elements", []))
+        elements = dedupe_elements(elements)
+    else:
+        print("子关系无需补取（已随父关系一并取回）。")
+    data = {"elements": elements, "remark": data.get("remark")}
+    print()
 
     remark = data.get("remark")
     if remark:
@@ -555,6 +727,39 @@ def main():
         "子关系已并入父关系，不单独算一条）\n"
     )
 
+    if args.broad:
+        # 只回答一个问题：还差的那些编号，OSM 里**到底有没有**关系。
+        # 正常查询靠 name/ref/network 命中，名字写法不同就漏；不带过滤再跑一遍，
+        # 把「OSM 真没建」和「建了但名字没匹配上」彻底分开，省得靠猜。
+        print("--broad：不带名字过滤再查一遍框内的 hiking 关系……")
+        try:
+            broad = overpass(args.endpoint, build_broad_query())
+            seen = {r["id"] for r in rels}
+            others = []
+            for e in broad.get("elements", []):
+                if e.get("id") in seen:
+                    continue
+                t = e.get("tags") or {}
+                others.append(
+                    f"{(t.get('name') or t.get('name:en') or '（无名字）')}"
+                    f"  [{t.get('type') or 'route'}"
+                    f"/ref={t.get('ref') or '—'}/network={t.get('network') or '—'}]"
+                    f"  relation {e.get('id')}"
+                )
+            if others:
+                print(f"  框内还有 {len(others)} 个 hiking 关系没被名字规则命中：")
+                for o in sorted(others)[:40]:
+                    print(f"    - {o}")
+                if len(others) > 40:
+                    print(f"    …（还有 {len(others) - 40} 个）")
+                print("  → 里面如果有你的编号，用 --alias 映射；否则就是 OSM 真没建这条。")
+            else:
+                print("  没有漏网的：框内所有 hiking 关系都已被名字规则命中。")
+                print("  → 还差的那些编号在 OSM 里**确实没有关系**，只能换数据源。")
+        except QueryRejected as err:
+            print(f"  ⚠️ 被拒（{err}），跳过这一步。")
+        print()
+
     # 同名关系可能重复（3코스 有 A/B 变体、有的线拆成两段），先全部解析再归并
     parsed = []
     for rel in parents:
@@ -564,8 +769,8 @@ def main():
         parsed.append((rel, tags, raw, code))
 
     if args.only:
-        want = set(args.only)
-        parsed = [p for p in parsed if p[2] in want or p[3] in want]
+        want_codes = set(args.only)
+        parsed = [p for p in parsed if p[2] in want_codes or p[3] in want_codes]
 
     print(f"{'OSM编号':<8} {'归到':<6} {'way':>4} {'点':>5} {'段':>3} "
           f"{'实走km':>7} {'覆盖':>6} {'断口':>9} {'判定':<4} 名称")
@@ -575,14 +780,15 @@ def main():
         name = tags.get("name") or tags.get("name:en") or f"relation {rel['id']}"
         kinds, role_txt = members_summary(rel, rel_index)
         way_list = ways_of(rel, rel_index)
-        segments, gaps, stats = join_ways(way_list, args.join_tol)
+        segments, gaps, stats = join_ways(way_list, args.join_tol, args.keep_parallel)
         walk_m = sum(path_len_m(s) for s in segments)
         gap_m = sum(g["m"] for g in gaps)
         km = walk_m / 1000
         off = OFFICIAL_KM.get(code) if code else None
         cov = (km / off) if off else None
         if code and code in ROUTE_CODES:
-            mark, why = verdict_of(km, gap_m, off, args.min_coverage, args.max_gap_frac)
+            mark, why = verdict_of(km, gap_m, off, args.min_coverage,
+                                   args.max_gap_frac, args.max_coverage)
         else:
             # 编号不在这 27 条里 → 不判定，避免显示出「✅ 可用」却又进不了产物
             mark, why = "—", ""
@@ -608,6 +814,8 @@ def main():
             extra.append(f"岔路 {stats['junction']}")
         if stats["backtrack"]:
             extra.append(f"掉头 {stats['backtrack']}")
+        if stats["bypass"]:
+            extra.append(f"跳过闭合旁路 {stats['bypass']}")
         if stats["near"]:
             extra.append(f"就近接上 {stats['near']} 处/共 {stats['nearM']:.0f}m")
         if stats["spurDropped"]:
@@ -619,6 +827,20 @@ def main():
             notes.append(
                 f"{raw or '—'}: 最大的几个断口 —— "
                 + "；".join(f"{g['m'] / 1000:.2f}km @ {g['from'][1]:.4f},{g['from'][0]:.4f}" for g in worst)
+            )
+        # 多段时把**每段多长**列出来：这是解释「为什么比官方长」的唯一线索
+        if len(segments) > 1:
+            seg_txt = "、".join(
+                f"{i['km']:.2f}km" + ("（两端接回主线）" if i["both"] else "")
+                for i in stats["segInfo"]
+            )
+            notes.append(f"{raw or '—'}: 分段明细 —— {seg_txt}")
+        if stats.get("parallelN"):
+            act = "已剔除" if stats.get("parallelDropped") else "按 --keep-parallel 保留了"
+            notes.append(
+                f"{raw or '—'}: {act} {stats['parallelN']} 段**并联段**共 "
+                f"{stats['parallelM'] / 1000:.2f}km（两端都挂回主线 = 替代支线/同段走两遍，"
+                "不是缺口续段）。实走里程因它而虚高，剔掉后才跟官方对得上。"
             )
 
         if not code:
@@ -633,8 +855,10 @@ def main():
         cand = (km, -gap_m, rel, segments, gaps)
         if code in winners:
             prev = winners[code]
-            prev_cov = min(prev[0] / off, 1.5) if off else 0
-            this_cov = min(km / off, 1.5) if off else 0
+            # ⚠️ 比的是「离官方里程多近」，**不是谁更长** ——
+            #    更长的那个很可能只是混进了替代支线（见 _seg_links）
+            prev_cov = -abs(min(prev[0] / off, 1.5) - 1.0) if off else 0
+            this_cov = -abs(min(km / off, 1.5) - 1.0) if off else 0
             if (this_cov, -gap_m) <= (prev_cov, prev[1]):
                 notes.append(f"{code}: {raw} 与已有关系同名，留覆盖更好的那条")
                 continue
