@@ -21,9 +21,17 @@
   { "01": { "basis": "track", "km": 15.87, "gainM": 200, ...,
             "points": [[lng, lat, ele], ...] }, ... }
 
+**多条线段（有断口）**：GPX 的多个 `<trkseg>`、KML 的多个 `<coordinates>`、
+GeoJSON 的 MultiLineString（OSM 缝合后留下的断口就是这种）都当成**独立线段**：
+  - `points` 仍是各段顺序拼起来的一整串（海拔剖面只看它）；
+  - 段数 > 1 时额外写 `segments`，前端按段绘制 —— 段与段之间**不连线**，
+    OSM 没画的地方就留空，不拿直线糊上去；
+  - 里程是各段之和，**爬升逐段累加**（跨段海拔未知，混在一起算会凭空多一截）。
+
 前端怎么用（`src/store/DataContext.tsx`）：
   运行时 fetch 该文件，把 `points` 写进 `route.elevationProfile`、`elevationBasis` 置为
-  'track' —— 地图折线、海拔剖面、里程、爬升随即全部改用真实数据。
+  'track'，有 `segments` 时同时写进 `route.elevationSegments` ——
+  地图折线按段画、海拔剖面按 `points`，里程与爬升随即改用真实数据。
   **不落库**：换轨迹只要重跑本脚本，刷新即可，不用清 localStorage。
 
 几个刻意的设计：
@@ -196,36 +204,64 @@ def _local(tag):
 
 
 def parse_gpx(path):
+    """GPX → **分段**折线：每个 <trkseg> 是一段。
+
+    轨迹记录中间的暂停（<trkseg> 之间）不是真的有条断口，但两段的端点可能隔着几公里；
+    拼成一条会把直线糊上去，所以按段保留。
+    """
     root = ET.parse(path).getroot()
-    pts = []
-    for el in root.iter():
-        name = _local(el.tag)
-        if name not in ("trkpt", "rtept", "wpt"):
-            continue
-        try:
-            lat = float(el.get("lat"))
-            lng = float(el.get("lon"))
-        except (TypeError, ValueError):
-            continue
-        ele = None
+
+    def pts_of(el):
+        out = []
         for child in el:
-            if _local(child.tag) == "ele" and child.text:
-                try:
-                    ele = float(child.text)
-                except ValueError:
-                    pass
-                break
-        pts.append((lng, lat, ele))
-    return pts
+            if _local(child.tag) not in ("trkpt", "rtept", "wpt"):
+                continue
+            try:
+                lat = float(child.get("lat"))
+                lng = float(child.get("lon"))
+            except (TypeError, ValueError):
+                continue
+            ele = None
+            for sub in child:
+                if _local(sub.tag) == "ele" and sub.text:
+                    try:
+                        ele = float(sub.text)
+                    except ValueError:
+                        pass
+                    break
+            out.append((lng, lat, ele))
+        return out
+
+    # 从最精确的一层开始切段：trkseg → trk → rte
+    for kind in ("trkseg", "trk", "rte"):
+        found = [el for el in root.iter() if _local(el.tag) == kind]
+        if kind == "trk":
+            # trk 里还有 trkseg 的，交给 trkseg 处理，别重复取
+            found = [el for el in found if not any(_local(c.tag) == "trkseg" for c in el)]
+        segs = [p for p in (pts_of(el) for el in found) if len(p) >= 2]
+        if segs:
+            return segs
+    one = pts_of(root)
+    return [one] if len(one) >= 2 else []
 
 
 def parse_kml(path):
+    """KML → **分段**折线：每个 <coordinates> 块是一段，连续的 gx:coord 合成一段"""
     root = ET.parse(path).getroot()
-    pts = []
+    segs, gx = [], []
+
+    def flush_gx():
+        nonlocal gx
+        if len(gx) >= 2:
+            segs.append(gx)
+        gx = []
+
     for el in root.iter():
         name = _local(el.tag)
         if name == "coordinates" and el.text:
+            flush_gx()
             # "lng,lat,alt lng,lat,alt ..."（也有用换行分隔的）
+            pts = []
             for chunk in el.text.replace("\n", " ").replace("\t", " ").split():
                 parts = chunk.split(",")
                 if len(parts) < 2:
@@ -236,45 +272,29 @@ def parse_kml(path):
                 except ValueError:
                     continue
                 pts.append((lng, lat, ele))
+            if len(pts) >= 2:
+                segs.append(pts)
         elif name == "coord" and el.text:
-            # gx:Track 的 <gx:coord>lng lat alt</gx:coord>
+            # gx:Track 的 <gx:coord>lng lat alt</gx:coord>，一个点一个元素
             parts = el.text.split()
             if len(parts) >= 2:
                 try:
-                    ele = float(parts[2]) if len(parts) > 2 else None
-                    pts.append((float(parts[0]), float(parts[1]), ele))
+                    gx.append((float(parts[0]), float(parts[1]),
+                               float(parts[2]) if len(parts) > 2 else None))
                 except ValueError:
                     pass
-    return pts
+    flush_gx()
+    return segs
 
 
 def parse_geojson(path):
+    """GeoJSON → **分段**折线：每个 LineString 是一段（MultiLineString 天然分段）"""
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
-    def walk(node, out):
-        if isinstance(node, dict):
-            t = node.get("type")
-            if t == "LineString":
-                out.extend(_geojson_coords(node.get("coordinates") or []))
-            elif t == "MultiLineString":
-                for line in node.get("coordinates") or []:
-                    out.extend(_geojson_coords(line))
-            elif t == "FeatureCollection":
-                for feat in node.get("features") or []:
-                    walk(feat, out)
-            elif t == "Feature":
-                walk(node.get("geometry") or {}, out)
-            elif t == "GeometryCollection":
-                for g in node.get("geometries") or []:
-                    walk(g, out)
-            elif t == "Point":
-                out.extend(_geojson_coords([node.get("coordinates")]))
-        return out
-
-    def _geojson_coords(coords):
+    def coords_of(raw):
         pts = []
-        for c in coords or []:
+        for c in raw or []:
             if not isinstance(c, (list, tuple)) or len(c) < 2:
                 continue
             try:
@@ -284,10 +304,44 @@ def parse_geojson(path):
                 continue
         return pts
 
-    return walk(data, [])
+    segs = []
+
+    def walk(node):
+        if isinstance(node, list):
+            for x in node:
+                walk(x)
+            return
+        if not isinstance(node, dict):
+            return
+        t = node.get("type")
+        if t == "LineString":
+            p = coords_of(node.get("coordinates"))
+            if len(p) >= 2:
+                segs.append(p)
+        elif t == "MultiLineString":
+            for line in node.get("coordinates") or []:
+                p = coords_of(line)
+                if len(p) >= 2:
+                    segs.append(p)
+        elif t == "FeatureCollection":
+            for feat in node.get("features") or []:
+                walk(feat)
+        elif t == "Feature":
+            walk(node.get("geometry") or {})
+        elif t == "GeometryCollection":
+            for g in node.get("geometries") or []:
+                walk(g)
+        elif t == "Point":
+            p = coords_of([node.get("coordinates")])
+            if len(p) >= 2:
+                segs.append(p)
+
+    walk(data)
+    return segs
 
 
 def load_track(path):
+    """统一返回**分段**点列：[[(lng, lat, ele), ...], ...]"""
     ext = os.path.splitext(path)[1].lower()
     if ext == ".gpx":
         return parse_gpx(path)
@@ -353,6 +407,19 @@ def simplify_to_budget(pts, tol_m, max_points):
     while len(out) > max_points and t < 400:
         t *= 1.6
         out = simplify(pts, t)
+    return out, t
+
+
+def simplify_segments(segs, tol_m, max_points):
+    """逐段简化；**总点数**超预算就整体放宽容差重来。
+
+    ⚠️ 预算按所有段合计算：每段单独给 max_points 的话，段一多总点数就爆了。
+    """
+    t = tol_m
+    out = [simplify(s, t) for s in segs]
+    while sum(len(s) for s in out) > max_points and t < 400:
+        t *= 1.6
+        out = [simplify(s, t) for s in segs]
     return out, t
 
 
@@ -444,48 +511,63 @@ def main():
     suspicious = []
     t0 = time.time()
     print(
-        f"{'编号':<6} {'原始点':>7} {'简化':>6} {'轨迹km':>8} {'官方km':>7} {'差':>6} "
+        f"{'编号':<6} {'原始点':>7} {'简化':>6} {'段':>3} {'轨迹km':>8} {'官方km':>7} {'差':>6} "
         f"{'爬升m':>6} {'海拔':>5}  起点 → 终点"
     )
-    print("-" * 112)
+    print("-" * 116)
     for code in ROUTE_CODES:
         path = matched.get(code)
         if not path:
             continue
         try:
-            raw = load_track(path)
+            segs = load_track(path)
         except Exception as err:
             print(f"{code:<6} 解析失败：{err}")
             continue
-        raw = dedupe(raw)
-        if code in args.reverse:
-            raw = raw[::-1]
-        if len(raw) < 2:
+        segs = [dedupe(s) for s in segs]
+        segs = [s for s in segs if len(s) >= 2]
+        if not segs:
             print(f"{code:<6} ⚠️ 有效点不足 2 个，跳过")
             continue
+        if code in args.reverse:
+            # 反向：每段翻转，段的先后也翻过来
+            segs = [s[::-1] for s in segs][::-1]
+        raw_n = sum(len(s) for s in segs)
 
-        pts, tol = simplify_to_budget(raw, args.tol, args.max_points)
+        segs, tol = simplify_segments(segs, args.tol, args.max_points)
         # 只补「整条都没有海拔」的轨迹；GPX 自带的记录海拔优先保留，不覆盖。
         # 放在简化之后：请求数直接少一个数量级。
         filled_ele = False
-        if args.elevation and pts and not any(p[2] is not None for p in pts):
+        if args.elevation and not any(p[2] is not None for s in segs for p in s):
+            flat = [p for s in segs for p in s]
             before = len(elev_cache)
-            eles_filled = fill_elevations(pts, elev_cache)
+            eles_filled = fill_elevations(flat, elev_cache)
             elev_dirty = elev_dirty or len(elev_cache) != before
             if any(e is not None for e in eles_filled):
-                pts = [(p[0], p[1], e) for p, e in zip(pts, eles_filled)]
+                it = iter(eles_filled)
+                segs = [[(p[0], p[1], next(it)) for p in s] for s in segs]
                 filled_ele = True
-        km = path_len_m(pts) / 1000
-        has_ele = all(p[2] is not None for p in pts)
+
+        km = sum(path_len_m(s) for s in segs) / 1000
+        flat = [p for s in segs for p in s]
+        has_ele = all(p[2] is not None for p in flat)
         if has_ele:
-            gain, loss = gain_loss([p[2] for p in pts])
-            eles = [p[2] for p in pts]
+            # ⚠️ 爬升**逐段累加**：段与段之间海拔是未知的，混在一起算会凭空多一大截
+            gain = loss = 0
+            for s in segs:
+                g, l = gain_loss([p[2] for p in s])
+                gain += g
+                loss += l
+            eles = [p[2] for p in flat]
             hi, lo = round(max(eles)), round(min(eles))
         else:
             gain = loss = None
             hi = lo = None
         off = OFFICIAL_KM.get(code)
         diff = f"{km - off:+.1f}" if off else "—"
+
+        def pack(p):
+            return [round(p[0], 6), round(p[1], 6), (round(p[2], 1) if p[2] is not None else None)]
 
         # 坐标压到 6 位（约 0.1 m）、海拔 1 位，控制体积
         out[code] = {
@@ -497,21 +579,28 @@ def main():
             "highestM": hi,
             "lowestM": lo,
             "toleranceM": round(tol, 1),
+            "segmentCount": len(segs),
             "elevSource": "SRTM 30m · opentopodata.org（轨迹本身无海拔，联网补采样）" if filled_ele
                           else ("track" if has_ele else None),
-            "points": [[round(p[0], 6), round(p[1], 6), (round(p[2], 1) if p[2] is not None else None)]
-                       for p in pts],
+            "points": [pack(p) for p in flat],
         }
-        s, e = pts[0], pts[-1]
+        # 有断口才写 segments：前端按段画，段之间不连线
+        if len(segs) > 1:
+            out[code]["segments"] = [[pack(p) for p in s] for s in segs]
+
+        s, e = flat[0], flat[-1]
         ele_col = "SRTM" if filled_ele else ("有" if has_ele else "无")
+        seg_col = f"{len(segs)}" if len(segs) > 1 else "—"
         print(
-            f"{code:<6} {len(raw):>7} {len(pts):>6} {km:>8.2f} {off or 0:>7.1f} {diff:>6} "
+            f"{code:<6} {raw_n:>7} {len(flat):>6} {seg_col:>3} {km:>8.2f} {off or 0:>7.1f} {diff:>6} "
             f"{(gain if gain is not None else '—'):>6} {ele_col:>5}  "
             f"{s[0]:.5f},{s[1]:.5f} → {e[0]:.5f},{e[1]:.5f}"
         )
         # 与官方里程差太多 → 轨迹可能不完整、方向不对或根本是另一条线，值得人工看一眼
         if off and abs(km - off) / off > 0.25:
             suspicious.append(f"{code}（轨迹 {km:.1f}km vs 官方 {off}km）")
+        if len(segs) > 1:
+            suspicious.append(f"{code} 有 {len(segs)} 段、{len(segs) - 1} 处断口，地图上会留缺口")
 
     print()
     missing = [c for c in ROUTE_CODES if c not in out]
@@ -519,7 +608,7 @@ def main():
     if missing:
         print(f"仍缺（前端会保持原样，不走真实轨迹）：{', '.join(missing)}")
     if suspicious:
-        print(f"⚠️ 里程与官方差 >25%，请人工核对是不是这条线 / 方向反了：{'、'.join(suspicious)}")
+        print(f"⚠️ 需要人工看一眼：{'；'.join(suspicious)}")
     no_ele = [c for c, v in out.items() if v["gainM"] is None]
     if no_ele:
         print(f"⚠️ 轨迹里没有海拔、剖面会显示「暂缺海拔数据」：{', '.join(no_ele)}")

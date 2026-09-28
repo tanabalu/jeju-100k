@@ -95,6 +95,12 @@ export interface Route {
   manualGainM?: number
   /** 地形采样序列（剖面图 + 爬升估算的来源） */
   elevationProfile?: ElevSample[]
+  /**
+   * 有断口的轨迹：**分段**几何。段与段之间是真的没数据（OSM 里那一段没画），
+   * 画线时不能连线，里程与爬升也要逐段算，否则会把断口处那根假直线算进去。
+   * 没有断口时不要写这个字段，让 `elevationProfile` 单独承担即可。
+   */
+  elevationSegments?: ElevSample[][]
   /** 地形数据来源；缺省视为未知 */
   elevationBasis?: ElevBasis
   surface?: string

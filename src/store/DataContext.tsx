@@ -31,6 +31,11 @@ export type PhotoManifest = Record<string, PhotoEntry>
 export interface TrackEntry {
   /** 轨迹点 [lng, lat, ele]；该轨迹没录海拔时 ele 为 null */
   points: [number, number, number | null][]
+  /**
+   * 有断口时的**分段**几何（`points` 是各段顺序拼起来的一整串）。
+   * 段之间是数据真空，画线不能连线，里程/爬升也得逐段算。
+   */
+  segments?: [number, number, number | null][][]
   basis: 'track'
   /** 轨迹实测里程（km） */
   km?: number
@@ -141,7 +146,8 @@ function mergeTrack(
   tracks: TrackManifest,
   seedPts: Map<string, { lng: number; lat: number }[]>,
 ): Route {
-  const raw = route.code ? tracks[route.code]?.points : undefined
+  const entry = route.code ? tracks[route.code] : undefined
+  const raw = entry?.points
   if (!Array.isArray(raw)) return route
   const clean = raw.filter(
     (p): p is [number, number, number | null] =>
@@ -149,13 +155,26 @@ function mergeTrack(
   )
   if (clean.length < 2) return route
 
-  const samples: ElevSample[] = clean.map((p) =>
-    typeof p[2] === 'number' ? [p[0], p[1], p[2]] : [p[0], p[1]],
-  )
+  const sample = (p: [number, number, number | null]): ElevSample =>
+    typeof p[2] === 'number' ? [p[0], p[1], p[2]] : [p[0], p[1]]
+  const samples: ElevSample[] = clean.map(sample)
+
+  // 有断口的轨迹（OSM 只画了一部分、GPX 中途暂停）：段数 > 1 才带 `elevationSegments`。
+  // ⚠️ 单段时**不要**写这个字段 —— `trackLines` 已经能退回用 elevationProfile，
+  //    多一个字段只会让「有没有断口」这件事变得不好判断。
+  const rawSegs = entry?.segments
+  const segs: ElevSample[][] = Array.isArray(rawSegs)
+    ? rawSegs
+        .map((s) => (Array.isArray(s) ? s.filter((p) => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1])) : []))
+        .map((s) => s.map(sample))
+        .filter((s) => s.length >= 2)
+    : []
+
   return {
     ...route,
     points: snapRouteEnds(route, clean, seedPts),
     elevationProfile: samples,
+    ...(segs.length > 1 ? { elevationSegments: segs } : {}),
     elevationBasis: 'track',
   }
 }

@@ -90,6 +90,13 @@ export function normalizeRoute(route: Route): Route {
     })),
     album: arr<AlbumItem>(route.album),
     elevationProfile: arr<ElevSample>(route.elevationProfile),
+    // 有断口的轨迹：分段几何。每段至少 2 个点，脏段直接丢
+    ...(() => {
+      const segs = (Array.isArray(route.elevationSegments) ? route.elevationSegments : [])
+        .map((s) => arr<ElevSample>(s))
+        .filter((s) => s.length >= 2)
+      return segs.length ? { elevationSegments: segs } : {}
+    })(),
   }
 }
 

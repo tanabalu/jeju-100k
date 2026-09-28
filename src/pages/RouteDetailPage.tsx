@@ -163,7 +163,9 @@ export function RouteDetailPage() {
         </div>
         <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>
           {route.elevationBasis === 'track'
-            ? '坐标与轨迹均为实测数据（轨迹导入），可直接用于导航与爬升判断。'
+            ? route.elevationSegments
+              ? `坐标与轨迹均为实测数据。这条轨迹有 ${route.elevationSegments.length - 1} 处断口（数据源里那几段没画到），图上按实际有数据的段落绘制，不连线补全。`
+              : '坐标与轨迹均为实测数据（轨迹导入），可直接用于导航与爬升判断。'
             : '坐标为城镇级近似值，用于排序 / 看分布；导航前请用「地图选点」校正，或导入真实轨迹一键替换。'}
         </p>
         <RouteMap
@@ -199,6 +201,11 @@ export function RouteDetailPage() {
             {m.elevationBasis === 'track' ? (
               <>
                 剖面与爬升来自<b>导入的真实轨迹</b>（沿线逐点累加，3 m 噪声阈值），不是 SRTM 直线估算值。
+                {route.elevationSegments && (
+                  <>
+                    轨迹有断口，里程与爬升按<b>各段分别累加</b>，跨断口的那一截不算进来。
+                  </>
+                )}
               </>
             ) : (
               <>

@@ -112,6 +112,18 @@ export function projectToRoute(
  */
 export const DEFAULT_WINDING_FACTOR = 1.2
 
+/** 把多段的「爬升/下降」合并：**跨段的落差不算**（段与段之间海拔是未知的） */
+function mergeGains(
+  list: ({ gainM: number; lossM: number } | null)[],
+): { gainM: number; lossM: number } | null {
+  const ok = list.filter((x): x is { gainM: number; lossM: number } => x !== null)
+  if (!ok.length) return null
+  return {
+    gainM: ok.reduce((a, x) => a + x.gainM, 0),
+    lossM: ok.reduce((a, x) => a + x.lossM, 0),
+  }
+}
+
 /** 计算一条路线的全部派生指标 */
 export function computeMetrics(route: Route, windingFactor = DEFAULT_WINDING_FACTOR): RouteMetrics {
   const points = route.points ?? []
@@ -122,11 +134,19 @@ export function computeMetrics(route: Route, windingFactor = DEFAULT_WINDING_FAC
     samples.length >= 2
       ? samples.map(([lng, lat, ele]) => ({ lng, lat, ele }))
       : points
-  const prof = elevationProfile(src)
+  const toGeo = (s: ElevSample[]): GeoPoint[] => s.map(([lng, lat, ele]) => ({ lng, lat, ele }))
+
+  // ⚠️ 轨迹有断口时必须**逐段**算：`elevationProfile` 是各段顺序拼起来的，
+  //    直接对整串求长度，会把断口处那根根本不存在的直线算进里程里。
+  const segs = route.elevationBasis === 'track' ? trackSegs(route) : []
+  const prof =
+    segs.length > 1 ? mergeGains(segs.map((s) => elevationProfile(toGeo(s)))) : elevationProfile(src)
 
   // 真实轨迹（basis='track'）：采样序列就是实际走过的路径，
   // 它的长度比「途经点直线 × 绕行系数」准得多，直接拿来当里程
-  const trackKm = route.elevationBasis === 'track' && samples.length >= 2 ? pathLengthKm(src) : undefined
+  const trackKm = segs.length
+    ? segs.reduce((sum, s) => sum + pathLengthKm(toGeo(s)), 0)
+    : undefined
 
   const manual = route.manualDistanceKm
   const distanceKm =
@@ -166,25 +186,55 @@ export function formatGain(m: number | null | undefined): string {
 }
 
 /**
- * 路线画线用的几何：有真实轨迹（`basis === 'track'`）就返回轨迹，否则返回 undefined，
- * 让 RouteMap 自己把途经点连起来。各处地图都走它，保证口径一致。
+ * 路线的**轨迹段**（可能多段）。有断口的轨迹（OSM 只画了一部分、GPX 中途暂停）
+ * 就按段返回 —— 段与段之间是真的没数据，连线会凭空画出一段不存在的路。
+ * 没有 `elevationSegments` 时整条 `elevationProfile` 当作一段。
  */
-export function trackLines(route: Route): ElevSample[][] | undefined {
-  if (route.elevationBasis !== 'track') return undefined
-  const s = route.elevationProfile
-  return Array.isArray(s) && s.length > 1 ? [s] : undefined
+export function trackSegs(route: Route): ElevSample[][] {
+  const segs = route.elevationSegments
+  if (Array.isArray(segs)) {
+    const ok = segs.filter((s) => Array.isArray(s) && s.length >= 2)
+    if (ok.length) return ok
+  }
+  const p = route.elevationProfile
+  return Array.isArray(p) && p.length >= 2 ? [p] : []
+}
+
+/** 多段里挑最长的一段（徽标落点等用，避免落进断口中间的空白） */
+function mainSeg(segs: ElevSample[][]): ElevSample[] | undefined {
+  let best: ElevSample[] | undefined
+  let bestKm = -1
+  for (const s of segs) {
+    const km = pathLengthKm(s.map(([lng, lat]) => ({ lng, lat })))
+    if (km > bestKm) {
+      bestKm = km
+      best = s
+    }
+  }
+  return best
 }
 
 /**
- * 多条路线合到一张地图时的折线几何：**每条路线恰好一段**。
+ * 路线画线用的几何：有真实轨迹（`basis === 'track'`）就返回轨迹，否则返回 undefined，
+ * 让 RouteMap 自己把途经点连起来。各处地图都走它，保证口径一致。
+ * 返回值是**数组的数组** —— 有断口时一条路线会给出多段。
+ */
+export function trackLines(route: Route): ElevSample[][] | undefined {
+  if (route.elevationBasis !== 'track') return undefined
+  const segs = trackSegs(route)
+  return segs.length ? segs : undefined
+}
+
+/**
+ * 多条路线合到一张地图时的折线几何：**每条路线至少贡献一段**。
  *
  * ⚠️ 不能只 `flatMap(trackLines(route))`：`RouteMap` 的 `lines` 是「一口气接管画线」的，
  * 一旦非空就整体生效 —— 只把有轨迹的那几条塞进去，没轨迹的路线会**整条从图上消失**。
- * 所以这里逐条兜底：有轨迹走轨迹，没轨迹就把途经点连起来，凑齐每条一段。
+ * 所以这里逐条兜底：有轨迹走轨迹（可能多段），没轨迹就把途经点连起来。
  */
 export function mapLines(routes: Route[]): ElevSample[][] {
   return routes
-    .map((r) => trackLines(r)?.[0] ?? (r.points ?? []).map((p) => [p.lng, p.lat] as ElevSample))
+    .flatMap((r) => trackLines(r) ?? [(r.points ?? []).map((p) => [p.lng, p.lat] as ElevSample)])
     .filter((seg) => seg.length > 0)
 }
 
@@ -194,9 +244,10 @@ export function mapLines(routes: Route[]): ElevSample[][] {
  * 相邻路线经常共享端点（1 线终点 = 2 线起点，就在同一处），
  * 徽标标在起点必然叠成一坨；标在线的中间既分得开，也一眼能看出「这条线是几号」。
  * 只有 2 个点的短链同样走里程中点，不会偏到某一端。
+ * 有断口时取**最长的那一段**算中点 —— 否则徽标可能落在断口中间的空白处。
  */
 export function routeBadgeAnchor(route: Route): GeoPoint | null {
-  const line = trackLines(route)?.[0]
+  const line = mainSeg(trackLines(route) ?? [])
   const src: GeoPoint[] = line
     ? line.map(([lng, lat]) => ({ lng, lat }))
     : (route.points ?? [])
