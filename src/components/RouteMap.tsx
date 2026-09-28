@@ -16,12 +16,43 @@ function iconDataUri(color: string, glyph: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
+/**
+ * 徽标宽度：随文字长度自适应（「07」窄、「10-1」宽），保证编号不被挤掉。
+ * 13px 粗体数字约 7.6px/字；两端药丸圆角（rx = 11.5）各占掉 11.5px，
+ * 所以常态要额外留 23px，最小宽度 38 —— 否则两位编号会顶到圆角上。
+ */
+function badgeWidth(label: string): number {
+  return Math.max(44, Math.round(label.length * 7.6 + 26))
+}
+
+/** XML 文本转义：编号来自数据，别让一个 `&` 把整个 data URI 弄成坏 SVG */
+function esc(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c] as string)
+}
+
+/**
+ * 编号徽标：圆角药丸 + 底部小尾巴指向坐标点。
+ * 用在行程篮那种「多条线同屏」的场景 —— 两条起终标记看不出哪条是几号，编号一眼就对上了。
+ */
+function badgeDataUri(color: string, label: string): string {
+  const w = badgeWidth(label)
+  const h = 26
+  const tail = 6
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h + tail}" viewBox="0 0 ${w} ${h + tail}">
+<path d="M${w / 2 - 6} ${h - 3} L${w / 2} ${h + tail} L${w / 2 + 6} ${h - 3} Z" fill="${color}" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/>
+<rect x="1.5" y="1.5" width="${w - 3}" height="${h - 3}" rx="${(h - 3) / 2}" fill="${color}" stroke="#ffffff" stroke-width="2.5"/>
+<text x="${w / 2}" y="${h / 2 + 4.6}" font-size="13" font-family="sans-serif" font-weight="700" fill="#ffffff" text-anchor="middle">${esc(label)}</text>
+</svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+}
+
 const COLORS: Record<string, string> = {
   start: '#16a34a',
   end: '#dc2626',
   via: '#2563eb',
   hotel: '#9333ea',
   sight: '#ea580c',
+  badge: '#111827',
 }
 
 const GLYPH: Record<string, string> = {
@@ -100,6 +131,18 @@ function makeIcon(kind: string): L.DivIcon {
   })
 }
 
+/** 编号徽标图标：锚点在药丸底部中央，尾巴尖正好落在坐标上 */
+function makeBadgeIcon(label: string): L.DivIcon {
+  const w = badgeWidth(label)
+  const h = 32
+  return L.divIcon({
+    className: 'trail-marker',
+    html: `<img src="${badgeDataUri(COLORS.badge, label)}" width="${w}" height="${h}" alt="${esc(label)}" draggable="false" />`,
+    iconSize: [w, h],
+    iconAnchor: [w / 2, h],
+  })
+}
+
 interface RouteMapProps {
   /** 单段路线（兼容旧用法）；与 trails 二选一 */
   points?: TrackPoint[]
@@ -108,15 +151,35 @@ interface RouteMapProps {
   /**
    * 真实轨迹几何（每条一段，[lng, lat] / [lng, lat, ele]）。
    * 给了就用它画折线（形状与真实路线一致），否则把途经点直线连起来。
-   * 起终点/途经点标记始终来自 points / trails，不受这里影响。
+   *
+   * ⚠️ 这是**完整**的线集合：一旦非空就整体接管画线，`trails` / `points` 不再参与。
+   * 所以多条路线同屏时，**每条路线都要在这里给一段**（没轨迹的就把途经点连成一段），
+   * 否则没轨迹的那几条会整条从图上消失。
+   *
+   * 起终点/途经点/住宿/看点标记不受这里影响。
    */
   lines?: ElevSample[][]
+  /**
+   * 编号徽标：给了就用它**替代**「起/终/途经」标记（多条线同屏时看编号比看起终直观）。
+   * 徽标画在每条线的中点附近，避开相邻线路共享的端点。
+   */
+  badges?: MapBadge[]
   hotels?: Hotel[]
   sights?: Sight[]
   height?: number
   /** 开启后点击地图可取点 */
   pickable?: boolean
   onPick?: (p: { lng: number; lat: number }) => void
+}
+
+/** 地图上的编号徽标（如路线编号「07」「10-1」） */
+export interface MapBadge {
+  lng: number
+  lat: number
+  /** 显示在徽标上的短文本 */
+  label: string
+  /** 悬浮标题（可选） */
+  title?: string
 }
 
 type Status = 'ready' | 'fallback'
@@ -133,7 +196,9 @@ interface MarkerItem {
   lng: number
   lat: number
   name: string
-  kind: 'start' | 'end' | 'via'
+  kind: 'start' | 'end' | 'via' | 'badge'
+  /** 仅 kind === 'badge'：徽标上的短文本（路线编号） */
+  label?: string
 }
 
 /**
@@ -161,6 +226,7 @@ export function RouteMap({
   points = [],
   trails,
   lines,
+  badges,
   hotels = [],
   sights = [],
   height = 420,
@@ -194,8 +260,24 @@ export function RouteMap({
     )
   }, [lines, trails, points])
 
-  /** 命名途经点标记（真实轨迹不参与，避免几百个点各打一个标签） */
-  const markers = useMemo(() => markerList(trails, points), [trails, points])
+  /**
+   * 标记：给了 badges 就用编号徽标替代「起/终/途经」——
+   * 行程篮里几条线同屏时，两组起终标记根本分不出哪条是几号。
+   * 否则仍走命名途经点（真实轨迹不参与，避免几百个点各打一个标签）。
+   */
+  const badgeMode = !!badges && badges.length > 0
+  const markers = useMemo<MarkerItem[]>(() => {
+    if (badgeMode) {
+      return finitePts(badges).map((b) => ({
+        lng: b.lng,
+        lat: b.lat,
+        name: b.title ?? b.label,
+        kind: 'badge' as const,
+        label: b.label,
+      }))
+    }
+    return markerList(trails, points)
+  }, [badgeMode, badges, trails, points])
 
   // 初始化地图（仅一次）
   useEffect(() => {
@@ -281,9 +363,11 @@ export function RouteMap({
       }).addTo(layer)
     })
 
-    // 标记：按命名途经点画（起/终/途经），与折线来源解耦
+    // 标记：按命名途经点画（起/终/途经），或按编号徽标画，与折线来源解耦
     markers.forEach((mk) => {
-      L.marker([mk.lat, mk.lng], { icon: makeIcon(mk.kind) }).addTo(layer)
+      const icon = mk.kind === 'badge' && mk.label ? makeBadgeIcon(mk.label) : makeIcon(mk.kind)
+      const marker = L.marker([mk.lat, mk.lng], { icon }).addTo(layer)
+      if (mk.kind === 'badge' && mk.name) marker.bindTooltip(mk.name, { direction: 'top', offset: [0, -32] })
     })
     const hotelOk = finitePts(hotels)
     const sightOk = finitePts(sights)
@@ -330,9 +414,15 @@ export function RouteMap({
       {status === 'ready' && pickable && <div className="map-pick-hint">点击地图取点</div>}
       {status === 'ready' && !pickable && (
         <div className="map-legend">
-          <span><i style={{ background: COLORS.start }} />起点</span>
-          <span><i style={{ background: COLORS.end }} />终点</span>
-          <span><i style={{ background: COLORS.via }} />途经点</span>
+          {badgeMode ? (
+            <span><i style={{ background: COLORS.badge }} />路线编号</span>
+          ) : (
+            <>
+              <span><i style={{ background: COLORS.start }} />起点</span>
+              <span><i style={{ background: COLORS.end }} />终点</span>
+              <span><i style={{ background: COLORS.via }} />途经点</span>
+            </>
+          )}
           <span><i style={{ background: COLORS.hotel }} />住宿</span>
           <span><i style={{ background: COLORS.sight }} />看点</span>
         </div>
@@ -342,7 +432,7 @@ export function RouteMap({
 }
 
 interface Projected {
-  items: { x: number; y: number; kind: string; name: string }[]
+  items: { x: number; y: number; kind: string; name: string; label?: string }[]
   paths: string[]
   hasData: boolean
   lngMin: number
@@ -389,7 +479,7 @@ function project(
   const toY = (lat: number) => pad + (1 - (lat - latMin) / spanLat) * (H - pad * 2)
 
   const items: Projected['items'] = []
-  markers.forEach((m) => items.push({ x: toX(m.lng), y: toY(m.lat), kind: m.kind, name: m.name }))
+  markers.forEach((m) => items.push({ x: toX(m.lng), y: toY(m.lat), kind: m.kind, name: m.name, label: m.label }))
   hotelsOk.forEach((h) => items.push({ x: toX(h.lng), y: toY(h.lat), kind: 'hotel', name: h.name }))
   sightsOk.forEach((s) => items.push({ x: toX(s.lng), y: toY(s.lat), kind: 'sight', name: s.name }))
 
@@ -452,14 +542,33 @@ function FallbackSketch({
             strokeLinecap="round"
           />
         ))}
-        {box.items.map((it, i) => (
-          <g key={i}>
-            <circle cx={it.x} cy={it.y} r={it.kind === 'via' ? 6 : 10} fill={colorOf(it.kind)} stroke="#fff" strokeWidth="2" />
-            <text x={it.x} y={it.y - 16} fontSize="13" textAnchor="middle" fill="#475569">
-              {it.name}
-            </text>
-          </g>
-        ))}
+        {box.items.map((it, i) =>
+          it.label ? (
+            // 编号徽标（行程篮）：文字画在药丸里，位置就是线的中点，不用另贴名字
+            <g key={i}>
+              <rect
+                x={it.x - badgeWidth(it.label) / 2}
+                y={it.y - 13}
+                width={badgeWidth(it.label)}
+                height={26}
+                rx={13}
+                fill={COLORS.badge}
+                stroke="#fff"
+                strokeWidth="2.5"
+              />
+              <text x={it.x} y={it.y + 4.6} fontSize="13" fontWeight="700" textAnchor="middle" fill="#ffffff">
+                {it.label}
+              </text>
+            </g>
+          ) : (
+            <g key={i}>
+              <circle cx={it.x} cy={it.y} r={it.kind === 'via' ? 6 : 10} fill={colorOf(it.kind)} stroke="#fff" strokeWidth="2" />
+              <text x={it.x} y={it.y - 16} fontSize="13" textAnchor="middle" fill="#475569">
+                {it.name}
+              </text>
+            </g>
+          ),
+        )}
         {!box.hasData && (
           <text x={W / 2} y={H / 2} fontSize="16" textAnchor="middle" fill="#94a3b8">
             还没有坐标点，先在管理后台添加起点 / 终点
@@ -467,9 +576,15 @@ function FallbackSketch({
         )}
       </svg>
       <div className="sketch-foot">
-        <span><i style={{ background: COLORS.start }} />起点</span>
-        <span><i style={{ background: COLORS.end }} />终点</span>
-        <span><i style={{ background: COLORS.via }} />途经点</span>
+        {box.items.some((it) => it.label) ? (
+          <span><i style={{ background: COLORS.badge }} />路线编号</span>
+        ) : (
+          <>
+            <span><i style={{ background: COLORS.start }} />起点</span>
+            <span><i style={{ background: COLORS.end }} />终点</span>
+            <span><i style={{ background: COLORS.via }} />途经点</span>
+          </>
+        )}
         <span><i style={{ background: COLORS.hotel }} />住宿</span>
         <span><i style={{ background: COLORS.sight }} />看点</span>
       </div>

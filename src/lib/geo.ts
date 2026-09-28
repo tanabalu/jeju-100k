@@ -175,6 +175,42 @@ export function trackLines(route: Route): ElevSample[][] | undefined {
   return Array.isArray(s) && s.length > 1 ? [s] : undefined
 }
 
+/**
+ * 多条路线合到一张地图时的折线几何：**每条路线恰好一段**。
+ *
+ * ⚠️ 不能只 `flatMap(trackLines(route))`：`RouteMap` 的 `lines` 是「一口气接管画线」的，
+ * 一旦非空就整体生效 —— 只把有轨迹的那几条塞进去，没轨迹的路线会**整条从图上消失**。
+ * 所以这里逐条兜底：有轨迹走轨迹，没轨迹就把途经点连起来，凑齐每条一段。
+ */
+export function mapLines(routes: Route[]): ElevSample[][] {
+  return routes
+    .map((r) => trackLines(r)?.[0] ?? (r.points ?? []).map((p) => [p.lng, p.lat] as ElevSample))
+    .filter((seg) => seg.length > 0)
+}
+
+/**
+ * 编号徽标落在哪里：取这条线**累计里程的中点**，而不是起点。
+ *
+ * 相邻路线经常共享端点（1 线终点 = 2 线起点，就在同一处），
+ * 徽标标在起点必然叠成一坨；标在线的中间既分得开，也一眼能看出「这条线是几号」。
+ * 只有 2 个点的短链同样走里程中点，不会偏到某一端。
+ */
+export function routeBadgeAnchor(route: Route): GeoPoint | null {
+  const line = trackLines(route)?.[0]
+  const src: GeoPoint[] = line
+    ? line.map(([lng, lat]) => ({ lng, lat }))
+    : (route.points ?? [])
+  const ok = src.filter((p) => Number.isFinite(p.lng) && Number.isFinite(p.lat))
+  if (ok.length === 0) return null
+  if (ok.length === 1) return ok[0]
+  const cum = cumulativeKm(ok)
+  const half = cum[cum.length - 1] / 2
+  // 找到累计里程第一次越过一半的那个点
+  let i = 1
+  while (i < cum.length - 1 && cum[i] < half) i++
+  return ok[i]
+}
+
 /** 把路线按里程切成 N 段用于剖面/进度展示 */
 export function distanceLabels(points: TrackPoint[]): { km: number; name: string }[] {
   const cum = cumulativeKm(points)

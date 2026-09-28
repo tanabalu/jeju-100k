@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useData } from '../store/DataContext'
-import { computeMetrics, formatKm, trackLines } from '../lib/geo'
+import { computeMetrics, formatKm, mapLines, routeBadgeAnchor } from '../lib/geo'
 import { useActivePlan } from '../hooks/useActivePlan'
 import { useConfirm, useToast } from '../components/Feedback'
 import { Modal } from '../components/Modal'
@@ -48,8 +48,28 @@ export function PlanPage() {
     () => rows.map((r) => r.route.points).filter((pts) => pts && pts.length > 0),
     [rows],
   )
-  /** 有真实轨迹的用真实轨迹画线，没有的让 RouteMap 连途经点 */
-  const planLines = useMemo(() => rows.flatMap((r) => trackLines(r.route) ?? []), [rows])
+  /**
+   * 画线几何：每条路线恰好一段 —— 有真实轨迹走轨迹，没有就把途经点连起来。
+   * ⚠️ 别只把有轨迹的那几条塞进去：`lines` 一旦非空就整体接管画线，
+   * 没轨迹的路线会整条从图上消失（这正是 mapLines 存在的原因）。
+   */
+  const planLines = useMemo(() => mapLines(rows.map((r) => r.route)), [rows])
+  /**
+   * 标记改用路线编号（而不是起 / 终）：几条线同屏时，
+   * 两组起终标记根本分不出哪条是几号，编号徽标一眼就能对上列表。
+   */
+  const planBadges = useMemo(
+    () =>
+      rows
+        .map((r) => {
+          const anchor = routeBadgeAnchor(r.route)
+          if (!anchor) return null
+          const label = r.route.code || r.route.name
+          return { lng: anchor.lng, lat: anchor.lat, label, title: r.route.name }
+        })
+        .filter((b): b is { lng: number; lat: number; label: string; title: string } => !!b),
+    [rows],
+  )
   const planHotels = useMemo(() => rows.flatMap((r) => r.route.hotels ?? []), [rows])
   const planSights = useMemo(() => rows.flatMap((r) => r.route.sights ?? []), [rows])
 
@@ -182,10 +202,11 @@ export function PlanPage() {
             <section className="section">
               <h2>行程位置</h2>
               <p className="muted">
-                已加入行程篮的各段路线在地图上的分布（绿=起点、红=终点、蓝点=途经点、紫=住宿、橙=看点）。
-                有真实轨迹的按轨迹画线，其余连途经点；底图加载失败时自动降级为离线示意图，位置信息不受影响。
+                已加入行程篮的各段路线在地图上的分布（黑标=路线编号，紫=住宿，橙=看点）。
+                标识落在每段线中间，避开相邻路线共享的端点；有真实轨迹的按轨迹画线，其余连途经点。
+                底图加载失败时自动降级为离线示意图，位置信息不受影响。
               </p>
-              <RouteMap trails={planTrails} lines={planLines} hotels={planHotels} sights={planSights} height={380} />
+              <RouteMap trails={planTrails} lines={planLines} badges={planBadges} hotels={planHotels} sights={planSights} height={380} />
             </section>
           )}
 
