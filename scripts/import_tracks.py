@@ -62,6 +62,42 @@ import xml.etree.ElementTree as ET
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "public", "tracks.json")
 
+# 官方 27 条（21 主线 + 6 支线）的编号与里程**只有一处真源**：src/lib/seed.ts 的 SPECS
+# （网页上给用户显示的就是它）。这里不再手抄一份。
+#
+# ⚠️ 抄过，然后烂了：脚本里那份副本一度写着 09=8.0 / 18=19.8 / 15=19.0（旧资料里的口径），
+#    而官方现行是 09=12.3 / 18=17.1 / 15=15.5。后果是 fetch_olle_osm 的「覆盖率 / 实走比官方长」
+#    判定把本来 99% 正常的 09 报成 153%、把 101% 的 18 报成 87%，白查了一整轮缝合算法。
+#    这类副本是**静默失效**：数字看着合理、程序不报错，只是判断全歪。
+SEED_TS = os.path.join(ROOT, "src", "lib", "seed.ts")
+
+
+def load_official_km(path=SEED_TS):
+    """从 seed.ts 的 SPECS 里解析 {编号: 官方里程}，顺序即官方编号顺序。
+
+    只认 `{ code: '01', ..., km: 15.1, ... }` 这种单行对象（SPECS 的写法），
+    `[^}]*?` 保证不会跨过对象边界。解析不出来就**大声失败**，绝不退回空表 ——
+    空表会让所有覆盖率判定静默失效，比报错危险得多。
+    """
+    try:
+        text = open(path, encoding="utf-8").read()
+    except OSError as err:
+        raise SystemExit(f"❌ 读不到官方里程源文件 {path}：{err}")
+    km = {
+        code: float(v)
+        for code, v in re.findall(r"\{ code: '([^']+)'[^}]*?\bkm: ([0-9.]+)", text)
+    }
+    missing = [c for c in ROUTE_CODES if c not in km]
+    if len(km) < 20 or missing:
+        raise SystemExit(
+            f"❌ 从 {os.path.relpath(path, ROOT)} 只解析出 {len(km)} 条官方里程"
+            + (f"，缺：{'、'.join(missing)}" if missing else "")
+            + "\n   SPECS 的写法可能变了（应形如 { code: '01', start: ..., km: 15.1, ... }）。"
+            "修好再跑，不要退回空表/旧表 —— 那会让覆盖率判定静默失效。"
+        )
+    return km
+
+
 # 官方 27 条（21 主线 + 6 支线）。-1/-2 是支线，不要写成 01.1
 ROUTE_CODES = [
     "01", "01-1", "02", "03", "04", "05", "06", "07", "07-1", "08", "09", "10",
@@ -70,13 +106,7 @@ ROUTE_CODES = [
 ]
 
 # 官方公布的里程（km），用于对照轨迹里程是否离谱
-OFFICIAL_KM = {
-    "01": 15.1, "01-1": 13.2, "02": 14.8, "03": 20.9, "04": 19.0, "05": 13.4,
-    "06": 10.1, "07": 12.9, "07-1": 16.7, "08": 18.7, "09": 8.0, "10": 15.6,
-    "10-1": 3.6, "11": 17.3, "12": 17.8, "13": 14.0, "14": 19.1, "14-1": 9.2,
-    "15": 19.0, "16": 15.7, "17": 18.2, "18": 19.8, "18-1": 10.8, "18-2": 9.7,
-    "19": 18.7, "20": 17.6, "21": 10.5,
-}
+OFFICIAL_KM = load_official_km()
 
 ELEV_NOISE_M = 3.0          # 与 src/lib/geo.ts 的 ELEV_NOISE_M 保持一致
 R_EARTH_M = 6371008.8

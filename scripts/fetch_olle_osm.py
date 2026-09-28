@@ -35,10 +35,17 @@
   5. **拒绝「闭合旁路」**：走完候选 way 若会落回链子**内部**已走过的节点，那它是
      绕一圈回到原路的**替代支线**（OSM 常把 A/B 变体、无障碍路线塞进同一个关系），
      不是「往前走」。收下它会把绕行线接到终点后面 —— 实走里程会**比官方还长**，
-     而这是不可能的（实测 03 长 42%、07 长 56%、09 长 53% 都是它造成的）。
-     这类段默认剔出几何与里程，报表如实写明剔了多长；`--keep-parallel` 可保留。
+     而这是不可能的。这类段默认剔出几何与里程，报表如实写明剔了多长；
+     `--keep-parallel` 可保留。**实测证据只有 03**（剔前 29.76km/142% → 剔后 22.71km/109%）
+     与 05（15.33→14.60，剔 0.74km）；`07` 剔完仍长 54%，说明它另有原因，别拿这条解释它。
   6. 接不上就**收尾、从池子里另起一段**（不是硬连一条直线）。段与段之间就是 OSM
      真没画的地方，导出成 MultiLineString，前端画出来是有缺口的折线 —— 不伪造。
+
+⚠️ **「实走 > 官方」这条口径的前提是官方里程本身是对的。**
+   曾经因为脚本里手抄的官方里程是旧数据（09 写成 8.0，官方现行 12.3），
+   把 99% 正常的 09 报成「153%、比官方长」，白查了一轮缝合算法。
+   里程现在从 `src/lib/seed.ts` 读（见 import_tracks.py 的 `load_official_km`），
+   别在这里再抄一份；判「超长」之前先确认基准没问题。
 
 ⚠️ 两个诚实的边界：
 1. **OSM 是众包数据，覆盖不全**：本脚本会打印「拿到几条 / 还差几条」。缺的那几条
@@ -380,7 +387,7 @@ def _seg_links(segments, tol=PARALLEL_TOL_M):
       - **并联段**（替代支线）：比如 OSM 里把「올레길5 (Ollegil 5) wheelchair」
         这种无障碍替代线、A/B 变体也放在同一个关系里，缝合后它会变成一段
         **两端都挂回主线** 的独立段 —— 它的长度是**重复**的，算进实走里程
-        就会让这条线比官方还长（实测 03 长 42%、07 长 56%、09 长 53%）。
+        就会让这条线比官方还长（实测 03：剔前 142%、剔后 109%）。
 
     只做标注，不擅自丢弃 —— 由调用方决定是提示还是剔除。
     """
@@ -393,6 +400,31 @@ def _seg_links(segments, tol=PARALLEL_TOL_M):
         ] if others else [False, False]
         info.append({"km": path_len_m(s) / 1000.0, "both": all(ends), "ends": ends})
     return info
+
+
+def _loops(seg):
+    """一段里「同一节点被走了两次」的地方 —— 两次之间那段路是折返/绕环，白走的。
+
+    返回 (处数, 米数)。只报数，不擅自剔除：环线本来就会回到起点（设计如此），
+    要点是**把这几公里摆出来**，让人判断它是路线真实的往返段，还是缝合走岔了。
+
+    ⚠️ 「整段首尾闭合」（j=0 且 i=最后一点）不算 —— 那是环线收口（如牛岛 01-1），
+    不是折返；把它算进去会凭空报出一整条线的长度。
+    """
+    first = {}
+    n, m = 0, 0.0
+    last = len(seg) - 1
+    for i, p in enumerate(seg):
+        k = _key(p)
+        j = first.get(k)
+        if j is None:
+            first[k] = i
+            continue
+        if j == 0 and i == last:
+            continue
+        n += 1
+        m += path_len_m(seg[j:i + 1])
+    return n, m
 
 
 def _splice(seg, w2, hit, step, forward, pool, stats):
@@ -428,7 +460,7 @@ def _grow(seg, pool, forward, join_tol, stats):
     ⚠️ **还会拒绝「闭合旁路」**：如果走完候选 way 会落回链子**内部**已经走过的节点，
     那它不是一个「往前走」的候选，而是一条绕一圈回到原路的替代线
     （OSM 常把 A/B 变体、无障碍路线塞在同一个关系里）。收下它会把绕行线接到终点后面，
-    里程凭空多出好几公里（实测正是 03 长 42%、07 长 56%、09 长 53% 的成因）。
+    里程凭空多出好几公里（03 实测：剔前 142%、剔后 109%）。
     正确做法是**不收**，让它自己成一段，再按「并联段」处理（见 `_seg_links`）。
     两端不在「内部」排除范围内 —— 环线（如牛岛 01-1）要靠它们收口。
     """
@@ -499,7 +531,8 @@ def join_ways(ways, join_tol=JOIN_TOL_M, keep_parallel=False):
         return [], [], {"ways": 0, "segments": 0, "junction": 0, "split": 0,
                         "backtrack": 0, "bypass": 0, "near": 0, "nearM": 0.0,
                         "spurDropped": 0.0, "segInfo": [], "parallelM": 0.0,
-                        "parallelN": 0, "parallelDropped": False}
+                        "parallelN": 0, "parallelDropped": False,
+                        "loopN": 0, "loopM": 0.0}
 
     stats = {"ways": len(pool), "junction": 0, "split": 0, "backtrack": 0,
              "bypass": 0, "near": 0, "nearM": 0.0, "spurDropped": 0.0}
@@ -559,6 +592,17 @@ def join_ways(ways, join_tol=JOIN_TOL_M, keep_parallel=False):
         stats["parallelDropped"] = False
 
     stats["segments"] = len(segments)
+    # 段内折返/绕环：同一个节点在一段里被走了两次 → 中间那段路是白走的。
+    # 这是解释「实走比官方长」最直接的证据，和并联段是两码事：
+    #   并联段 = 拆成了独立的一段，两端都挂回主线（会被剔除）；
+    #   折返   = 就藏在**同一段内部**，剔不掉，只能报出来让人判断。
+    # 07 就是这一类（剔完并联段仍长 54%，且只有 2 段却有一处掉头）。
+    stats["loopN"], stats["loopM"] = 0, 0.0
+    for s in segments:
+        n, m = _loops(s)
+        stats["loopN"] += n
+        stats["loopM"] += m
+
     # 断口 = 相邻两段之间最近的「端点对」距离（段顺序本身不代表行程顺序）
     gaps = []
     for a, b in zip(segments, segments[1:]):
@@ -612,9 +656,11 @@ def verdict_of(km, gap_m, official, min_cov=MIN_COVERAGE, max_frac=MAX_GAP_FRAC,
     """给一行数据下判定：✅ 可用 / ⚠️ 有缺段 / ⛔ 太零碎
 
     ⚠️ **实走里程比官方还长是「拼错了」的信号，不是「数据更全」**：
-    一条线不可能比它自己长。出现这种情况基本只有一个原因 ——
-    关系里混进了**替代支线**（A/B 变体、无障碍路线）或重复段，
-    缝合后它们变成两端都接回主线的「并联段」（见 `_seg_links`）。
+    一条线不可能比它自己长。原因只有两类，诊断区会分开报：
+      · **并联段**（关系里混进替代支线/A/B 变体/无障碍路线）→ 两端都挂回主线，默认剔除；
+      · **段内折返**（同一节点在一段里被走了两次）→ 剔不掉，得对着地图判断是路线本就
+        含往返段，还是缝合在岔路口走岔了（07 属于这类）。
+    判之前先确认官方里程基准是对的 —— 基准错了，这一栏全是假的。
     默认只提示（因为那几公里仍是真实的 OSM 数据，比拿直线糊上去强），
     传 max_cov 就能把它升级成一票否决。
     """
@@ -635,7 +681,7 @@ def verdict_of(km, gap_m, official, min_cov=MIN_COVERAGE, max_frac=MAX_GAP_FRAC,
     if cov is not None and abs(cov - 1) > 0.15:
         warn.append(f"覆盖 {cov * 100:.0f}%")
         if cov > MAX_COVERAGE:
-            warn.append("比官方长，关系里多半混了替代支线")
+            warn.append("比官方长，看诊断里的并联段/折返数")
     if warn:
         return "⚠️", "、".join(warn)
     return "✅", ""
@@ -841,6 +887,15 @@ def main():
                 f"{raw or '—'}: {act} {stats['parallelN']} 段**并联段**共 "
                 f"{stats['parallelM'] / 1000:.2f}km（两端都挂回主线 = 替代支线/同段走两遍，"
                 "不是缺口续段）。实走里程因它而虚高，剔掉后才跟官方对得上。"
+            )
+        # 折返/绕环：藏在**同一段内部**，剔不掉。这是「剔完并联段还比官方长」的唯一解释，
+        # 也是判断缝合是否走岔了的直接证据（07 就是这一类）。
+        if stats.get("loopN"):
+            notes.append(
+                f"{raw or '—'}: ⚠️ 段内有 {stats['loopN']} 处**折返/绕环**共 "
+                f"{stats['loopM'] / 1000:.2f}km（同一节点被走了两次）。"
+                "这不是并联段、剔不掉：要么这条线在 OSM 里本就含往返段（如观景台来回），"
+                "要么缝合在岔路口走岔了又走回来 —— 对着地图看一眼就能分清。"
             )
 
         if not code:
