@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.DS_Store
+*.local
+
+# env / logs（防止密钥或本地日志误提交）
+.env
+.env.*
+*.log
