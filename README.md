@@ -60,25 +60,53 @@ python3 scripts/fetch_elevation.py --force    # 忽略缓存全部重抓
 ### 用真实轨迹替换近似坐标（推荐）
 
 预置坐标是**城镇级近似**，落在地图上是「大概这一带」，用来排序和看分布没问题，
-但**导航、算补给、算真实爬升都不该用它**。拿到官方 / 自己记录的轨迹后，一条命令整体替换：
+但**导航、算补给、算真实爬升都不该用它**。
+
+#### 轨迹从哪来
+
+| 源 | 能拿到什么 | 怎么拿 |
+| --- | --- | --- |
+| **OSM 的 route relation**（首选） | **每条线的真实走向**——OSM 里每条偶来小路都建了 `route=hiking` 关系（例：`올레길 19코스` = relation 9173551，79 个成员 way），成员就是实际步道/村道的 way，按序拼起来即可照着走 | `python3 scripts/fetch_olle_osm.py` |
+| 官方 jejuolle.org | **只有起终点坐标**（如 7-1 线 `33.249104,126.508588 → 33.247461,126.558717`），拿不到中间走向 —— 用它还是只能画一根直线 | 官网各路线页 |
+| hikeonearth.com | 整条 440 km 的**一个** GPX | 网站下载，需自己按线切开 |
+| Wikiloc / AllTrails | 单条路线的个人 GPS 轨迹，**带真实海拔**（含气压计记录） | 注册后下载 GPX，补离岛支线最有用 |
+| 你自己走 | 最真实 | 手机记录导出 GPX |
+
+OSM 是众包数据：走向大体准确（都是照着指示带走过的），但个别路段可能没画完。
+`fetch_olle_osm.py` 会打印**每条线的拼接断口与里程偏差**，断口总长超过 500 m 的直接拒绝导出
+—— 宁可这条线保持「近似」，也不给它一条用直线硬连出来的假轨迹。
+
+#### 跑
 
 ```bash
-# 把 GPX / KML / GeoJSON 丢进一个目录，文件名带路线编号即可（1 / 01 / 10-1 都认）
-python3 scripts/import_tracks.py --src ~/tracks            # 生成 public/tracks.json
-python3 scripts/import_tracks.py --src ~/tracks --dry       # 只看识别结果，不落盘
-python3 scripts/import_tracks.py --src ~/tracks --strict    # 有未识别文件就退出（CI 用）
+# 1) 从 OSM 抓真实走向（导出 tracks/osm/olle-<编号>.geojson）
+python3 scripts/fetch_olle_osm.py --dry          # 先只看覆盖情况，不写文件
+python3 scripts/fetch_olle_osm.py
+
+# 2) 转成前端格式，并联网补海拔（OSM 的 way 上没有海拔）
+python3 scripts/import_tracks.py --src tracks/osm --elevation
 ```
 
-- 文件名自动认编号（`Olle_Trail_1_2023.gpx` → `01`，`route10_1.kml` → `10-1`）；
-  认不出的用 `--map 文件名=编号` 手动指定，或 `--reverse 01` 修正首尾反向的轨迹。
-- 落盘结构与官方里程、爬升一并写入 `public/tracks.json`，**运行时 `fetch` 读取，不进 localStorage**，换轨迹直接替换文件即可。
+拿到别处的 GPX/KML 也一样，丢进一个目录直接导：
+
+```bash
+# 文件名带路线编号即可（1 / 01 / 10-1 都认）
+python3 scripts/import_tracks.py --src ~/Downloads/jeju-olle-tracks --elevation
+python3 scripts/import_tracks.py --src ~/tracks --dry        # 先看识别结果
+python3 scripts/import_tracks.py --src ~/tracks --strict     # 有未识别文件就退出
+```
+
+- 文件名认不出编号的用 `--map 文件名=编号` 指定；轨迹方向反了用 `--reverse 01`。
+  OSM 里的 A/B 变体（`3코스-A`、`15코스-B`）用 `--alias 03-A=03` 手工归到你的编号。
+- 落盘结果是 `public/tracks.json`，**运行时 `fetch` 读取，不进 localStorage**，换轨迹直接替换文件即可。
 - 有轨迹的路线，地图按真实轨迹画线、起终点吸附到轨迹首末点；
   **累计爬升与海拔区间改按轨迹逐点累加**（标高提示变为「取自真实轨迹」）；
   里程仍**以官方值为准**，详情页同时给出「轨迹实测 X km」便于对照。
   没轨迹的仍走原来的近似逻辑，互不影响。
 - 轨迹抽稀默认容差 8 m / 上限 420 点（Douglas–Peucker），既保形状又不让产物膨胀。
-- 与官方里程偏差 >25% 会告警（多半是编号认错或轨迹含接驳段），先核对再落盘。
-- 只有轨迹没海拔也能用：总里程照算，爬升显示「—」并提示「暂缺海拔数据」。
+- 与官方里程偏差 >25% 会告警（多半是编号认错、轨迹含接驳段，或 OSM 那块没画完），先核对再落盘。
+- 只有轨迹没海拔也能用：总里程照算，爬升显示「—」并提示「暂缺海拔数据」；
+  加 `--elevation` 就用 opentopodata 的 SRTM 30m 补上（同一份数据源口径与预置剖面一致，结果有缓存）。
 
 ## 2. 功能
 
@@ -285,6 +313,7 @@ public/tracks.json       真实轨迹（import_tracks.py 生成，运行时 fetc
 scripts/fetch_photos.py  Commons 自由授权图片抓取脚本
 scripts/split_route_map.py  官方 Route Map PDF 按路线切割成卡片封面（压缩版）+ 详情页原图
 scripts/fetch_elevation.py  SRTM 30m 高程抓取脚本（生成 olleeElevation.ts）
+scripts/fetch_olle_osm.py   从 OSM route relation 抓取每条线的真实走向（→ tracks/osm/*.geojson）
 scripts/import_tracks.py    GPX / KML / GeoJSON 轨迹导入（认编号、抽稀、算里程爬升 → tracks.json）
 ```
 

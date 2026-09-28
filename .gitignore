@@ -17,3 +17,7 @@ vite.config.ts.timestamp-*
 
 # 本地助手工作区（记忆 / 技能），不随仓库分发
 .workbuddy/
+
+# 轨迹中间产物：fetch_olle_osm.py 导出的 GeoJSON，随时可重抓
+# 真正进仓库的是 public/tracks.json
+tracks/

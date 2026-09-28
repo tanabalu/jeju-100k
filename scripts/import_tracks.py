@@ -11,7 +11,11 @@
   python3 import_tracks.py --src dir --dry                             # 只解析报告，不写文件
   python3 import_tracks.py --src dir --map jeju-olle-1.gpx=01          # 文件名认不出编号时手工指定
   python3 import_tracks.py --src dir --reverse 01                      # 该条轨迹方向反了，翻转
+  python3 import_tracks.py --src dir --elevation                       # 轨迹没海拔时联网补（SRTM 30m）
   python3 import_tracks.py --src dir --tolerance 10 --max-points 500   # 调简化力度
+
+从 OSM 取偶来小路走向的话，先跑 scripts/fetch_olle_osm.py 导出 GeoJSON，再：
+  python3 import_tracks.py --src tracks/osm --elevation
 
 产出：public/tracks.json
   { "01": { "basis": "track", "km": 15.87, "gainM": 200, ...,
@@ -28,7 +32,8 @@
 - **爬升口径与前端一致**：3 m 滞后阈值（与 `src/lib/geo.ts` 的 `ELEV_NOISE_M` 相同），
   否则脚本报的爬升和界面上显示的会对不上。
 - **没有海拔的轨迹如实标注**：JSON 里不带 ele，前端会显示「暂缺海拔数据」，
-  而不是拿旧的错线剖面冒充。需要海拔就跑 `scripts/fetch_elevation.py` 重新采样。
+  而不是拿旧的错线剖面冒充。OSM 这类只给走向不给海拔的源，加 `--elevation`
+  就会用 opentopodata 的 SRTM 30m 补上（结果带缓存，重跑不重复请求）。
 - **方向与编号都要人工可核对**：脚本会打印「文件 → 编号」与「轨迹起终点坐标 + 里程」，
   方向反了用 `--reverse`；认不出编号的会明确列出来，不会瞎猜。
 """
@@ -41,6 +46,9 @@ import os
 import re
 import sys
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 import xml.etree.ElementTree as ET
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -64,6 +72,12 @@ OFFICIAL_KM = {
 
 ELEV_NOISE_M = 3.0          # 与 src/lib/geo.ts 的 ELEV_NOISE_M 保持一致
 R_EARTH_M = 6371008.8
+
+# 海拔补采样（--elevation）：与 scripts/fetch_elevation.py 用同一个公开数据集，口径一致
+ELEV_API = "https://api.opentopodata.org/v1/srtm30m"
+ELEV_CHUNK = 100            # 该接口单次最多 100 个位置
+ELEV_SLEEP = 2.0            # 免费接口限速，别打太密
+ELEV_CACHE = os.path.join(ROOT, "scripts", ".cache", "track-elevation.json")
 
 # 文件名里常见的干扰词（去掉后剩下的数字才是路线编号）
 NOISE_WORDS = [
@@ -99,6 +113,80 @@ def gain_loss(eles):
             loss += -d
             ref = e
     return round(gain), round(loss)
+
+
+# ---------- 海拔补采样（给只有走向、没有海拔的轨迹用） ----------
+
+def load_elev_cache():
+    if os.path.exists(ELEV_CACHE):
+        try:
+            with open(ELEV_CACHE, encoding="utf-8") as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            pass
+    return {}
+
+
+def save_elev_cache(cache):
+    os.makedirs(os.path.dirname(ELEV_CACHE), exist_ok=True)
+    with open(ELEV_CACHE, "w", encoding="utf-8") as f:
+        json.dump(cache, f, ensure_ascii=False, separators=(",", ":"))
+
+
+def fill_elevations(pts, cache):
+    """给缺海拔的点补高程（SRTM 30m），返回与 pts 等长的列表。
+
+    - 请求**在简化之后**发：先 Douglas–Peucker 压到几百点，请求数少一个数量级，
+      而简化只看经纬度、不需要海拔，顺序上互不影响。
+    - 缓存按「经度,纬度」做键且跨路线复用：邻接路线共享的路口不会重复查。
+    - 用 GET + `lat,lng|lat,lng`（该接口的 POST/JSON 形式会返回 400）。
+    - 单点失败保留 None，最后用前一个有效值兜底，保持序列连续。
+    """
+    keys = [f"{p[0]:.6f},{p[1]:.6f}" for p in pts]
+    todo = list(dict.fromkeys(k for k in keys if k not in cache))
+    if todo:
+        print(f"    补海拔：{len(todo)} 个新点（{len(keys) - len(todo)} 个命中缓存）")
+    for i in range(0, len(todo), ELEV_CHUNK):
+        chunk = todo[i : i + ELEV_CHUNK]
+        loc = "|".join(f"{k.split(',')[1]},{k.split(',')[0]}" for k in chunk)
+        url = f"{ELEV_API}?locations={urllib.parse.quote(loc, safe=',|')}"
+        data = None
+        for attempt in range(4):
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "Accept": "application/json",
+                    "User-Agent": "trail-100k/1.0 (track elevation fill)",
+                },
+                method="GET",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                if data.get("status") == "OK":
+                    break
+                err = f"{data.get('status')} {data.get('error')}"
+            except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+                err = str(exc)
+            wait = ELEV_SLEEP * (attempt + 1) * 2
+            print(f"    第 {attempt + 1} 次失败（{err}），{wait:.0f}s 后重试", file=sys.stderr)
+            time.sleep(wait)
+            data = None
+        if data is None or data.get("status") != "OK":
+            print("    连续 4 次失败，本批跳过", file=sys.stderr)
+            continue
+        for k, r in zip(chunk, data.get("results", [])):
+            cache[k] = r.get("elevation")
+        if i + ELEV_CHUNK < len(todo):
+            time.sleep(ELEV_SLEEP)
+
+    vals = [cache.get(k) for k in keys]
+    filled, last = [], None
+    for v in vals:
+        if isinstance(v, (int, float)):
+            last = v
+        filled.append(last)
+    return filled
 
 
 # ---------- 解析：GPX / KML / GeoJSON ----------
@@ -305,11 +393,15 @@ def main():
     ap.add_argument("--max-points", type=int, default=420)
     ap.add_argument("--map", action="append", default=[], help="文件名=编号，如 jeju1.gpx=01")
     ap.add_argument("--reverse", action="append", default=[], help="翻转方向，可多次")
+    ap.add_argument("--elevation", action="store_true",
+                    help="轨迹没有海拔时联网补（opentopodata SRTM 30m，结果带缓存）")
     ap.add_argument("--dry", action="store_true", help="只解析报告，不写文件")
     ap.add_argument("--strict", action="store_true", help="有认不出编号的文件就报错退出")
     args = ap.parse_args()
 
     explicit = dict(m.split("=", 1) for m in args.map if "=" in m)
+    elev_cache = load_elev_cache() if args.elevation else {}
+    elev_dirty = False
 
     files = []
     for src in args.src:
@@ -373,6 +465,16 @@ def main():
             continue
 
         pts, tol = simplify_to_budget(raw, args.tol, args.max_points)
+        # 只补「整条都没有海拔」的轨迹；GPX 自带的记录海拔优先保留，不覆盖。
+        # 放在简化之后：请求数直接少一个数量级。
+        filled_ele = False
+        if args.elevation and pts and not any(p[2] is not None for p in pts):
+            before = len(elev_cache)
+            eles_filled = fill_elevations(pts, elev_cache)
+            elev_dirty = elev_dirty or len(elev_cache) != before
+            if any(e is not None for e in eles_filled):
+                pts = [(p[0], p[1], e) for p, e in zip(pts, eles_filled)]
+                filled_ele = True
         km = path_len_m(pts) / 1000
         has_ele = all(p[2] is not None for p in pts)
         if has_ele:
@@ -395,13 +497,16 @@ def main():
             "highestM": hi,
             "lowestM": lo,
             "toleranceM": round(tol, 1),
+            "elevSource": "SRTM 30m · opentopodata.org（轨迹本身无海拔，联网补采样）" if filled_ele
+                          else ("track" if has_ele else None),
             "points": [[round(p[0], 6), round(p[1], 6), (round(p[2], 1) if p[2] is not None else None)]
                        for p in pts],
         }
         s, e = pts[0], pts[-1]
+        ele_col = "SRTM" if filled_ele else ("有" if has_ele else "无")
         print(
             f"{code:<6} {len(raw):>7} {len(pts):>6} {km:>8.2f} {off or 0:>7.1f} {diff:>6} "
-            f"{(gain if gain is not None else '—'):>6} {('有' if has_ele else '无'):>5}  "
+            f"{(gain if gain is not None else '—'):>6} {ele_col:>5}  "
             f"{s[0]:.5f},{s[1]:.5f} → {e[0]:.5f},{e[1]:.5f}"
         )
         # 与官方里程差太多 → 轨迹可能不完整、方向不对或根本是另一条线，值得人工看一眼
@@ -418,7 +523,12 @@ def main():
     no_ele = [c for c, v in out.items() if v["gainM"] is None]
     if no_ele:
         print(f"⚠️ 轨迹里没有海拔、剖面会显示「暂缺海拔数据」：{', '.join(no_ele)}")
-        print("   想补海拔：改完 tracks.json 后跑 scripts/fetch_elevation.py 重新采样。")
+        print("   想补海拔：加 --elevation 重跑（用 opentopodata 的 SRTM 30m，结果有缓存）。")
+
+    # 海拔缓存先落盘，免得 --dry 或后续报错把已经查到的点白扔了
+    if elev_dirty:
+        save_elev_cache(elev_cache)
+        print(f"海拔缓存已更新：{os.path.relpath(ELEV_CACHE, ROOT)}")
 
     if args.dry:
         print("\n--dry：未写文件。")
