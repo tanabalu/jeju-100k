@@ -37,12 +37,37 @@ function colorOf(kind: string): string {
 }
 
 /**
+ * 归一化路线数据为「若干段折线」：
+ * 过滤掉非数组的脏数据段，全空时用单段 points 兜底。
+ * 纯防御性写法——地图是全局组件，不该因为某条路线缺 points 就整页白屏。
+ */
+function normalizeSegments(trails: TrackPoint[][] | undefined, points: TrackPoint[]): TrackPoint[][] {
+  const segs = Array.isArray(trails)
+    ? trails.filter((seg): seg is TrackPoint[] => Array.isArray(seg))
+    : []
+  if (segs.length) return segs
+  return [Array.isArray(points) ? points : []]
+}
+
+/**
+ * 只保留经纬度有效的点，脏数据（undefined / NaN / 非数组）直接丢弃而不是让下游崩掉。
+ * 地图是全局组件，不该因为一条脏数据就整页白屏。
+ */
+function finitePts<T extends { lng: number; lat: number }>(arr: T[] | undefined): T[] {
+  if (!Array.isArray(arr)) return []
+  return arr.filter((p): p is T => !!p && Number.isFinite(p.lng) && Number.isFinite(p.lat))
+}
+
+/**
  * 底图瓦片：数据来自 OpenStreetMap，均为官方 / 社区公共服务，**不需要 Key**。
  * ⚠️ 别用 CARTO：其 basemaps 现已强制要求 API key，匿名请求会被盖上 "API key required" 水印。
  * - standard：OpenStreetMap 标准地图，地物信息最全（默认）
  * - terrain：OpenTopoMap 地形图，带等高线与山体阴影，适合徒步 / 越野
  */
-const TILES: Record<MapStyle, { url: string; attr: string; subdomains?: string; maxZoom: number }> = {
+const TILES: Record<
+  MapStyle,
+  { url: string; attr: string; subdomains?: string; maxZoom: number; maxNativeZoom?: number }
+> = {
   standard: {
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     attr: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
@@ -51,7 +76,10 @@ const TILES: Record<MapStyle, { url: string; attr: string; subdomains?: string; 
   terrain: {
     url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
     subdomains: 'abc',
-    maxZoom: 17,
+    // OpenTopoMap 原生只到 17 级；maxNativeZoom 让 18-19 级放大量已经有的瓦片，
+    // 否则继续放大时 Leaflet 不请求瓦片，地图会变成整片空白
+    maxNativeZoom: 17,
+    maxZoom: 19,
     attr: 'Kartendaten: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende, SRTM | Kartendarstellung: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
   },
 }
@@ -119,6 +147,8 @@ export function RouteMap({
       const map = L.map(el, {
         center: JEJU_CENTER,
         zoom: DEFAULT_ZOOM,
+        /** 与瓦片图源一致的上限，避免用户一路放大到没有瓦片的层级 */
+        maxZoom: 19,
         zoomControl: true,
         worldCopyJump: true,
       })
@@ -154,8 +184,11 @@ export function RouteMap({
     if (tileRef.current) map.removeLayer(tileRef.current)
     const tile = L.tileLayer(conf.url, {
       attribution: conf.attr,
-      subdomains: conf.subdomains,
       maxZoom: conf.maxZoom,
+      ...(conf.maxNativeZoom ? { maxNativeZoom: conf.maxNativeZoom } : {}),
+      // ⚠️ 只在有子域时才传 subdomains：显式传 undefined 会覆盖 Leaflet 的默认 'abc'，
+      // 之后 _getSubdomain 读 options.subdomains.length 直接抛 TypeError
+      ...(conf.subdomains ? { subdomains: conf.subdomains } : {}),
     })
     tile.addTo(map)
     tile.bringToBack()
@@ -170,11 +203,11 @@ export function RouteMap({
     layer.clearLayers()
 
     // 多段优先；否则把单段 points 视为一段
-    const segments: TrackPoint[][] = trails && trails.length ? trails : [points]
+    const segments = normalizeSegments(trails, points)
     const allPoints: TrackPoint[] = []
 
     segments.forEach((seg) => {
-      const valid = seg.filter((p) => Number.isFinite(p.lng) && Number.isFinite(p.lat))
+      const valid = finitePts(seg)
       allPoints.push(...valid)
       if (valid.length > 1) {
         const latlngs = valid.map((p) => [p.lat, p.lng] as [number, number])
@@ -197,19 +230,21 @@ export function RouteMap({
     })
 
     segments.forEach((seg) => {
-      const valid = seg.filter((p) => Number.isFinite(p.lng) && Number.isFinite(p.lat))
+      const valid = finitePts(seg)
       valid.forEach((p, i) => {
         const kind = i === 0 ? 'start' : i === valid.length - 1 ? 'end' : 'via'
         L.marker([p.lat, p.lng], { icon: makeIcon(kind) }).addTo(layer)
       })
     })
-    hotels.forEach((h) => L.marker([h.lat, h.lng], { icon: makeIcon('hotel') }).addTo(layer))
-    sights.forEach((s) => L.marker([s.lat, s.lng], { icon: makeIcon('sight') }).addTo(layer))
+    const hotelOk = finitePts(hotels)
+    const sightOk = finitePts(sights)
+    hotelOk.forEach((h) => L.marker([h.lat, h.lng], { icon: makeIcon('hotel') }).addTo(layer))
+    sightOk.forEach((s) => L.marker([s.lat, s.lng], { icon: makeIcon('sight') }).addTo(layer))
 
     const coords: [number, number][] = [
       ...allPoints.map((p) => [p.lat, p.lng] as [number, number]),
-      ...hotels.map((h) => [h.lat, h.lng] as [number, number]),
-      ...sights.map((s) => [s.lat, s.lng] as [number, number]),
+      ...hotelOk.map((h) => [h.lat, h.lng] as [number, number]),
+      ...sightOk.map((s) => [s.lat, s.lng] as [number, number]),
     ]
     if (coords.length === 0) return
     // 只有几何真的变了才重置视野，避免勾选「已完成」等无关状态变更把地图拉回全局
@@ -224,7 +259,7 @@ export function RouteMap({
   }, [status, points, trails, hotels, sights])
 
   const fallbackBox = useMemo(
-    () => project(trails && trails.length ? trails : [points], hotels, sights),
+    () => project(normalizeSegments(trails, points), hotels, sights),
     [points, trails, hotels, sights],
   )
 
@@ -262,9 +297,9 @@ interface Projected {
 
 /** 底图不可用时的离线示意图：把经纬度线性投影到画布 */
 function project(segments: TrackPoint[][], hotels: Hotel[], sights: Sight[]): Projected {
-  const segPts = segments.map((seg) => seg.filter((p) => Number.isFinite(p.lng) && Number.isFinite(p.lat)))
-  const hotelsOk = hotels.filter((h) => Number.isFinite(h.lng) && Number.isFinite(h.lat))
-  const sightsOk = sights.filter((s) => Number.isFinite(s.lng) && Number.isFinite(s.lat))
+  const segPts = segments.map((seg) => finitePts(seg))
+  const hotelsOk = finitePts(hotels)
+  const sightsOk = finitePts(sights)
 
   const coords = [
     ...segPts.flat().map((p) => ({ lng: p.lng, lat: p.lat })),

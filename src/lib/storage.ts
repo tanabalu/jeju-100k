@@ -1,4 +1,15 @@
-import type { AlbumItem, AppSettings, Hotel, ImageRef, Plan, Route, Sight } from '../types'
+import type {
+  AlbumItem,
+  AppSettings,
+  ElevSample,
+  Hotel,
+  ImageRef,
+  Plan,
+  PlanItem,
+  Route,
+  Sight,
+  TrackPoint,
+} from '../types'
 import type { PrepItem } from './prep'
 import { uid } from './id'
 
@@ -55,19 +66,52 @@ export function clearAllLocalData(): void {
   }
 }
 
+/** 只保留数组，其余（undefined / null / 对象）一律视为空数组 */
+function arr<T>(v: unknown): T[] {
+  return Array.isArray(v) ? (v as T[]) : []
+}
+
+/**
+ * 归一化一条路线：把可能缺失的数组字段补成 []。
+ *
+ * 数据有两个不可控入口——本机 localStorage 里的历史数据、以及「导入备份」的 JSON，
+ * 只要 `points` / `sights` / `album` 里任意一个缺失，页面就会在 `.length` / `.map` 上
+ * 直接白屏（曾经的表现就是整页被 ErrorBoundary 接管）。所以在读取边界一次性补齐。
+ */
+export function normalizeRoute(route: Route): Route {
+  return {
+    ...route,
+    tags: arr<string>(route.tags),
+    points: arr<TrackPoint>(route.points),
+    hotels: arr<Hotel>(route.hotels),
+    sights: arr<Sight>(route.sights).map((s) => ({
+      ...s,
+      images: arr<ImageRef>(s?.images),
+    })),
+    album: arr<AlbumItem>(route.album),
+    elevationProfile: arr<ElevSample>(route.elevationProfile),
+  }
+}
+
+/** 归一化一个行程篮：缺 items 时补空数组，避免「已加入」列表整页崩掉 */
+export function normalizePlan(plan: Plan): Plan {
+  return { ...plan, items: arr<PlanItem>(plan.items) }
+}
+
+/** 归一化设置：底图样式走白名单，未知/已下线的旧值一律回落到 standard，避免瓦片配置取空导致地图空白 */
+function normalizeSettings(raw: Partial<AppSettings> | undefined): AppSettings {
+  return { mapStyle: raw?.mapStyle === 'terrain' ? 'terrain' : 'standard' }
+}
+
 export const store = {
-  getRoutes: () => read<Route[]>(K_ROUTES, []),
+  getRoutes: () => arr<Route>(read<Route[]>(K_ROUTES, [])).map(normalizeRoute),
   setRoutes: (v: Route[]) => write(K_ROUTES, v),
 
-  getPlans: () => read<Plan[]>(K_PLANS, []),
+  getPlans: () => arr<Plan>(read<Plan[]>(K_PLANS, [])).map(normalizePlan),
   setPlans: (v: Plan[]) => write(K_PLANS, v),
 
-  getSettings: () => {
-    const raw = read<Partial<AppSettings>>(K_SETTINGS, {})
-    // 底图样式走白名单：未知/已下线的旧值一律回落到 standard，避免瓦片配置取空导致地图空白
-    return { mapStyle: raw.mapStyle === 'terrain' ? 'terrain' : 'standard' } as AppSettings
-  },
-  setSettings: (v: AppSettings) => write(K_SETTINGS, v),
+  getSettings: () => normalizeSettings(read<Partial<AppSettings>>(K_SETTINGS, {})),
+  setSettings: (v: AppSettings) => write(K_SETTINGS, normalizeSettings(v)),
 
   /** 当前正在编辑的行程篮 id */
   getPlanDraftId: () => read<string>(K_PLAN_DRAFT, ''),
@@ -143,8 +187,9 @@ export function exportBackup(): string {
 export function importBackup(text: string, mode: 'merge' | 'replace'): { routes: number; plans: number } {
   const parsed = JSON.parse(text) as Partial<BackupFile>
   if (!parsed || !Array.isArray(parsed.routes)) throw new Error('文件格式不正确：缺少 routes 数组')
-  const incoming = parsed.routes
-  const incomingPlans = Array.isArray(parsed.plans) ? parsed.plans : []
+  // 导入的 JSON 是「人手改过 / 别人给的」最脏的一份数据，先归一化再落库
+  const incoming = arr<Route>(parsed.routes).filter((r) => !!r && typeof r.id === 'string').map(normalizeRoute)
+  const incomingPlans = arr<Plan>(parsed.plans).filter((p) => !!p && typeof p.id === 'string').map(normalizePlan)
   let routes: Route[]
   if (mode === 'replace') {
     routes = incoming
@@ -174,7 +219,7 @@ export function collectLocalImages(route: Route): Set<string> {
     if (ref && ref.kind === 'local') out.add(ref.value)
   }
   push(route.cover)
-  route.sights.forEach((s: Sight) => s.images.forEach(push))
-  route.album.forEach((a: AlbumItem) => push(a.image))
+  arr<Sight>(route.sights).forEach((s) => arr<ImageRef>(s?.images).forEach(push))
+  arr<AlbumItem>(route.album).forEach((a) => push(a?.image))
   return out
 }
