@@ -773,6 +773,9 @@ textarea.input {
 }
 
 .map-fallback {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
   width: 100%;
 }
 

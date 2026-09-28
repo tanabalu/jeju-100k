@@ -67,6 +67,15 @@ export function RouteMap({ points, hotels = [], sights = [], height = 420, picka
           zoom: 11,
           pitch: 0,
         })
+        // 容器刚从隐藏态切换 / 异步加载完成时，强制同步一次尺寸，
+        // 避免 GL 投影矩阵因尺寸未就绪算出 far<=0
+        requestAnimationFrame(() => {
+          try {
+            map.invalidateSize?.()
+          } catch {
+            /* 部分版本无该方法，忽略 */
+          }
+        })
         mapRef.current = map
         lineRef.current = new TMap.MultiPolyline({
           map,
@@ -171,7 +180,7 @@ export function RouteMap({ points, hotels = [], sights = [], height = 420, picka
 
   return (
     <div className="map-wrap" style={{ height }}>
-      <div ref={containerRef} className="map-canvas" style={{ height, display: status === 'ready' ? 'block' : 'none' }} />
+      <div ref={containerRef} className="map-canvas" style={{ height }} />
       {status !== 'ready' && (
         <div className="map-fallback" style={{ height }}>
           {status === 'loading' ? (
