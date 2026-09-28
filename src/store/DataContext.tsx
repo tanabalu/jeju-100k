@@ -9,6 +9,7 @@ import {
 } from 'react'
 import type { AlbumItem, AppSettings, ElevSample, ImageRef, Plan, Route, TrackPoint } from '../types'
 import { store, LEGACY_SEED_IDS, SEED_VERSION, type ChecklistState } from '../lib/storage'
+import { PREP_GROUPS, PREP_PRESETS, normItemText } from '../lib/prep'
 import { buildSeedRoutes, nearestEle } from '../lib/seed'
 import { uid } from '../lib/id'
 
@@ -207,6 +208,15 @@ interface DataApi {
   resetChecklist: () => void
   addCustomItem: (text: string) => void
   removeCustomItem: (id: string) => void
+  /**
+   * 从「女士/男士常用清单」把备选条目加进总清单。
+   * `ids` 省略 = 整份加入；已在清单里的（同 id 或同文案）会被跳过，不会重复加。
+   */
+  addPresetItems: (presetId: string, ids?: string[]) => void
+  /** 把某份备选清单已加入的条目整批移出总清单 */
+  removePresetItems: (presetId: string) => void
+  /** 把单条备选条目移出总清单（加入的反操作） */
+  removeExtraItem: (id: string) => void
 }
 
 const DataContext = createContext<DataApi | null>(null)
@@ -234,7 +244,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
       ),
     [],
   )
-  const [checklist, setChecklist] = useState<ChecklistState>({ checked: [], skipped: [], custom: [] })
+  const [checklist, setChecklist] = useState<ChecklistState>({
+    checked: [],
+    skipped: [],
+    custom: [],
+    extras: [],
+  })
   const [fatalError, setFatalError] = useState<Error | null>(null)
 
   const reload = useCallback(() => {
@@ -438,7 +453,8 @@ const refreshSeedRoutes = useCallback(() => {
   }, [])
 
   const resetChecklist = useCallback(() => {
-    const next: ChecklistState = { checked: [], skipped: [], custom: [] }
+    // extras 也算「用户自己攒的内容」，一并清掉；否则重置后清单里会剩下半截备选条目
+    const next: ChecklistState = { checked: [], skipped: [], custom: [], extras: [] }
     setChecklist(next)
     store.setChecklist(next)
   }, [])
@@ -469,6 +485,56 @@ const refreshSeedRoutes = useCallback(() => {
     })
   }, [])
 
+  /**
+   * 把备选清单的条目并进总清单。
+   * ⚠️ 去重必须在 updater 里按 `prev` 算，不能拿渲染期的 checklist 判断 ——
+   *    连点「加入」时渲染期的快照是旧的，会重复写入同一条。
+   */
+  const addPresetItems = useCallback((presetId: string, ids?: string[]) => {
+    const preset = PREP_PRESETS.find((p) => p.id === presetId)
+    if (!preset) return
+    const wanted = ids ? preset.items.filter((i) => ids.includes(i.id)) : preset.items
+    if (wanted.length === 0) return
+    setChecklist((prev) => {
+      const haveId = new Set(prev.extras.map((e) => e.id))
+      // 「文案相同」也算已经有了：官方分组里已带的、自己补充过的，都不再重复加一遍
+      const haveText = new Set<string>()
+      ;[...PREP_GROUPS.flatMap((g) => g.items), ...prev.custom, ...prev.extras].forEach((i) =>
+        haveText.add(normItemText(i.text)),
+      )
+      const add = wanted
+        .filter((i) => !haveId.has(i.id) && !haveText.has(normItemText(i.text)))
+        .map((i) => ({ ...i, from: presetId }))
+      if (add.length === 0) return prev
+      const next: ChecklistState = { ...prev, extras: [...prev.extras, ...add] }
+      store.setChecklist(next)
+      return next
+    })
+  }, [])
+
+  /** 移出总清单（单条 / 整份）。它同时清掉这条的勾选与放弃状态，避免留下孤儿 id。 */
+  const dropExtras = useCallback((match: (e: { id: string; from: string }) => boolean) => {
+    setChecklist((prev) => {
+      const gone = prev.extras.filter(match).map((e) => e.id)
+      if (gone.length === 0) return prev
+      const dead = new Set(gone)
+      const next: ChecklistState = {
+        ...prev,
+        checked: prev.checked.filter((x) => !dead.has(x)),
+        skipped: prev.skipped.filter((x) => !dead.has(x)),
+        extras: prev.extras.filter((e) => !dead.has(e.id)),
+      }
+      store.setChecklist(next)
+      return next
+    })
+  }, [])
+
+  const removeExtraItem = useCallback((id: string) => dropExtras((e) => e.id === id), [dropExtras])
+  const removePresetItems = useCallback(
+    (presetId: string) => dropExtras((e) => e.from === presetId),
+    [dropExtras],
+  )
+
   const value = useMemo<DataApi>(
     () => ({
       loading,
@@ -496,6 +562,9 @@ const refreshSeedRoutes = useCallback(() => {
       resetChecklist,
       addCustomItem,
       removeCustomItem,
+      addPresetItems,
+      removePresetItems,
+      removeExtraItem,
     }),
     [
       loading,
@@ -519,6 +588,9 @@ const refreshSeedRoutes = useCallback(() => {
       resetChecklist,
       addCustomItem,
       removeCustomItem,
+      addPresetItems,
+      removePresetItems,
+      removeExtraItem,
     ],
   )
 

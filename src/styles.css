@@ -2294,3 +2294,122 @@ textarea.input {
 .section {
   scroll-margin-top: var(--anchor-offset);
 }
+
+/* ---------- 行前准备：分性别备选清单（女士 / 男士） ---------- */
+/* min()：窄屏自动退单列，与 .grid-guide 同一套写法 */
+.grid-preset {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
+  gap: 14px;
+}
+
+.preset-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fcfdfd;
+  /* 目录里的「女士常用 / 男士常用」直接跳到卡片上，同样要留出吸顶区余量 */
+  scroll-margin-top: var(--anchor-offset);
+}
+
+.preset-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.preset-head h3 {
+  font-size: 15px;
+}
+
+.preset-count {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.preset-ops {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.preset-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 未加入 = 虚线（候选），已加入 = 实线 + 品牌浅底（与已勾选同色系，语义一致） */
+.preset-item {
+  padding: 8px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.preset-item.is-added {
+  border-style: solid;
+  border-color: #cfe4d7;
+  background: var(--brand-soft);
+}
+
+.preset-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.preset-text {
+  font-size: 13px;
+  line-height: 1.5;
+  min-width: 0;
+}
+
+/* 加入/移除 与右侧操作区：覆盖 .btn-link 默认的 25px 左缩进（那是给列表主行用的） */
+.preset-main .btn-link {
+  margin-left: 0;
+  align-self: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.preset-item .check-note {
+  margin-left: 0;
+}
+
+/* 「清单里已有同一条」的静态提示（不可点，避免加重复） */
+.preset-own {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* 已加入条目的来源标签（女士 / 男士），与「临行复核」同位 */
+.src-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  border: 1px solid #cfe4d7;
+  color: var(--brand-dark);
+  font-size: 11px;
+  text-decoration: none;
+  vertical-align: 1px;
+}
+
+/* 勾选后主文本会加删除线，标签不要跟着被划掉 */
+.check-item.is-done .src-tag,
+.check-item.is-skipped .src-tag {
+  text-decoration: none;
+}

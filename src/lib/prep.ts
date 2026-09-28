@@ -192,6 +192,111 @@ export const PREP_GROUPS: PrepGroup[] = [
   },
 ]
 
+/**
+ * 分性别的「备选清单」：官方分组是通用项，这两份是补充项。
+ * 用户按自身情况挑几条点「加入」，条目会并进总清单（ChecklistState.extras）一起算进度；
+ * 一条都不加也完全没问题 —— 它们不属于默认清单，只是候选池。
+ *
+ * ⚠️ 内容边界：都是「带什么、为什么带」的经验性建议，不含政策/价格断言。
+ *    涉及液体容量、安检等硬规定的地方按常规口径写，且都放在 note 里当提示，不当承诺。
+ */
+export type PresetId = 'female' | 'male'
+
+export interface PrepPreset {
+  id: PresetId
+  /** 卡片标题 */
+  title: string
+  /** 目录短标签（本页目录用） */
+  short: string
+  /** 已加入条目的来源小标签 */
+  tag: string
+  desc: string
+  items: PrepItem[]
+}
+
+export const PREP_PRESETS: PrepPreset[] = [
+  {
+    id: 'female',
+    title: '女士常用清单',
+    short: '女士常用',
+    tag: '女士',
+    desc: '通用清单之外的补充项，按自己的习惯挑。',
+    items: [
+      {
+        id: 'preset.f.sanitary',
+        text: '生理用品：卫生巾 / 棉条 / 安心裤，按全程天数备足',
+        note: '先按自己的周期算一下行程天数，宁多备一两天；经期走长距离就当天减量、多留休息时间。另备一个密封小袋单独装用过的。',
+      },
+      { id: 'preset.f.underwear', text: '一次性内裤 × 3–5 条', note: '少一件要洗的衣服，经期也省心。' },
+      {
+        id: 'preset.f.bra',
+        text: '运动内衣 × 2 件',
+        note: '长距离徒步里普通内衣的肩带容易磨、支撑也不够，无钢圈运动款舒服得多。',
+      },
+      {
+        id: 'preset.f.chafe',
+        text: '防磨膏 / 防磨安全裤',
+        note: '大腿内侧和内衣边缘的摩擦，通常走到十几公里才开始发作，提前涂比事后处理省事。',
+      },
+      { id: 'preset.f.hair', text: '发圈 + 发夹 + 束发带', note: '海岸段风大，长发不束会一直糊在脸上，也容易打结。' },
+      {
+        id: 'preset.f.skincare',
+        text: '卸妆 + 护肤小样 + 补水面膜',
+        note: '晒一天之后晚上修护，第二天再上防晒才不会刺痛。随身液体按常规限制（单瓶 ≤100ml、合计 ≤1L）准备，超了就得托运。',
+      },
+      {
+        id: 'preset.f.sunscreen',
+        text: '防晒棒 / 防晒喷雾（补涂专用）',
+        note: '路上补涂不用洗手，比乳液方便；可以脸上、身体分开带。',
+      },
+      {
+        id: 'preset.f.lens',
+        text: '隐形眼镜（日抛多带几副）+ 备用框架镜 + 护理液',
+        note: '出汗多、风大，日抛比月抛省事。护理液也算液体，随身有容量限制。',
+      },
+      { id: 'preset.f.tissue', text: '小包纸巾 + 湿巾', note: '路上和公厕都用得上，随手塞一包在侧袋。' },
+      { id: 'preset.f.scarf', text: '轻便遮阳披肩 / 薄围巾', note: '既能挡太阳又能挡海风，比多带一件外套轻。' },
+      { id: 'preset.f.lip', text: '润唇膏 + 护手霜', note: '海风干，嘴唇和手是最先起皮的两处。' },
+    ],
+  },
+  {
+    id: 'male',
+    title: '男士常用清单',
+    short: '男士常用',
+    tag: '男士',
+    desc: '通用清单之外的补充项，按自己的习惯挑。',
+    items: [
+      {
+        id: 'preset.m.shave',
+        text: '剃须刀 + 剃须膏（或一次性剃须刀）',
+        note: '多数民宿与经济酒店不提供，临时买不方便，自己带最省事。',
+      },
+      { id: 'preset.m.face', text: '洗面奶 + 保湿小样', note: '晒一天又出汗，晚上洗干净再睡，第二天脸上不刺。' },
+      { id: 'preset.m.deo', text: '止汗剂 / 体香喷雾', note: '一天走下来，公交上和民宿里都用得上。' },
+      {
+        id: 'preset.m.underwear',
+        text: '速干运动内裤 × 3 条',
+        note: '日常纯棉内裤湿了不易干、还容易磨，运动款舒服很多。',
+      },
+      { id: 'preset.m.insole', text: '备用鞋垫 + 鞋用除臭', note: '走一天鞋里全是汗，换一副鞋垫比多带一双鞋轻得多。' },
+      { id: 'preset.m.earplug', text: '耳塞 + 眼罩', note: '住多人间民宿时，睡眠质量直接决定第二天的状态。' },
+      { id: 'preset.m.mouthwash', text: '便携漱口水 / 口气喷雾', note: '长途公交和早出发的早晨都用得上。' },
+      { id: 'preset.m.nail', text: '指甲刀 + 小剪刀', note: '建议放托运行李，随身带可能被安检拦下。' },
+      { id: 'preset.m.band', text: '运动发带 / 空顶帽', note: '汗流进眼睛很影响走路，配合帽子一起戴更稳。' },
+      { id: 'preset.m.cable', text: '备用充电线（手机 + 手表）', note: '线材是最容易坏、又最不好临时买的东西。' },
+    ],
+  },
+]
+
+/**
+ * 条目文案归一化：用于「清单里是不是已经有这一条」的去重判断。
+ * 去掉所有空白（`\s` 已含全角空格）并忽略大小写，
+ * 避免「带 备用袜」和「带备用袜」被当成两条。
+ */
+export function normItemText(s: string): string {
+  return s.replace(/\s+/g, '').toLowerCase()
+}
+
 export interface GuideSource {
   label: string
   url: string

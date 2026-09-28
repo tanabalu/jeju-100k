@@ -1,10 +1,33 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useData } from '../store/DataContext'
 import { useConfirm, useToast } from '../components/Feedback'
-import { BUDGET_HINTS, GUIDE_SECTIONS, PREP_GROUPS, type PrepGroup, type PrepItem } from '../lib/prep'
+import { BUDGET_HINTS, GUIDE_SECTIONS, PREP_GROUPS, PREP_PRESETS, normItemText, type PrepGroup, type PrepItem, type PrepPreset } from '../lib/prep'
+
+/** 条目来源说明（「已放弃」区块用来标注这条原本属于哪） */
+function sourceOf(
+  item: PrepItem,
+  presets: PrepPreset[],
+  extras: { id: string; from: string }[],
+  customs: PrepItem[],
+): string {
+  const ex = extras.find((e) => e.id === item.id)
+  if (ex) return presets.find((p) => p.id === ex.from)?.title ?? '备选清单'
+  if (customs.some((c) => c.id === item.id)) return '我自己加的'
+  return PREP_GROUPS.find((g) => g.items.some((x) => x.id === item.id))?.title ?? ''
+}
 
 export function PrepPage() {
-  const { checklist, toggleCheck, toggleSkip, resetChecklist, addCustomItem, removeCustomItem } = useData()
+  const {
+    checklist,
+    toggleCheck,
+    toggleSkip,
+    resetChecklist,
+    addCustomItem,
+    removeCustomItem,
+    addPresetItems,
+    removePresetItems,
+    removeExtraItem,
+  } = useData()
   const toast = useToast()
   const confirm = useConfirm()
   const [onlyTodo, setOnlyTodo] = useState(false)
@@ -18,30 +41,61 @@ export function PrepPage() {
   const groups: ViewGroup[] = useMemo(() => {
     // 只看未完成时：隐藏已勾选和已放弃；平时：放弃的项也展示（带「已放弃」样式，可一键恢复）
     const keep = (i: PrepItem) => !skipped.has(i.id) && (!onlyTodo || !checked.has(i.id))
-    const base: ViewGroup[] = PREP_GROUPS.map((g) => {
-      const total = g.items.filter((i) => !skipped.has(i.id)).length
-      const done = g.items.filter((i) => !skipped.has(i.id) && checked.has(i.id)).length
-      return { ...g, done, total, items: g.items.filter(keep) }
-    }).filter((g) => g.items.length > 0)
-    if (checklist.custom.length === 0) return base
-    const cTotal = checklist.custom.filter((i) => !skipped.has(i.id)).length
-    const cDone = checklist.custom.filter((i) => !skipped.has(i.id) && checked.has(i.id)).length
-    const custom: ViewGroup = {
-      id: 'custom',
-      title: '我自己加的',
-      desc: '官方清单没覆盖到的，自己补。',
-      done: cDone,
-      total: cTotal,
-      items: checklist.custom.filter(keep),
+    const view = (g: PrepGroup): ViewGroup => {
+      const activeItems = g.items.filter((i) => !skipped.has(i.id))
+      return {
+        ...g,
+        total: activeItems.length,
+        done: activeItems.filter((i) => checked.has(i.id)).length,
+        items: g.items.filter(keep),
+      }
     }
-    if (onlyTodo && custom.items.length === 0) return base
-    return [...base, custom]
-  }, [onlyTodo, checked, skipped, checklist.custom])
+
+    const list: ViewGroup[] = PREP_GROUPS.map(view).filter((g) => g.items.length > 0)
+    // 自己补充的条目、从「女士/男士常用清单」加进来的条目，各成一组接在官方分组后面。
+    // 备选那组会在条目标题后带来源标签（女士/男士），一眼认得出是挑进来的。
+    const mine: PrepGroup[] = [
+      { id: 'custom', title: '我自己加的', desc: '官方清单没覆盖到的，自己补。', items: checklist.custom },
+      {
+        id: 'extras',
+        title: '备选清单已加入',
+        desc: '从「女士常用 / 男士常用清单」挑进来的，不想要的那一条直接移除即可。',
+        items: checklist.extras,
+      },
+    ].filter((g) => g.items.length > 0)
+
+    mine.forEach((g) => {
+      const v = view(g)
+      if (!onlyTodo || v.items.length > 0) list.push(v)
+    })
+    return list
+  }, [onlyTodo, checked, skipped, checklist.custom, checklist.extras])
 
   const allItems: PrepItem[] = useMemo(
-    () => [...PREP_GROUPS.flatMap((g) => g.items), ...checklist.custom],
-    [checklist.custom],
+    () => [...PREP_GROUPS.flatMap((g) => g.items), ...checklist.custom, ...checklist.extras],
+    [checklist.custom, checklist.extras],
   )
+  // 备选条目的按钮要判两件事：这条本身加过没（按 id）；清单里是否已有同文案的条目（别重复加）
+  const extraIds = useMemo(() => new Set(checklist.extras.map((e) => e.id)), [checklist.extras])
+  const takenTexts = useMemo(() => new Set(allItems.map((i) => normItemText(i.text))), [allItems])
+  // 已加入条目的来源标签：id → 女士/男士
+  const extraTagById = useMemo(() => {
+    const byPreset = new Map<string, string>()
+    PREP_PRESETS.forEach((p) => byPreset.set(p.id, p.tag))
+    const byItem = new Map<string, string>()
+    checklist.extras.forEach((e) => byItem.set(e.id, byPreset.get(e.from) ?? '备选'))
+    return byItem
+  }, [checklist.extras])
+  const presetPending = useMemo(() => {
+    const m = new Map<string, PrepItem[]>()
+    PREP_PRESETS.forEach((p) =>
+      m.set(
+        p.id,
+        p.items.filter((i) => !extraIds.has(i.id) && !takenTexts.has(normItemText(i.text))),
+      ),
+    )
+    return m
+  }, [extraIds, takenTexts])
   // 进度只衡量「未放弃」的项：放弃即退出分母，也不算未完成
   const active = useMemo(() => allItems.filter((i) => !skipped.has(i.id)), [allItems, skipped])
   const total = active.length
@@ -57,6 +111,7 @@ export function PrepPage() {
     const items = [{ id: 'prep-progress', label: '总进度' }]
     groups.forEach((g) => items.push({ id: `prep-g-${g.id}`, label: g.title }))
     items.push({ id: 'prep-custom', label: '我的条目' })
+    PREP_PRESETS.forEach((p) => items.push({ id: `prep-p-${p.id}`, label: p.short }))
     if (skippedCount > 0) items.push({ id: 'prep-skipped', label: '已放弃' })
     GUIDE_SECTIONS.forEach((s) => items.push({ id: `prep-s-${s.id}`, label: s.title }))
     items.push({ id: 'prep-budget', label: '预算' })
@@ -87,7 +142,7 @@ export function PrepPage() {
       <h1 className="detail-title">行前准备 · 济州岛</h1>
       <p className="muted">
         出发前逐项打勾，进度保存在本机浏览器。政策与价格会变，标「<span className="verify-tag">临行复核</span>」
-        的项目请自己再确认一遍。
+        的项目请自己再确认一遍。想按性别补充的，到下面「<b>女士常用 / 男士常用</b>」两份备选清单里挑着加入。
       </p>
 
       {/* ---------- 本页目录：快速跳转模块 ---------- */}
@@ -137,9 +192,16 @@ export function PrepPage() {
           {skippedCount > 0 && <span className="muted">已放弃 {skippedCount} 项</span>}
           <button
             className="btn btn-sm btn-danger"
-            disabled={done === 0 && checklist.custom.length === 0}
+            disabled={done === 0 && checklist.custom.length === 0 && checklist.extras.length === 0}
             onClick={async () => {
-              if (await confirm({ title: '重置清单', message: '清空所有勾选和自定义条目？', confirmText: '重置', danger: true })) {
+              if (
+                await confirm({
+                  title: '重置清单',
+                  message: '清空所有勾选，以及自己补充、从备选清单加入的条目？',
+                  confirmText: '重置',
+                  danger: true,
+                })
+              ) {
                 resetChecklist()
                 toast('已重置', 'success')
               }
@@ -189,6 +251,9 @@ export function PrepPage() {
                         <span className="check-text">
                           {item.text}
                           {item.verify && <span className="verify-tag">临行复核</span>}
+                          {g.id === 'extras' && (
+                            <span className="src-tag">{extraTagById.get(item.id) ?? '备选'}</span>
+                          )}
                           {isSkipped && <span className="skip-tag">已放弃</span>}
                         </span>
                       </label>
@@ -200,6 +265,17 @@ export function PrepPage() {
                         ) : (
                           <button className="btn-link" onClick={() => toggleSkip(item.id)}>
                             放弃
+                          </button>
+                        )}
+                        {g.id === 'extras' && (
+                          <button
+                            className="btn-link"
+                            onClick={() => {
+                              removeExtraItem(item.id)
+                              toast('已移出总清单', 'success')
+                            }}
+                          >
+                            移除
                           </button>
                         )}
                         {g.id === 'custom' && (
@@ -256,6 +332,100 @@ export function PrepPage() {
         </div>
       </section>
 
+      {/* ---------- 分性别备选清单：挑需要的加进总清单，不要求全加 ---------- */}
+      <section id="prep-presets" className="section">
+        <h2>按需加入备选清单</h2>
+        <p className="muted">
+          前面那些分组是通用项；这两份是分性别的补充项，<b>不要求全加</b>。
+          点「加入」就并进上面的总清单、一起算进度；加错了随时移除。清单里已经有同一件事时会标成「已在清单」，不会重复加。
+        </p>
+        <div className="grid-preset">
+          {PREP_PRESETS.map((p) => {
+            const addedCount = checklist.extras.filter((e) => e.from === p.id).length
+            const pending = presetPending.get(p.id) ?? []
+            return (
+              <div className="preset-card" id={`prep-p-${p.id}`} key={p.id}>
+                <div className="preset-head">
+                  <h3>{p.title}</h3>
+                  <span className="preset-count">
+                    已加入 {addedCount} / {p.items.length}
+                  </span>
+                </div>
+                <p className="muted">{p.desc}</p>
+                <div className="preset-ops">
+                  <button
+                    className="btn btn-sm btn-primary"
+                    disabled={pending.length === 0}
+                    onClick={() => {
+                      addPresetItems(p.id)
+                      toast(`已加入 ${pending.length} 条（${p.short}）`, 'success')
+                    }}
+                  >
+                    全部加入{pending.length > 0 ? `（${pending.length}）` : ''}
+                  </button>
+                  <button
+                    className="btn btn-sm"
+                    disabled={addedCount === 0}
+                    onClick={async () => {
+                      if (
+                        await confirm({
+                          title: `移出${p.short}`,
+                          message: `把已加入的 ${addedCount} 条从总清单移出？（勾选与放弃状态一并清除，随时可以再加回来）`,
+                          confirmText: '移出',
+                          danger: true,
+                        })
+                      ) {
+                        removePresetItems(p.id)
+                        toast('已移出总清单', 'success')
+                      }
+                    }}
+                  >
+                    全部移出
+                  </button>
+                </div>
+                <ul className="preset-list">
+                  {p.items.map((it) => {
+                    const owned = extraIds.has(it.id)
+                    const taken = !owned && takenTexts.has(normItemText(it.text))
+                    return (
+                      <li className={`preset-item${owned ? ' is-added' : ''}`} key={it.id}>
+                        <div className="preset-main">
+                          <span className="preset-text">{it.text}</span>
+                          {owned ? (
+                            <button
+                              className="btn-link"
+                              onClick={() => {
+                                removeExtraItem(it.id)
+                                toast('已移出总清单', 'success')
+                              }}
+                            >
+                              移除
+                            </button>
+                          ) : taken ? (
+                            <span className="preset-own">已在清单</span>
+                          ) : (
+                            <button
+                              className="btn-link"
+                              onClick={() => {
+                                addPresetItems(p.id, [it.id])
+                                toast('已加入总清单', 'success')
+                              }}
+                            >
+                              加入
+                            </button>
+                          )}
+                        </div>
+                        {it.note && <p className="check-note">{it.note}</p>}
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            )
+          })}
+        </div>
+      </section>
+
       {/* ---------- 已放弃：集中查看 + 恢复（次要信息，置于自定义补充下方） ---------- */}
       {skippedCount > 0 && (
         <section id="prep-skipped" className="section prep-skipped">
@@ -278,9 +448,7 @@ export function PrepPage() {
             {allItems
               .filter((i) => skipped.has(i.id))
               .map((item) => {
-                const grp = PREP_GROUPS.find((g) => g.items.some((x) => x.id === item.id))
-                const isCustom = checklist.custom.some((c) => c.id === item.id)
-                const src = isCustom ? '我自己加的' : grp ? grp.title : ''
+                const src = sourceOf(item, PREP_PRESETS, checklist.extras, checklist.custom)
                 return (
                   <li key={item.id} className="check-item is-skipped">
                     <div className="check-main">

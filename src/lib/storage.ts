@@ -20,15 +20,23 @@ const K_PLAN_DRAFT = 'trail100k.planDraft'
 const K_SEED_VERSION = 'trail100k.seedVersion'
 const K_CHECKLIST = 'trail100k.checklist'
 
-/** 行前 checklist：勾选项 id + 手动放弃的项 id + 自己补充的条目 */
+/** 从「女士/男士常用清单」加进总清单的条目 */
+export interface ChecklistExtra extends PrepItem {
+  /** 来自哪份备选清单（PREP_PRESETS.id）；数据源改了也能认出来源 */
+  from: string
+}
+
+/** 行前 checklist：勾选项 id + 手动放弃的项 id + 自己补充的条目 + 从备选清单加入的条目 */
 export interface ChecklistState {
   checked: string[]
   /** 手动放弃：不算未完成、也不计入进度分母 */
   skipped: string[]
   custom: PrepItem[]
+  /** 从「女士常用 / 男士常用清单」挑着加进来的条目 */
+  extras: ChecklistExtra[]
 }
 
-const EMPTY_CHECKLIST: ChecklistState = { checked: [], skipped: [], custom: [] }
+const EMPTY_CHECKLIST: ChecklistState = { checked: [], skipped: [], custom: [], extras: [] }
 
 /** 默认素材版本：内容变更时 +1，用于提示用户更新（2=27 条偶来小路；3=补上地形/爬升数据） */
 export const SEED_VERSION = 3
@@ -127,7 +135,7 @@ export const store = {
   getSeedVersion: () => read<number>(K_SEED_VERSION, 0),
   setSeedVersion: (v: number) => write(K_SEED_VERSION, v),
 
-  // 兼容升级前存的数据（没有 skipped 字段），逐字段兜底，避免读到脏数据时整页崩
+  // 兼容升级前存的数据（没有 skipped / extras 字段），逐字段兜底，避免读到脏数据时整页崩
   getChecklist: (): ChecklistState => {
     const raw = read<Partial<ChecklistState> | null>(K_CHECKLIST, EMPTY_CHECKLIST)
     if (!raw || typeof raw !== 'object') return EMPTY_CHECKLIST
@@ -135,6 +143,10 @@ export const store = {
       checked: Array.isArray(raw.checked) ? raw.checked : [],
       skipped: Array.isArray(raw.skipped) ? raw.skipped : [],
       custom: Array.isArray(raw.custom) ? raw.custom : [],
+      // extras 是对象数组，比 id 数组更容易存进脏数据：逐条验字段，缺 id/text 的直接丢
+      extras: Array.isArray(raw.extras)
+        ? raw.extras.filter((x) => !!x && typeof x.id === 'string' && typeof x.text === 'string')
+        : [],
     }
   },
   setChecklist: (v: ChecklistState) => write(K_CHECKLIST, v),
