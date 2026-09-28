@@ -62,7 +62,7 @@ export const store = {
   getPlans: () => read<Plan[]>(K_PLANS, []),
   setPlans: (v: Plan[]) => write(K_PLANS, v),
 
-  getSettings: () => read<AppSettings>(K_SETTINGS, { tmapKey: '' }),
+  getSettings: () => read<AppSettings>(K_SETTINGS, { mapStyle: 'light' }),
   setSettings: (v: AppSettings) => write(K_SETTINGS, v),
 
   /** 当前正在编辑的行程篮 id */

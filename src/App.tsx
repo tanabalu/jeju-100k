@@ -71,7 +71,7 @@ export default function App() {
               <PageRoutes />
             </main>
             <footer className="footer">
-              数据仅保存在本机浏览器 · 底图服务：腾讯位置服务
+              数据仅保存在本机浏览器 · 底图服务：OpenStreetMap
             </footer>
           </div>
         </DataProvider>

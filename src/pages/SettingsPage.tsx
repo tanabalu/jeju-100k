@@ -1,14 +1,16 @@
-import { useState } from 'react'
 import { useData } from '../store/DataContext'
-import { detectMode } from '../lib/mapLoader'
+import type { MapStyle } from '../types'
 import { useConfirm, useToast } from '../components/Feedback'
 
 export function SettingsPage() {
   const { settings, updateSettings, reload, staleSeed, refreshSeedRoutes } = useData()
   const toast = useToast()
   const confirm = useConfirm()
-  const [key, setKey] = useState(settings.tmapKey)
-  const mode = detectMode(settings.tmapKey)
+
+  const setStyle = (mapStyle: MapStyle) => {
+    updateSettings({ mapStyle })
+    toast('已切换底图样式', 'success')
+  }
 
   return (
     <div className="page">
@@ -17,47 +19,30 @@ export function SettingsPage() {
       <section className="section">
         <h2>地图底图</h2>
         <p className="muted">
-          底图使用腾讯位置服务（具备测绘资质）。<b>济州岛属于海外区域，不适用本地代理模式</b>：
-          想在地图上看到真实底图，必须填入你自己的 Key；没填 Key 时页面会自动降级成路线示意图，
-          凑里程、住宿、看点、相册这些功能照常可用。
+          底图数据来自 <b>OpenStreetMap</b>，全球覆盖，济州岛的街道、海岸线、地形都能正常显示，
+          <b>无需申请 Key、无需任何配置</b>。底图样式可随时切换，立即生效。
         </p>
         <div className="field">
-          <span>腾讯地图 Key</span>
-          <input
-            className="input"
-            placeholder="留空则使用本地代理模式"
-            value={key}
-            onChange={(e) => setKey(e.target.value)}
-          />
+          <span>底图样式</span>
+          <div className="seg">
+            <button
+              className={settings.mapStyle === 'light' ? 'active' : ''}
+              onClick={() => setStyle('light')}
+            >
+              极简淡色
+            </button>
+            <button
+              className={settings.mapStyle === 'standard' ? 'active' : ''}
+              onClick={() => setStyle('standard')}
+            >
+              标准地图
+            </button>
+          </div>
         </div>
-        <div className="btn-row">
-          <button
-            className="btn btn-primary"
-            onClick={() => {
-              updateSettings({ tmapKey: key.trim() })
-              toast('已保存，刷新页面后生效', 'success')
-            }}
-          >
-            保存
-          </button>
-          <span className={`status status-${mode}`}>
-            当前模式：
-            {mode === 'key' ? '自有 Key' : mode === 'proxy' ? '本地代理（无需 Key）' : '底图不可用（降级示意图）'}
-          </span>
-        </div>
-
-        <div className="callout">
-          <b>申请 Key 的步骤</b>
-          <ol>
-            <li>打开腾讯位置服务开放平台（lbs.qq.com），注册并登录。</li>
-            <li>进入「控制台 → 应用管理 → 创建应用」，填写应用名称与类型。</li>
-            <li>为该应用添加 Key，勾选「WebServiceAPI / JavaScript GL」，并填写域名白名单。</li>
-            <li>复制生成的 Key 粘贴到上方输入框，保存并刷新页面。</li>
-          </ol>
-          <p className="muted">
-            前端明文 Key 存在被抓取的风险：个人自用请在平台配置 Referer 域名白名单；对外商用请把地图请求放到后端代理。
-          </p>
-        </div>
+        <p className="muted">
+          瓦片由 CARTO / OpenStreetMap 的公共服务提供，需要联网加载；离线时地图区域会是空白，
+          其余功能（凑里程、住宿、看点、相册）不受影响。
+        </p>
       </section>
 
       <section className="section">

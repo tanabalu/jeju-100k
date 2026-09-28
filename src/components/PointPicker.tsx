@@ -14,7 +14,7 @@ interface Props {
 
 /**
  * 在地图上点选取点。
- * 底图不可用时 RouteMap 会降级为示意图，示意图同样支持点击反算经纬度。
+ * 底图加载失败时 RouteMap 会降级为离线示意图，示意图同样支持点击反算经纬度。
  */
 export function PointPicker({ points, hotels, sights, onChange, label = '选择坐标' }: Props) {
   const [open, setOpen] = useState(false)

@@ -766,6 +766,8 @@ textarea.input {
 /* ---------- 地图 ---------- */
 .map-wrap {
   position: relative;
+  /* 建立独立层叠上下文，把 Leaflet 内部的 pane/control 层级关在本组件内 */
+  z-index: 0;
   border-radius: var(--radius);
   overflow: hidden;
   border: 1px solid var(--line);
@@ -774,6 +776,49 @@ textarea.input {
 
 .map-canvas {
   width: 100%;
+}
+
+/* Leaflet 底图：让容器背景与站点配色一致，避免瓦片未加载时露出纯黑 */
+.leaflet-container {
+  background: #eef2f6;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.trail-marker {
+  background: none;
+  border: 0;
+}
+
+.leaflet-control-attribution {
+  font-size: 10px;
+}
+
+/* 底图样式切换的胶囊按钮 */
+.seg {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f6f8fb;
+}
+
+.seg button {
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 14px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.seg button.active {
+  background: #fff;
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
 }
 
 .map-fallback {
@@ -809,9 +854,6 @@ textarea.input {
 
 .map-legend,
 .sketch-foot {
-  position: absolute;
-  left: 10px;
-  bottom: 10px;
   display: flex;
   gap: 10px;
   padding: 5px 10px;
@@ -819,6 +861,24 @@ textarea.input {
   background: rgba(255, 255, 255, 0.92);
   font-size: 12px;
   color: var(--text);
+  z-index: 1000;
+}
+
+/* 图例放右上角，避开 Leaflet 左上角的缩放控件与左下角的比例尺 */
+.map-legend {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  max-width: calc(100% - 20px);
+  flex-wrap: wrap;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
+}
+
+.sketch-foot {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  flex-wrap: wrap;
 }
 
 .map-legend span,
@@ -835,10 +895,12 @@ textarea.input {
   border-radius: 50%;
 }
 
+/* 取点提示同样放右上角，与图例互斥（取点时不出图例） */
 .map-pick-hint {
   position: absolute;
   top: 10px;
-  left: 10px;
+  right: 10px;
+  z-index: 1000;
   padding: 5px 10px;
   border-radius: 8px;
   background: rgba(47, 125, 79, 0.92);

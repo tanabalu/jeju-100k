@@ -1,4 +1,4 @@
-/** 经纬度点（GCJ-02 火星坐标，与腾讯地图一致） */
+/** 经纬度点（WGS-84，与 OpenStreetMap / CARTO 底图一致；济州岛在中国境外，无 GCJ-02 偏移） */
 export interface GeoPoint {
   lng: number
   lat: number
@@ -121,9 +121,12 @@ export interface Plan {
   updatedAt: number
 }
 
+/** 底图样式：light = CARTO 极简淡色，standard = OpenStreetMap 标准地图 */
+export type MapStyle = 'light' | 'standard'
+
 export interface AppSettings {
-  /** 自己申请的腾讯地图 Key；留空则走本地代理模式（仅本地预览可用） */
-  tmapKey: string
+  /** 地图底图样式；瓦片来自 OpenStreetMap 数据（经 CARTO / OSM 渲染），无需申请 Key */
+  mapStyle: MapStyle
 }
 
 /** 计算后的派生数据，不在库里存 */

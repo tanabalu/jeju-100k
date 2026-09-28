@@ -5,6 +5,7 @@ import { computeMetrics, formatKm } from '../lib/geo'
 import { useActivePlan } from '../hooks/useActivePlan'
 import { useConfirm, useToast } from '../components/Feedback'
 import { Modal } from '../components/Modal'
+import { RouteMap } from '../components/RouteMap'
 import { OLLE_TOTAL_KM } from '../lib/seed'
 
 type PlanSort = 'added' | 'km'
@@ -41,6 +42,14 @@ export function PlanPage() {
 
   /** 勾选过滤只影响展示，不改变合计与复制结果 */
   const visibleRows = hideDone ? rows.filter((r) => !r.done) : rows
+
+  /** 已加入行程篮的各段路线坐标，合并后一次性展示在地图上 */
+  const planTrails = useMemo(
+    () => rows.map((r) => r.route.points).filter((pts) => pts && pts.length > 0),
+    [rows],
+  )
+  const planHotels = useMemo(() => rows.flatMap((r) => r.route.hotels ?? []), [rows])
+  const planSights = useMemo(() => rows.flatMap((r) => r.route.sights ?? []), [rows])
 
   const total = rows.reduce((s, r) => s + r.subtotal, 0)
   const target = plan?.targetKm ?? 100
@@ -166,6 +175,17 @@ export function PlanPage() {
               </div>
             </div>
           </div>
+
+          {rows.length > 0 && (
+            <section className="section">
+              <h2>行程位置</h2>
+              <p className="muted">
+                已加入行程篮的各段路线在地图上的分布（绿=起点、红=终点、蓝点=途经点、紫=住宿、橙=看点）。
+                底图加载失败时自动降级为离线示意图，位置信息不受影响。
+              </p>
+              <RouteMap trails={planTrails} hotels={planHotels} sights={planSights} height={380} />
+            </section>
+          )}
 
           <section className="section">
             <div className="section-head">

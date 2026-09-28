@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Hotel, Sight, TrackPoint } from '../types'
-import { isMapUnavailable, loadTMap } from '../lib/mapLoader'
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import * as L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+import type { Hotel, MapStyle, Sight, TrackPoint } from '../types'
 import { useData } from '../store/DataContext'
 
 const W = 800
 const H = 460
 
-/** 用内联 SVG 生成 marker 图标，避免引用外部 demo 图片资源 */
+/** 用内联 SVG 生成 marker 图标，避免依赖 Leaflet 默认的图片资源 */
 function iconDataUri(color: string, glyph: string): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
 <path d="M14 1C7.4 1 2 6.4 2 13c0 8.4 12 20 12 20s12-11.6 12-20C26 6.4 20.6 1 14 1z" fill="${color}" stroke="#ffffff" stroke-width="2"/>
@@ -15,7 +16,7 @@ function iconDataUri(color: string, glyph: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
-const COLORS = {
+const COLORS: Record<string, string> = {
   start: '#16a34a',
   end: '#dc2626',
   via: '#2563eb',
@@ -31,8 +32,49 @@ const GLYPH: Record<string, string> = {
   sight: '景',
 }
 
+function colorOf(kind: string): string {
+  return COLORS[kind] ?? COLORS.via
+}
+
+/**
+ * 底图瓦片：数据来自 OpenStreetMap，无需申请 Key。
+ * - light：CARTO 极简淡色，适合叠加路线（默认）
+ * - standard：OpenStreetMap 标准地图，地物信息更丰富
+ */
+const TILES: Record<MapStyle, { url: string; attr: string; subdomains: string }> = {
+  light: {
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    attr: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    subdomains: 'abcd',
+  },
+  standard: {
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attr: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    subdomains: 'abc',
+  },
+}
+
+/** 济州岛大致中心：无数据时的默认视野 */
+const JEJU_CENTER: [number, number] = [33.38, 126.53]
+const DEFAULT_ZOOM = 10
+
+function makeIcon(kind: string): L.DivIcon {
+  const small = kind === 'via'
+  const w = small ? 24 : 28
+  const h = small ? 31 : 36
+  return L.divIcon({
+    className: 'trail-marker',
+    html: `<img src="${iconDataUri(colorOf(kind), GLYPH[kind] ?? GLYPH.via)}" width="${w}" height="${h}" alt="" draggable="false" />`,
+    iconSize: [w, h],
+    iconAnchor: [small ? 12 : 14, h],
+  })
+}
+
 interface RouteMapProps {
-  points: TrackPoint[]
+  /** 单段路线（兼容旧用法）；与 trails 二选一 */
+  points?: TrackPoint[]
+  /** 多段路线：每段是一条折线，用于一次性展示多条路线的位置分布 */
+  trails?: TrackPoint[][]
   hotels?: Hotel[]
   sights?: Sight[]
   height?: number
@@ -41,161 +83,156 @@ interface RouteMapProps {
   onPick?: (p: { lng: number; lat: number }) => void
 }
 
-type Status = 'loading' | 'ready' | 'fallback'
+type Status = 'ready' | 'fallback'
 
-export function RouteMap({ points, hotels = [], sights = [], height = 420, pickable = false, onPick }: RouteMapProps) {
+export function RouteMap({
+  points = [],
+  trails,
+  hotels = [],
+  sights = [],
+  height = 420,
+  pickable = false,
+  onPick,
+}: RouteMapProps) {
   const { settings } = useData()
   const containerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<any>(null)
-  const lineRef = useRef<any>(null)
-  const markerRef = useRef<any>(null)
+  const mapRef = useRef<L.Map | null>(null)
+  const tileRef = useRef<L.TileLayer | null>(null)
+  const layerRef = useRef<L.LayerGroup | null>(null)
+  /** 上一次自适应视野时的几何签名；几何没变就不重复 fitBounds，避免打断用户手动缩放 */
+  const fitKeyRef = useRef('')
   const pickRef = useRef(onPick)
   pickRef.current = onPick
+  const styleRef = useRef<MapStyle>(settings.mapStyle ?? 'light')
+  styleRef.current = settings.mapStyle ?? 'light'
 
-  const [status, setStatus] = useState<Status>('loading')
-  const [tip, setTip] = useState('底图加载中…')
+  const [status, setStatus] = useState<Status>('ready')
+  const [tip, setTip] = useState('')
 
+  // 初始化地图（仅一次）
   useEffect(() => {
-    let disposed = false
-    setStatus('loading')
-    loadTMap(settings.tmapKey)
-      .then(() => {
-        if (disposed || !containerRef.current) return
-        const TMap = window.TMap
-        const map = new TMap.Map(containerRef.current, {
-          center: new TMap.LatLng(30.26, 114.3),
-          zoom: 11,
-          pitch: 0,
-        })
-        // 容器刚从隐藏态切换 / 异步加载完成时，强制同步一次尺寸，
-        // 避免 GL 投影矩阵因尺寸未就绪算出 far<=0
-        requestAnimationFrame(() => {
-          try {
-            map.invalidateSize?.()
-          } catch {
-            /* 部分版本无该方法，忽略 */
-          }
-        })
-        mapRef.current = map
-        lineRef.current = new TMap.MultiPolyline({
-          map,
-          styles: {
-            trail: new TMap.PolylineStyle({
-              color: '#2f7d4f',
-              width: 6,
-              borderWidth: 2,
-              borderColor: '#ffffff',
-              lineCap: 'round',
-            }),
-          },
-          geometries: [],
-        })
-        markerRef.current = new TMap.MultiMarker({
-          map,
-          styles: {
-            start: new TMap.MarkerStyle({ width: 28, height: 36, anchor: { x: 14, y: 36 }, src: iconDataUri(COLORS.start, GLYPH.start) }),
-            end: new TMap.MarkerStyle({ width: 28, height: 36, anchor: { x: 14, y: 36 }, src: iconDataUri(COLORS.end, GLYPH.end) }),
-            via: new TMap.MarkerStyle({ width: 24, height: 31, anchor: { x: 12, y: 31 }, src: iconDataUri(COLORS.via, GLYPH.via) }),
-            hotel: new TMap.MarkerStyle({ width: 28, height: 36, anchor: { x: 14, y: 36 }, src: iconDataUri(COLORS.hotel, GLYPH.hotel) }),
-            sight: new TMap.MarkerStyle({ width: 28, height: 36, anchor: { x: 14, y: 36 }, src: iconDataUri(COLORS.sight, GLYPH.sight) }),
-          },
-          geometries: [],
-        })
-        map.on('click', (evt: any) => {
-          if (!pickRef.current) return
-          const ll = evt.latLng
-          const lat = typeof ll.getLat === 'function' ? ll.getLat() : ll.lat
-          const lng = typeof ll.getLng === 'function' ? ll.getLng() : ll.lng
-          pickRef.current({ lng, lat })
-        })
-        setStatus('ready')
+    const el = containerRef.current
+    if (!el || mapRef.current) return
+    try {
+      const map = L.map(el, {
+        center: JEJU_CENTER,
+        zoom: DEFAULT_ZOOM,
+        zoomControl: true,
+        worldCopyJump: true,
       })
-      .catch((err) => {
-        if (disposed) return
-        setStatus('fallback')
-        setTip(
-          isMapUnavailable(err)
-            ? '当前环境没有可用的底图服务，已降级为路线示意图'
-            : `底图加载失败：${err instanceof Error ? err.message : String(err)}`,
-        )
+      // 比例尺（公制），随缩放自动取整公里数
+      L.control.scale({ position: 'bottomleft', imperial: false, maxWidth: 120 }).addTo(map)
+      layerRef.current = L.layerGroup().addTo(map)
+      map.on('click', (e: L.LeafletMouseEvent) => {
+        if (!pickRef.current) return
+        pickRef.current({ lng: Number(e.latlng.lng.toFixed(6)), lat: Number(e.latlng.lat.toFixed(6)) })
       })
+      mapRef.current = map
+      setStatus('ready')
+    } catch (err) {
+      setStatus('fallback')
+      setTip(`底图初始化失败：${err instanceof Error ? err.message : String(err)}`)
+      return
+    }
     return () => {
-      disposed = true
-      try {
-        mapRef.current?.destroy()
-      } catch {
-        /* 忽略销毁异常 */
-      }
+      mapRef.current?.remove()
       mapRef.current = null
+      tileRef.current = null
+      layerRef.current = null
+      // 地图被销毁重建（StrictMode 双调用 / 重新挂载）后需要重新自适应一次
+      fitKeyRef.current = ''
     }
-  }, [settings.tmapKey])
+  }, [])
 
-  // 几何数据变化时刷新图层
+  // 底图瓦片：随样式切换重建
   useEffect(() => {
-    if (status !== 'ready') return
-    const TMap = window.TMap
     const map = mapRef.current
-    if (!TMap || !map) return
-
-    const valid = points.filter((p) => Number.isFinite(p.lng) && Number.isFinite(p.lat))
-    if (valid.length > 1) {
-      lineRef.current?.setGeometries([
-        {
-          id: 'trail',
-          styleId: 'trail',
-          paths: valid.map((p) => new TMap.LatLng(p.lat, p.lng)),
-        },
-      ])
-    } else {
-      lineRef.current?.setGeometries([])
-    }
-
-    const geoms: any[] = valid.map((p, i) => ({
-      id: `pt_${p.id}`,
-      styleId: i === 0 ? 'start' : i === valid.length - 1 ? 'end' : 'via',
-      position: new TMap.LatLng(p.lat, p.lng),
-    }))
-    hotels.forEach((h) => {
-      geoms.push({ id: `hotel_${h.id}`, styleId: 'hotel', position: new TMap.LatLng(h.lat, h.lng) })
+    if (!map || status !== 'ready') return
+    const conf = TILES[styleRef.current] ?? TILES.light
+    if (tileRef.current) map.removeLayer(tileRef.current)
+    const tile = L.tileLayer(conf.url, {
+      attribution: conf.attr,
+      subdomains: conf.subdomains,
+      maxZoom: 19,
+      detectRetina: true,
     })
-    sights.forEach((s) => {
-      geoms.push({ id: `sight_${s.id}`, styleId: 'sight', position: new TMap.LatLng(s.lat, s.lng) })
+    tile.addTo(map)
+    tile.bringToBack()
+    tileRef.current = tile
+  }, [status, settings.mapStyle])
+
+  // 几何图层（路线 / 标记），数据变化时重绘并自适应视野
+  useEffect(() => {
+    const map = mapRef.current
+    const layer = layerRef.current
+    if (!map || !layer || status !== 'ready') return
+    layer.clearLayers()
+
+    // 多段优先；否则把单段 points 视为一段
+    const segments: TrackPoint[][] = trails && trails.length ? trails : [points]
+    const allPoints: TrackPoint[] = []
+
+    segments.forEach((seg) => {
+      const valid = seg.filter((p) => Number.isFinite(p.lng) && Number.isFinite(p.lat))
+      allPoints.push(...valid)
+      if (valid.length > 1) {
+        const latlngs = valid.map((p) => [p.lat, p.lng] as [number, number])
+        // 白色描边 + 绿色主线，保证在任何底图上都清晰
+        L.polyline(latlngs, {
+          color: '#ffffff',
+          weight: 10,
+          opacity: 0.9,
+          lineJoin: 'round',
+          lineCap: 'round',
+        }).addTo(layer)
+        L.polyline(latlngs, {
+          color: '#2f7d4f',
+          weight: 6,
+          opacity: 1,
+          lineJoin: 'round',
+          lineCap: 'round',
+        }).addTo(layer)
+      }
     })
-    markerRef.current?.setGeometries(geoms)
 
-    if (valid.length === 0) return
-    const bounds = new TMap.LatLngBounds()
-    valid.forEach((p) => bounds.extend(new TMap.LatLng(p.lat, p.lng)))
-    hotels.forEach((h) => bounds.extend(new TMap.LatLng(h.lat, h.lng)))
-    sights.forEach((s) => bounds.extend(new TMap.LatLng(s.lat, s.lng)))
-    if (valid.length === 1) {
-      map.setCenter(new TMap.LatLng(valid[0].lat, valid[0].lng))
-      map.setZoom(14)
+    segments.forEach((seg) => {
+      const valid = seg.filter((p) => Number.isFinite(p.lng) && Number.isFinite(p.lat))
+      valid.forEach((p, i) => {
+        const kind = i === 0 ? 'start' : i === valid.length - 1 ? 'end' : 'via'
+        L.marker([p.lat, p.lng], { icon: makeIcon(kind) }).addTo(layer)
+      })
+    })
+    hotels.forEach((h) => L.marker([h.lat, h.lng], { icon: makeIcon('hotel') }).addTo(layer))
+    sights.forEach((s) => L.marker([s.lat, s.lng], { icon: makeIcon('sight') }).addTo(layer))
+
+    const coords: [number, number][] = [
+      ...allPoints.map((p) => [p.lat, p.lng] as [number, number]),
+      ...hotels.map((h) => [h.lat, h.lng] as [number, number]),
+      ...sights.map((s) => [s.lat, s.lng] as [number, number]),
+    ]
+    if (coords.length === 0) return
+    // 只有几何真的变了才重置视野，避免勾选「已完成」等无关状态变更把地图拉回全局
+    const key = coords.map((c) => `${c[0]},${c[1]}`).join(';')
+    if (key === fitKeyRef.current) return
+    fitKeyRef.current = key
+    if (coords.length === 1) {
+      map.setView(coords[0], 14, { animate: false })
     } else {
-      map.fitBounds(bounds, { padding: 60 })
+      map.fitBounds(L.latLngBounds(coords), { padding: [60, 60], maxZoom: 15 })
     }
-  }, [status, points, hotels, sights])
+  }, [status, points, trails, hotels, sights])
 
-  const fallbackBox = useMemo(() => project(points, hotels, sights), [points, hotels, sights])
+  const fallbackBox = useMemo(
+    () => project(trails && trails.length ? trails : [points], hotels, sights),
+    [points, trails, hotels, sights],
+  )
 
   return (
     <div className="map-wrap" style={{ height }}>
       <div ref={containerRef} className="map-canvas" style={{ height }} />
-      {status !== 'ready' && (
+      {status === 'fallback' && (
         <div className="map-fallback" style={{ height }}>
-          {status === 'loading' ? (
-            <div className="map-loading">
-              <span className="spinner" />
-              <span>底图加载中…</span>
-            </div>
-          ) : (
-            <FallbackSketch
-              box={fallbackBox}
-              pickable={pickable}
-              onPick={onPick}
-              tip={tip}
-            />
-          )}
+          <FallbackSketch box={fallbackBox} pickable={pickable} onPick={onPick} tip={tip} />
         </div>
       )}
       {status === 'ready' && pickable && <div className="map-pick-hint">点击地图取点</div>}
@@ -213,26 +250,32 @@ export function RouteMap({ points, hotels = [], sights = [], height = 420, picka
 }
 
 interface Projected {
+  items: { x: number; y: number; kind: string; name: string }[]
+  paths: string[]
+  hasData: boolean
   lngMin: number
   lngMax: number
   latMin: number
   latMax: number
-  items: { x: number; y: number; kind: string; name: string }[]
-  path: string
 }
 
-function project(points: TrackPoint[], hotels: Hotel[], sights: Sight[]): Projected {
-  const all = [
-    ...points.map((p) => ({ lng: p.lng, lat: p.lat, kind: p.kind, name: p.name })),
-    ...hotels.map((h) => ({ lng: h.lng, lat: h.lat, kind: 'hotel' as const, name: h.name })),
-    ...sights.map((s) => ({ lng: s.lng, lat: s.lat, kind: 'sight' as const, name: s.name })),
-  ].filter((p) => Number.isFinite(p.lng) && Number.isFinite(p.lat))
+/** 底图不可用时的离线示意图：把经纬度线性投影到画布 */
+function project(segments: TrackPoint[][], hotels: Hotel[], sights: Sight[]): Projected {
+  const segPts = segments.map((seg) => seg.filter((p) => Number.isFinite(p.lng) && Number.isFinite(p.lat)))
+  const hotelsOk = hotels.filter((h) => Number.isFinite(h.lng) && Number.isFinite(h.lat))
+  const sightsOk = sights.filter((s) => Number.isFinite(s.lng) && Number.isFinite(s.lat))
 
-  if (all.length === 0) {
-    return { lngMin: 0, lngMax: 1, latMin: 0, latMax: 1, items: [], path: '' }
+  const coords = [
+    ...segPts.flat().map((p) => ({ lng: p.lng, lat: p.lat })),
+    ...hotelsOk.map((h) => ({ lng: h.lng, lat: h.lat })),
+    ...sightsOk.map((s) => ({ lng: s.lng, lat: s.lat })),
+  ]
+  if (coords.length === 0) {
+    return { items: [], paths: [], hasData: false, lngMin: 0, lngMax: 1, latMin: 0, latMax: 1 }
   }
-  const lngs = all.map((p) => p.lng)
-  const lats = all.map((p) => p.lat)
+
+  const lngs = coords.map((p) => p.lng)
+  const lats = coords.map((p) => p.lat)
   const lngMin = Math.min(...lngs)
   const lngMax = Math.max(...lngs)
   const latMin = Math.min(...lats)
@@ -240,17 +283,26 @@ function project(points: TrackPoint[], hotels: Hotel[], sights: Sight[]): Projec
   const spanLng = Math.max(lngMax - lngMin, 1e-6)
   const spanLat = Math.max(latMax - latMin, 1e-6)
   const pad = 46
-  const kx = Math.cos(((latMin + latMax) / 2) * (Math.PI / 180))
-  const toX = (lng: number) => pad + ((lng - lngMin) / spanLng) * (W - pad * 2) * 1
+  const toX = (lng: number) => pad + ((lng - lngMin) / spanLng) * (W - pad * 2)
   const toY = (lat: number) => pad + (1 - (lat - latMin) / spanLat) * (H - pad * 2)
-  void kx
 
-  const items = all.map((p) => ({ x: toX(p.lng), y: toY(p.lat), kind: p.kind, name: p.name }))
-  const line = points
-    .filter((p) => Number.isFinite(p.lng) && Number.isFinite(p.lat))
-    .map((p, i) => `${i === 0 ? 'M' : 'L'}${toX(p.lng).toFixed(1)},${toY(p.lat).toFixed(1)}`)
-    .join(' ')
-  return { lngMin, lngMax, latMin, latMax, items, path: line }
+  const items: Projected['items'] = []
+  segPts.forEach((seg) => {
+    seg.forEach((p, i) => {
+      const kind = i === 0 ? 'start' : i === seg.length - 1 ? 'end' : 'via'
+      items.push({ x: toX(p.lng), y: toY(p.lat), kind, name: p.name })
+    })
+  })
+  hotelsOk.forEach((h) => items.push({ x: toX(h.lng), y: toY(h.lat), kind: 'hotel', name: h.name }))
+  sightsOk.forEach((s) => items.push({ x: toX(s.lng), y: toY(s.lat), kind: 'sight', name: s.name }))
+
+  const paths = segPts
+    .filter((seg) => seg.length > 1)
+    .map((seg) =>
+      seg.map((p, i) => `${i === 0 ? 'M' : 'L'}${toX(p.lng).toFixed(1)},${toY(p.lat).toFixed(1)}`).join(' '),
+    )
+
+  return { items, paths, hasData: true, lngMin, lngMax, latMin, latMax }
 }
 
 function FallbackSketch({
@@ -265,8 +317,8 @@ function FallbackSketch({
   tip: string
 }) {
   const svgRef = useRef<SVGSVGElement>(null)
-  const handleClick = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!pickable || !onPick || !svgRef.current) return
+  const handleClick = (e: MouseEvent<SVGSVGElement>) => {
+    if (!pickable || !onPick || !svgRef.current || !box.hasData) return
     const rect = svgRef.current.getBoundingClientRect()
     const x = ((e.clientX - rect.left) / rect.width) * W
     const y = ((e.clientY - rect.top) / rect.height) * H
@@ -275,9 +327,6 @@ function FallbackSketch({
     const lat = box.latMin + (1 - (y - pad) / (H - pad * 2)) * (box.latMax - box.latMin)
     onPick({ lng: Number(lng.toFixed(6)), lat: Number(lat.toFixed(6)) })
   }
-
-  const colorOf = (kind: string) =>
-    kind === 'start' ? COLORS.start : kind === 'end' ? COLORS.end : kind === 'hotel' ? COLORS.hotel : kind === 'sight' ? COLORS.sight : COLORS.via
 
   return (
     <div className="sketch">
@@ -295,7 +344,17 @@ function FallbackSketch({
           </pattern>
         </defs>
         <rect x="0" y="0" width={W} height={H} fill="url(#grid)" />
-        {box.path && <path d={box.path} fill="none" stroke="#2f7d4f" strokeWidth="4" strokeLinejoin="round" strokeLinecap="round" />}
+        {box.paths.map((d, i) => (
+          <path
+            key={i}
+            d={d}
+            fill="none"
+            stroke="#2f7d4f"
+            strokeWidth="4"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+        ))}
         {box.items.map((it, i) => (
           <g key={i}>
             <circle cx={it.x} cy={it.y} r={it.kind === 'via' ? 6 : 10} fill={colorOf(it.kind)} stroke="#fff" strokeWidth="2" />
@@ -304,7 +363,7 @@ function FallbackSketch({
             </text>
           </g>
         ))}
-        {box.items.length === 0 && (
+        {!box.hasData && (
           <text x={W / 2} y={H / 2} fontSize="16" textAnchor="middle" fill="#94a3b8">
             还没有坐标点，先在管理后台添加起点 / 终点
           </text>
