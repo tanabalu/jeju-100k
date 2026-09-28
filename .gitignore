@@ -7,3 +7,7 @@ dist/
 .env
 .env.*
 *.log
+
+# python / script 本地缓存
+**/__pycache__/
+scripts/.cache/
