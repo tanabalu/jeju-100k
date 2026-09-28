@@ -55,8 +55,11 @@ const PLACES: Record<PlaceKey, { zh: string; ko: string; lng: number; lat: numbe
   pyoseon: { zh: '表善', ko: '표선', lng: 126.851, lat: 33.324 },
   namwon: { zh: '南元', ko: '남원', lng: 126.79, lat: 33.283 },
   soesokkak: { zh: '牛沼河口', ko: '쇠소깍', lng: 126.68, lat: 33.279 },
-  olleCenter: { zh: '偶来旅客中心', ko: '제주올레여행자센터', lng: 126.565, lat: 33.245 },
-  seogwipoTerminal: { zh: '西归浦巴士总站', ko: '서귀포버스터미널', lng: 126.563, lat: 33.253 },
+// ⚠️ 除下面标注「官方 GPS」的两条外，其余是**城镇/地点级近似坐标**（偏差可达 10km）。
+//    seogwipoTerminal 原先写 126.563,33.253（在市区里），与官方实测点差了约 5km，
+//    会让 07 / 07-1 的近似连线短成一根 0.9km 的短棒 —— 已按 jejuolle.org 官方 GPS 校正。
+  olleCenter: { zh: '偶来旅客中心', ko: '제주올레여행자센터', lng: 126.558717, lat: 33.247461 }, // 官方 GPS
+  seogwipoTerminal: { zh: '西归浦巴士总站', ko: '서귀포버스터미널', lng: 126.508588, lat: 33.249104 }, // 官方 GPS
   wolpyeong: { zh: '月坪', ko: '월평', lng: 126.47, lat: 33.248 },
   daepyeong: { zh: '大坪', ko: '대평', lng: 126.42, lat: 33.262 },
   hwasun: { zh: '和顺', ko: '화순', lng: 126.35, lat: 33.262 },

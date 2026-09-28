@@ -45,6 +45,17 @@
      折返长在这一段内部 → **剔不掉**，只能报「处数/米数」让人对着地图判断
      （是这条线本就含往返段，还是缝合在岔路口走岔了又走回来）。
 
+⚠️ **实走里程比官方长，还有第三种原因：这个关系映射的根本不是那条线。**
+   实测 07：缝合完全正常（无并联段、无折返、无回头路、蜿蜒系数 1.62），
+   但实走 19.80km / 官方 12.9km。查下来是 **OSM 关系走的是「延长到月坪浦口」的旧走向**，
+   而官方现行 7 线早已止于西归浦巴士总站（jejuolle.org：旅游中心→巴士总站 12.9km）。
+   这类问题**内部一致性检查查不出来**（几何本身自洽），只有两个线索：
+     · **里程倒挂**（本例 154%）——所以 `MAX_COVERAGE` 默认直接拦，不再只提示；
+     · 官方站点会发「区间变更」公告（如 2026-07-01「7코스 법환포구 구간 변경」），
+       OSM 是历史快照，改线后不会自动跟上。
+   想确认只能拿**官方起终点 GPS** 对（`src/lib/seed.ts` 的 PLACES 是城镇级近似坐标，
+   偏差可达 10km，**不能**用来做这道判定，别拿它当闸门）。
+
 ⚠️ **「实走 > 官方」这条口径的前提是官方里程本身是对的。**
    曾经因为脚本里手抄的官方里程是旧数据（09 写成 8.0，官方现行 12.3），
    把 99% 正常的 09 报成「153%、比官方长」，白查了一轮缝合算法。
@@ -97,8 +108,11 @@ MAX_GAP_FRAC = 0.35
 MIN_COVERAGE = 0.60
 # 判定「并联段」（两端都接回主线）时，端点离主线多近算接上
 PARALLEL_TOL_M = 120.0
-# ⚠️ 实走里程 / 官方里程 **高于**它 = 关系里混了替代支线/重复段（线比官方长是不可能的）。
-#    默认只提示不拦（提示里会说清「多半混了替代支线」），要拦就 --max-coverage 1.25。
+# ⚠️ 实走里程 / 官方里程 **高于**它就不再是「缝合噪声」，而是**走向与官方不符**，
+#    默认直接判定不可用、不导出（宁可缺、不可假）。实测依据：
+#      · 07 = 154% —— OSM 关系走的是延长到月坪浦口的旧走向，官方现行 7 线止于西归浦巴士总站；
+#      · 正常线都落在这个阈值以内（03 剔并联段后 109%、05 109%、16 108%）。
+#    确实想把超长的也收进来，传 `--max-coverage 0` 关掉这道闸（或 `--keep-bad`）。
 MAX_COVERAGE = 1.30
 
 # 올레길 / 제주올레 / Jeju Olle Trail 后面的编号；允许 1 / 01 / 1-1 / 3-A / 3(A) 这些写法。
@@ -409,25 +423,45 @@ def _seg_links(segments, tol=PARALLEL_TOL_M):
 def _loops(seg):
     """一段里「同一节点被走了两次」的地方 —— 两次之间那段路是折返/绕环，白走的。
 
-    返回 (处数, 米数)。只报数，不擅自剔除：环线本来就会回到起点（设计如此），
-    要点是**把这几公里摆出来**，让人判断它是路线真实的往返段，还是缝合走岔了。
+    返回 (处数, 米数)，米数 = **那段往返实际走掉的路**（不是重复几何的那一半）。
+    只报数，不擅自剔除：环线本来就会回到起点（设计如此），要点是**把这几公里摆出来**，
+    让人判断它是路线真实的往返段，还是缝合走岔了。
 
-    ⚠️ 「整段首尾闭合」（j=0 且 i=最后一点）不算 —— 那是环线收口（如牛岛 01-1），
-    不是折返；把它算进去会凭空报出一整条线的长度。
+    ⚠️ 一处折返**只算一次**：取「路径间隔最大的那对重复点」当这一处的范围，内部嵌套的
+    小配对不再重复计。否则一条来回走的线会按每个节点各报一次 —— 实测 12 个点的往返段
+    会被报成「11 处 / 111km」，比整条线还长，纯属噪声。
+
+    ⚠️ 「整段首尾闭合、中间没有别的重复点」不算 —— 那是环线收口（如牛岛 01-1），
+    把它算进去会凭空报出一整条线的长度。
     """
-    first = {}
     n, m = 0, 0.0
     last = len(seg) - 1
-    for i, p in enumerate(seg):
-        k = _key(p)
-        j = first.get(k)
-        if j is None:
-            first[k] = i
-            continue
-        if j == 0 and i == last:
-            continue
+    stack = [(0, len(seg))]
+    while stack:
+        lo, hi = stack.pop()
+        part = seg[lo:hi]
+        first, pairs, ring = {}, [], None
+        for i, p in enumerate(part):
+            k = _key(p)
+            j = first.get(k)
+            if j is None:
+                first[k] = i
+                continue
+            if lo + j == 0 and lo + i == last:
+                ring = (j, i)                # 候选：环线收口
+                continue
+            pairs.append((j, i))
+        if not pairs:
+            continue                         # 只有首尾重合 = 环线收口（牛岛 01-1），不报
+        if ring:
+            # 端点重合 **且中间也有重复点** → 那是「整段走了个来回」，不是环线，要报
+            pairs.append(ring)
+        j, i = max(pairs, key=lambda pr: path_len_m(part[pr[0]:pr[1] + 1]))
         n += 1
-        m += path_len_m(seg[j:i + 1])
+        m += path_len_m(part[j:i + 1])
+        # 折返段的前后各自可能还夹着别的重复，继续分开找
+        stack.append((lo, lo + j + 1))
+        stack.append((lo + i, hi))
     return n, m
 
 
@@ -656,17 +690,18 @@ def geojson_for(code, rel, segments, gaps, km):
 
 
 def verdict_of(km, gap_m, official, min_cov=MIN_COVERAGE, max_frac=MAX_GAP_FRAC,
-               max_cov=None):
-    """给一行数据下判定：✅ 可用 / ⚠️ 有缺段 / ⛔ 太零碎
+               max_cov=MAX_COVERAGE):
+    """给一行数据下判定：✅ 可用 / ⚠️ 有缺段 / ⛔ 不可用
 
-    ⚠️ **实走里程比官方还长是「拼错了」的信号，不是「数据更全」**：
-    一条线不可能比它自己长。原因只有两类，诊断区会分开报：
+    ⚠️ **实走里程比官方还长 = 不可用，不是「数据更全」**：一条线不可能比它自己长。
+    原因有三类，诊断区会分开报：
       · **并联段**（关系里混进替代支线/A/B 变体/无障碍路线）→ 两端都挂回主线，默认剔除；
-      · **段内折返**（同一节点在一段里被走了两次）→ 剔不掉，得对着地图判断是路线本就
-        含往返段，还是缝合在岔路口走岔了（07 属于这类）。
+      · **段内折返**（同一节点在一段里被走了两次）→ 剔不掉，得对着地图判断；
+      · **关系映射的不是这条线**（旧走向 / 邻线延伸）→ 几何自洽、查不出来，
+        只能靠里程倒挂发现（实测 07 = 154%，官方现行 7 止于西归浦巴士总站，
+        OSM 关系却一直走到月坪浦口）。所以超长默认直接拦。
     判之前先确认官方里程基准是对的 —— 基准错了，这一栏全是假的。
-    默认只提示（因为那几公里仍是真实的 OSM 数据，比拿直线糊上去强），
-    传 max_cov 就能把它升级成一票否决。
+    传 max_cov=0 可关掉「超长」这道闸。
     """
     walk_m = km * 1000
     frac = gap_m / (walk_m + gap_m) if (walk_m + gap_m) > 0 else 0.0
@@ -677,15 +712,16 @@ def verdict_of(km, gap_m, official, min_cov=MIN_COVERAGE, max_frac=MAX_GAP_FRAC,
     if frac > max_frac:
         bad.append(f"断口占 {frac * 100:.0f}%")
     if cov is not None and max_cov and cov > max_cov:
-        bad.append(f"比官方长 {cov * 100 - 100:.0f}%（含替代支线）")
+        bad.append(
+            f"比官方长 {cov * 100 - 100:.0f}%（走向与官方里程不符："
+            "多半是官方已改线、OSM 还留着旧走向，或这个关系映射的是邻线延伸）"
+        )
     if bad:
         return "⛔", "、".join(bad)
     if frac > 0.05:
         warn.append(f"断口 {frac * 100:.0f}%")
     if cov is not None and abs(cov - 1) > 0.15:
         warn.append(f"覆盖 {cov * 100:.0f}%")
-        if cov > MAX_COVERAGE:
-            warn.append("比官方长，看诊断里的并联段/折返数")
     if warn:
         return "⚠️", "、".join(warn)
     return "✅", ""
@@ -702,8 +738,9 @@ def main():
                     help="接不上时允许就近接上的距离（米）")
     ap.add_argument("--min-coverage", type=float, default=MIN_COVERAGE,
                     help="实走里程/官方里程 低于它就判定不可用")
-    ap.add_argument("--max-coverage", type=float, default=None,
-                    help="实走里程/官方里程 高于它就判定不可用（默认只提示不拦）")
+    ap.add_argument("--max-coverage", type=float, default=MAX_COVERAGE,
+                    help="实走里程/官方里程 高于它就判定不可用（默认 1.30，"
+                         "拦「关系映射的不是这条线」这类旧走向；传 0 关掉这道闸）")
     ap.add_argument("--max-gap-frac", type=float, default=MAX_GAP_FRAC,
                     help="断口占比高于它就判定不可用")
     ap.add_argument("--keep-bad", action="store_true",
@@ -926,7 +963,7 @@ def main():
         winners[code] = cand
 
         if mark == "⛔" and not args.keep_bad:
-            skipped.append(f"{code} （{why}，OSM 这条关系只画了一部分，保持原样更诚实）")
+            skipped.append(f"{code} （{why}）—— 不导出，这条线保持原来的近似坐标")
             continue
         out[code] = geojson_for(code, rel, segments, gaps, km)
         if mark == "⚠️":
@@ -937,7 +974,8 @@ def main():
     missing = [c for c in ROUTE_CODES if c not in out]
     print(f"拿到 {len(got)}/{len(ROUTE_CODES)} 条：{'、'.join(got) if got else '（无）'}")
     if skipped:
-        print("\n⛔ 判定不可用、没有导出（保持原来的近似坐标，不要用半条线冒充整条）：")
+        print("\n⛔ 判定不可用、没有导出（保持原来的近似坐标；"
+              "半条线、或走向对不上的线，都不拿来冒充）：")
         for s in skipped:
             print(f"  - {s}")
     if missing:
