@@ -11,6 +11,7 @@
   python3 import_tracks.py --src dir --dry                             # 只解析报告，不写文件
   python3 import_tracks.py --src dir --map jeju-olle-1.gpx=01          # 文件名认不出编号时手工指定
   python3 import_tracks.py --src dir --reverse 01                      # 该条轨迹方向反了，翻转
+  python3 import_tracks.py --src dir --no-orient                       # 关掉走向自动校正（默认开）
   python3 import_tracks.py --src dir --elevation                       # 轨迹没海拔时联网补（SRTM 30m）
   python3 import_tracks.py --src dir --tolerance 10 --max-points 500   # 调简化力度
 
@@ -43,7 +44,17 @@ GeoJSON 的 MultiLineString（OSM 缝合后留下的断口就是这种）都当�
   而不是拿旧的错线剖面冒充。OSM 这类只给走向不给海拔的源，加 `--elevation`
   就会用 opentopodata 的 SRTM 30m 补上（结果带缓存，重跑不重复请求）。
 - **方向与编号都要人工可核对**：脚本会打印「文件 → 编号」与「轨迹起终点坐标 + 里程」，
-  方向反了用 `--reverse`；认不出编号的会明确列出来，不会瞎猜。
+  认不出编号的会明确列出来，不会瞎猜。方向**默认自动校正**（见下面「走向校正」），
+  确有需要才用 `--reverse` 手工指定、`--no-orient` 整个关掉。
+
+**走向校正（默认开）**：方向 = 行进方向 —— 详情页的「起点 → 终点」与剖面图的爬升/下降
+都按它读，反了会把上坡读成下坡。而缝合/导出环节不认成员顺序，方向本来就是随机的。
+判据不需要任何外部坐标，只用一条结构事实：**偶来各条首尾相接**（课程 N 的终点 =
+N+1 的起点，见 seed.ts 的 SPECS）。于是相邻两条必然共享一个端点节点，共享点落在
+「N 终点 / N+1 起点」上即同向；落在「N+1 终点」上则这一对里有且仅有一条是反的，
+再取**翻转条数最少**的解（数据源本身没问题时就是 0 次翻转，不会误伤）。
+2026-09-28 实测判出 05 / 11 / 20 三条反向。改这块逻辑前先跑
+`scripts/selftest_import_tracks.py`（不联网）。
 """
 
 import argparse
@@ -151,6 +162,82 @@ def gain_loss(eles):
             loss += -d
             ref = e
     return round(gain), round(loss)
+
+
+# ---------- 走向校正：用「首尾相接的环」反推哪条被拼接反了 ----------
+#
+# 偶来 27 条是首尾相接的一条环线：**课程 N 的终点就是课程 N+1 的起点**（见 seed.ts 的
+# SPECS，写死的）。这条结构性事实可以反过来当检测器 ——
+#
+#   · 相邻两条课程在 OSM 里必然共享一个端点节点；
+#   · 共享点应当落在「N 的终点」与「N+1 的起点」上；
+#   · 若落成「N+1 的终点」（或「N 的起点」），说明这一对里有**且仅有**一条被反着拼了
+#     （缝合时不认成员顺序，方向本来就是随机的，见 fetch_olle_osm.py 的说明）；
+#   · 谁错：取「翻转条数最少」的方案 —— 数据源本身没问题时它会给出 0 次翻转，
+#     所以这个校正不会误伤一份方向本来就对的 GPX。
+#
+# 为什么必须校正：方向 = **行进方向**。详情页的「起点 → 终点」和爬升/下降都按它读，
+# 反了会把上坡读成下坡，起点坐标也会贴到另一端去。
+ORIENT_TOL_M = 80.0          # 端点相距多少米以内算「同一个节点」
+BIG_GAP_M = 300.0            # 断口超过它才算「地图上会明显断开」，以下只在报告里提一句
+MAIN_CODE = re.compile(r"\d{2}\Z")
+
+
+def seg_gaps_m(segs):
+    """相邻两段之间的实际缺口（取最近的一对端点 —— 地图上看到的就是这个距离）。"""
+    return [
+        min(haversine_m(p, q) for p in (a[0], a[-1]) for q in (b[0], b[-1]))
+        for a, b in zip(segs, segs[1:])
+    ]
+
+
+def orient_flips(ends, tol=ORIENT_TOL_M):
+    """按「相邻课程首尾相接」判出哪些编号的几何方向与官方行进方向相反。
+
+    ends: {编号: (首点, 末点)}。返回 (要翻转的编号集合, 用到的约束列表)。
+    只比主线相邻编号（01→02→…→21）：支线是折返/替代线，首尾关系与主线不同，不参与。
+    """
+    codes = sorted(c for c in ends if MAIN_CODE.match(c))
+    links = []
+    for a, b in zip(codes, codes[1:]):
+        if int(b) - int(a) != 1:
+            continue                       # 中间缺了编号，这两条接不上，给不出约束
+        sa, ea = ends[a]
+        sb, eb = ends[b]
+        # (距离, 这条约束要求两者方向相同=0 / 相反=1)
+        opts = sorted([
+            (haversine_m(ea, sb), 0),      # 甲终=乙起 → 同向
+            (haversine_m(sa, eb), 0),      # 甲起=乙终 → 同向
+            (haversine_m(ea, eb), 1),      # 甲终=乙终 → 必有一条是反的
+            (haversine_m(sa, sb), 1),      # 甲起=乙起 → 同上
+        ])
+        if opts[0][0] > tol or opts[1][0] <= tol:
+            continue                       # 压根没接上，或两端都对得上（分不清），跳过
+        links.append((a, b, opts[0][1]))
+
+    adj = {}
+    for a, b, par in links:
+        adj.setdefault(a, []).append((b, par))
+        adj.setdefault(b, []).append((a, par))
+
+    flip, seen = set(), set()
+    for root in sorted(adj):
+        if root in seen:
+            continue
+        comp, rel, stack = [], {}, [(root, 0)]
+        while stack:
+            cur, r = stack.pop()
+            if cur in rel:
+                continue
+            rel[cur] = r
+            comp.append(cur)
+            for nxt, par in adj.get(cur, ()):
+                stack.append((nxt, r ^ par))
+        seen.update(comp)
+        # 一组里的相对方向已定，还差一个「整体翻不翻」：挑翻转条数更少的那种取向
+        ones = [c for c in comp if rel[c]]
+        flip.update(ones if len(ones) * 2 <= len(comp) else [c for c in comp if not rel[c]])
+    return flip, links
 
 
 # ---------- 海拔补采样（给只有走向、没有海拔的轨迹用） ----------
@@ -490,6 +577,8 @@ def main():
     ap.add_argument("--max-points", type=int, default=420)
     ap.add_argument("--map", action="append", default=[], help="文件名=编号，如 jeju1.gpx=01")
     ap.add_argument("--reverse", action="append", default=[], help="翻转方向，可多次")
+    ap.add_argument("--no-orient", action="store_true",
+                    help="关掉走向自动校正（默认按「相邻课程首尾相接」把拼反的线翻回来）")
     ap.add_argument("--elevation", action="store_true",
                     help="轨迹没有海拔时联网补（opentopodata SRTM 30m，结果带缓存）")
     ap.add_argument("--dry", action="store_true", help="只解析报告，不写文件")
@@ -536,9 +625,41 @@ def main():
     if unmatched and args.strict:
         sys.exit(f"\n有 {len(unmatched)} 个文件认不出编号，--strict 模式退出。用 --map 文件名=编号 指定。")
 
+    # 走向校正：先轻量扫一遍各条线的首末点（只为拿端点，代价可忽略），
+    # 再按「相邻课程首尾相接」这条结构事实决定要不要翻转（判据见文件顶部那段说明）
+    flips, orient_links = set(), []
+    if not args.no_orient:
+        ends = {}
+        for _code, _path in matched.items():
+            try:
+                _segs = [s for s in (dedupe(x) for x in load_track(_path)) if len(s) >= 2]
+            except Exception:
+                continue                       # 解析失败留给主循环去报，不在这里重复吵
+            if not _segs:
+                continue
+            if _code in args.reverse:
+                _segs = [s[::-1] for s in _segs][::-1]
+            ends[_code] = (_segs[0][0], _segs[-1][-1])
+        flips, orient_links = orient_flips(ends)
+        print()
+        if flips:
+            odd = [f"{a}↔{b}" for a, b, par in orient_links if par and (a in flips or b in flips)]
+            print(f"🔁 走向校正：{', '.join(sorted(flips))} 的几何方向与官方行进方向相反，导入时已翻转")
+            print(f"   依据：偶来各条首尾相接（课程 N 的终点 = N+1 的起点），实测 {'、'.join(odd)} "
+                  "共享的端点落在「终点对终点」上 —— 这一对里必有一条是反的；")
+            print("   按「翻转条数最少」求解即得上面这几条。方向 = 行进方向：详情页的「起点 → 终点」"
+                  "与爬升/下降都按它读，反了会把上坡读成下坡。")
+        else:
+            if orient_links:
+                print(f"✅ 走向校正：{len(orient_links)} 对相邻课程端点相接，方向全部一致，无需翻转。")
+            else:
+                print("ℹ️ 走向校正：没有可用的相邻课程端点（只导了一两条主线时属正常），跳过。")
+        print()
+
     print()
     out = {}
     suspicious = []
+    small_gaps = []
     t0 = time.time()
     print(
         f"{'编号':<6} {'原始点':>7} {'简化':>6} {'段':>3} {'轨迹km':>8} {'官方km':>7} {'差':>6} "
@@ -559,8 +680,9 @@ def main():
         if not segs:
             print(f"{code:<6} ⚠️ 有效点不足 2 个，跳过")
             continue
-        if code in args.reverse:
-            # 反向：每段翻转，段的先后也翻过来
+        if code in args.reverse or code in flips:
+            # 反向：每段翻转，段的先后也翻过来。
+            # （flips 来自上面的走向校正：几何与官方行进方向相反的那几条）
             segs = [s[::-1] for s in segs][::-1]
         raw_n = sum(len(s) for s in segs)
 
@@ -630,7 +752,15 @@ def main():
         if off and abs(km - off) / off > 0.25:
             suspicious.append(f"{code}（轨迹 {km:.1f}km vs 官方 {off}km）")
         if len(segs) > 1:
-            suspicious.append(f"{code} 有 {len(segs)} 段、{len(segs) - 1} 处断口，地图上会留缺口")
+            gaps = seg_gaps_m(segs)
+            worst = max(gaps) if gaps else 0.0
+            if worst > BIG_GAP_M:
+                suspicious.append(
+                    f"{code} 有 {len(segs)} 段 / {len(gaps)} 处断口，最大 {worst / 1000:.1f}km"
+                    f"（合计 {sum(gaps) / 1000:.1f}km），地图上会明显断开"
+                )
+            else:
+                small_gaps.append(f"{code}（{len(gaps)} 处，最大 {worst:.0f}m）")
 
     print()
     missing = [c for c in ROUTE_CODES if c not in out]
@@ -639,6 +769,8 @@ def main():
         print(f"仍缺（前端会保持原样，不走真实轨迹）：{', '.join(missing)}")
     if suspicious:
         print(f"⚠️ 需要人工看一眼：{'；'.join(suspicious)}")
+    if small_gaps:
+        print(f"ℹ️ 另有小断口（最大 ≤{BIG_GAP_M:.0f}m，地图上基本看不出）：{'；'.join(small_gaps)}")
     no_ele = [c for c, v in out.items() if v["gainM"] is None]
     if no_ele:
         print(f"⚠️ 轨迹里没有海拔、剖面会显示「暂缺海拔数据」：{', '.join(no_ele)}")
