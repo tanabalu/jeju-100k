@@ -1888,6 +1888,29 @@ textarea.input {
     row-gap: 4px;
   }
 
+  /* 准备页目录：移动端换行而不是横向滚动，避免后面的项被截断看不到 */
+  .prep-toc {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    row-gap: 8px;
+    padding: 8px 0;
+  }
+
+  .toc-link {
+    font-size: 12px;
+    padding: 5px 12px;
+  }
+
+  /* 移动端顶栏会换行变高（约 76px），跳转锚点要留更多余量，否则标题被吸顶栏遮住 */
+  #prep-progress,
+  #prep-custom,
+  #prep-skipped,
+  #prep-budget,
+  [id^='prep-g-'],
+  [id^='prep-s-'] {
+    scroll-margin-top: 84px;
+  }
+
   .brand-text {
     font-size: 14px;
   }
@@ -2153,12 +2176,12 @@ textarea.input {
   border-color: var(--brand);
   color: #fff;
 }
-/* 锚点定位时给模块顶部留点余量，避免贴边 */
+/* 锚点定位时给模块顶部留余量，避免被 sticky 顶栏遮住（桌面顶栏约 56px） */
 #prep-progress,
 #prep-custom,
 #prep-skipped,
 #prep-budget,
 [id^='prep-g-'],
 [id^='prep-s-'] {
-  scroll-margin-top: 16px;
+  scroll-margin-top: 64px;
 }
