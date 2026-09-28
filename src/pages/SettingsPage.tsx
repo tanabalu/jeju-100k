@@ -26,21 +26,22 @@ export function SettingsPage() {
           <span>底图样式</span>
           <div className="seg">
             <button
-              className={settings.mapStyle === 'light' ? 'active' : ''}
-              onClick={() => setStyle('light')}
-            >
-              极简淡色
-            </button>
-            <button
               className={settings.mapStyle === 'standard' ? 'active' : ''}
               onClick={() => setStyle('standard')}
             >
               标准地图
             </button>
+            <button
+              className={settings.mapStyle === 'terrain' ? 'active' : ''}
+              onClick={() => setStyle('terrain')}
+            >
+              地形图
+            </button>
           </div>
         </div>
         <p className="muted">
-          瓦片由 CARTO / OpenStreetMap 的公共服务提供，需要联网加载；离线时地图区域会是空白，
+          「标准地图」来自 OpenStreetMap，「地形图」来自 OpenTopoMap（带等高线与山体阴影，适合徒步）。
+          两个图源都是免 Key 的公共服务，需要联网加载；离线时地图区域会是空白，
           其余功能（凑里程、住宿、看点、相册）不受影响。
         </p>
       </section>

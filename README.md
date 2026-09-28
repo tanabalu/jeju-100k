@@ -91,12 +91,14 @@ python3 scripts/fetch_elevation.py --force    # 忽略缓存全部重抓
 
 ## 5. 地图底图说明
 
-底图用 **Leaflet** 渲染，数据来自 **OpenStreetMap**（瓦片由 CARTO / OSM 公共服务提供），全球覆盖，济州岛的街道、海岸线、地形都能正常显示，**不需要申请 Key，也不需要任何配置**。
+底图用 **Leaflet** 渲染，数据来自 **OpenStreetMap**（瓦片由 OpenStreetMap / OpenTopoMap 公共服务提供），全球覆盖，济州岛的街道、海岸线、地形都能正常显示，**不需要申请 Key，也不需要任何配置**。
 
 | 底图样式 | 瓦片来源 | 特点 |
 | --- | --- | --- |
-| 极简淡色（默认） | CARTO `light_all` | 淡色底图，路线与标记对比度高 |
-| 标准地图 | OpenStreetMap `tile.openstreetmap.org` | 地物信息更丰富（道路、POI、地貌） |
+| 标准地图（默认） | OpenStreetMap `tile.openstreetmap.org` | 道路、POI、地名等要素最全 |
+| 地形图 | OpenTopoMap `tile.opentopomap.org` | 等高线 + 山体阴影，适合徒步 / 越野判断爬升 |
+
+> ⚠️ 图源选型注意：**不要用 CARTO**（`basemaps.cartocdn.com`）——它现在对匿名请求强制返回带 "API key required" 水印的瓦片，需要自己申请 Key。OSM / OpenTopoMap 的公共服务才是真正免 Key 的。
 
 样式在「设置」页一键切换、立即生效，选择存在本机。
 
@@ -104,7 +106,7 @@ python3 scripts/fetch_elevation.py --force    # 忽略缓存全部重抓
 - 极端情况下 Leaflet 初始化失败会自动降级为**离线示意图**（SVG 投影），仍可点击反算经纬度。
 - 坐标统一为 **WGS-84**（与 OSM 一致）。济州岛在中国境外，GCJ-02 偏移算法在境外不生效，因此历史坐标与 WGS-84 等价，换底图不会产生位置偏移。
 
-> ⚠️ 合规提示：OpenStreetMap / CARTO 属境外图源，**不适用于面向中国大陆的测绘地图产品**。本项目定位是济州岛（海外）徒步攻略的个人自用工具，用境外图源没问题；若将来要对大陆用户作为测绘产品发布，需换回具备测绘资质且能覆盖目标区域的底图服务。
+> ⚠️ 合规提示：OpenStreetMap / OpenTopoMap 属境外图源，**不适用于面向中国大陆的测绘地图产品**。本项目定位是济州岛（海外）徒步攻略的个人自用工具，用境外图源没问题；若将来要对大陆用户作为测绘产品发布，需换回具备测绘资质且能覆盖目标区域的底图服务。
 
 ## 6. 路线配图（Wikimedia Commons 自由授权）
 
@@ -227,4 +229,4 @@ scripts/fetch_elevation.py  SRTM 30m 高程抓取脚本（生成 olleeElevation.
 
 - 预置坐标为城镇级近似值，**不是官方轨迹**；后续可加 GPX 导入，直接算真实长度与真实爬升。
 - 住宿 / 看点 / 相册预置为空，需要你按实际行程录入（也可导入 JSON 批量填）。
-- 底图使用 OpenStreetMap（CARTO / OSM 瓦片），需要联网；若在无网环境使用，可用离线示意图 + 后台手动校正坐标。
+- 底图使用 OpenStreetMap / OpenTopoMap 免费瓦片，需要联网；若在无网环境使用，可用离线示意图 + 后台手动校正坐标。

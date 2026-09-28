@@ -81,7 +81,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [rawRoutes, setRawRoutes] = useState<Route[]>([])
   const [plans, setPlans] = useState<Plan[]>([])
-  const [settings, setSettings] = useState<AppSettings>({ mapStyle: 'light' })
+  const [settings, setSettings] = useState<AppSettings>({ mapStyle: 'standard' })
   const [staleSeed, setStaleSeed] = useState(false)
   const [photoManifest, setPhotoManifest] = useState<PhotoManifest>({})
   const [checklist, setChecklist] = useState<ChecklistState>({ checked: [], skipped: [], custom: [] })

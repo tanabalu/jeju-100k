@@ -37,20 +37,22 @@ function colorOf(kind: string): string {
 }
 
 /**
- * 底图瓦片：数据来自 OpenStreetMap，无需申请 Key。
- * - light：CARTO 极简淡色，适合叠加路线（默认）
- * - standard：OpenStreetMap 标准地图，地物信息更丰富
+ * 底图瓦片：数据来自 OpenStreetMap，均为官方 / 社区公共服务，**不需要 Key**。
+ * ⚠️ 别用 CARTO：其 basemaps 现已强制要求 API key，匿名请求会被盖上 "API key required" 水印。
+ * - standard：OpenStreetMap 标准地图，地物信息最全（默认）
+ * - terrain：OpenTopoMap 地形图，带等高线与山体阴影，适合徒步 / 越野
  */
-const TILES: Record<MapStyle, { url: string; attr: string; subdomains: string }> = {
-  light: {
-    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    attr: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    subdomains: 'abcd',
-  },
+const TILES: Record<MapStyle, { url: string; attr: string; subdomains?: string; maxZoom: number }> = {
   standard: {
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     attr: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19,
+  },
+  terrain: {
+    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
     subdomains: 'abc',
+    maxZoom: 17,
+    attr: 'Kartendaten: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende, SRTM | Kartendarstellung: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
   },
 }
 
@@ -103,8 +105,8 @@ export function RouteMap({
   const fitKeyRef = useRef('')
   const pickRef = useRef(onPick)
   pickRef.current = onPick
-  const styleRef = useRef<MapStyle>(settings.mapStyle ?? 'light')
-  styleRef.current = settings.mapStyle ?? 'light'
+  const styleRef = useRef<MapStyle>(settings.mapStyle ?? 'standard')
+  styleRef.current = settings.mapStyle ?? 'standard'
 
   const [status, setStatus] = useState<Status>('ready')
   const [tip, setTip] = useState('')
@@ -148,13 +150,12 @@ export function RouteMap({
   useEffect(() => {
     const map = mapRef.current
     if (!map || status !== 'ready') return
-    const conf = TILES[styleRef.current] ?? TILES.light
+    const conf = TILES[styleRef.current] ?? TILES.standard
     if (tileRef.current) map.removeLayer(tileRef.current)
     const tile = L.tileLayer(conf.url, {
       attribution: conf.attr,
       subdomains: conf.subdomains,
-      maxZoom: 19,
-      detectRetina: true,
+      maxZoom: conf.maxZoom,
     })
     tile.addTo(map)
     tile.bringToBack()

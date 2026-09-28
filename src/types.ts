@@ -1,4 +1,4 @@
-/** 经纬度点（WGS-84，与 OpenStreetMap / CARTO 底图一致；济州岛在中国境外，无 GCJ-02 偏移） */
+/** 经纬度点（WGS-84，与 OpenStreetMap 底图一致；济州岛在中国境外，无 GCJ-02 偏移） */
 export interface GeoPoint {
   lng: number
   lat: number
@@ -121,11 +121,11 @@ export interface Plan {
   updatedAt: number
 }
 
-/** 底图样式：light = CARTO 极简淡色，standard = OpenStreetMap 标准地图 */
-export type MapStyle = 'light' | 'standard'
+/** 底图样式：standard = OpenStreetMap 标准地图，terrain = OpenTopoMap 地形图（等高线 / 山体阴影） */
+export type MapStyle = 'standard' | 'terrain'
 
 export interface AppSettings {
-  /** 地图底图样式；瓦片来自 OpenStreetMap 数据（经 CARTO / OSM 渲染），无需申请 Key */
+  /** 地图底图样式；瓦片来自 OpenStreetMap / OpenTopoMap 公共服务，无需申请 Key */
   mapStyle: MapStyle
 }
 

@@ -62,7 +62,11 @@ export const store = {
   getPlans: () => read<Plan[]>(K_PLANS, []),
   setPlans: (v: Plan[]) => write(K_PLANS, v),
 
-  getSettings: () => read<AppSettings>(K_SETTINGS, { mapStyle: 'light' }),
+  getSettings: () => {
+    const raw = read<Partial<AppSettings>>(K_SETTINGS, {})
+    // 底图样式走白名单：未知/已下线的旧值一律回落到 standard，避免瓦片配置取空导致地图空白
+    return { mapStyle: raw.mapStyle === 'terrain' ? 'terrain' : 'standard' } as AppSettings
+  },
   setSettings: (v: AppSettings) => write(K_SETTINGS, v),
 
   /** 当前正在编辑的行程篮 id */
