@@ -126,8 +126,13 @@ python3 scripts/split_route_map.py --limit 2      # 先切 2 条看效果
 
 | 产出 | 说明 |
 | --- | --- |
-| `public/photos/maps/olle-<编号>.webp` | 每条线一整页（1432×1012，WebP，约 100KB/张，26 张共 2.5MB） |
-| `public/photos/maps.json` | 编号 → 官方路线图，前端读它设 `cover` 并往相册里加一条（可点开看全尺寸） |
+| `public/photos/maps/olle-<编号>.webp` | **详情页原图**：每条线一整页（1432×1012，约 100KB/张，26 张共 2.5MB），用于相册与灯箱 |
+| `public/photos/maps/cover/olle-<编号>.webp` | **卡片封面（压缩版）**：760×537，约 25KB/张，26 张共 0.65MB |
+| `public/photos/maps.json` | 编号 → `{ file: 原图, cover: 封面 }`，前端读它设 `cover` 并把原图加进相册（可点开看全尺寸） |
+
+**为什么一份图出两个尺寸**：卡片封面在列表里只渲染到约 300–400px 宽（`.cards` 是 `minmax(min(300px,100%),1fr)`），把 1432px 的原图塞进去纯属浪费——首页 26 张封面要拉 2.5MB。封面单独压一份后首屏只要 0.65MB，而详情页相册/灯箱照旧显示 1432px 原图，放大看地名不受影响。
+
+压缩是**本地**做的（Pillow 降尺寸 + WebP 降质，`--cover-width` / `--cover-quality` 可调），效果与 TinyPNG / tinyimg 这类在线服务同类，但不需要 API key、不需要把图片上传到第三方，且可复现。想换在线服务也可以，只要把压缩结果覆盖到 `maps/cover/` 同名文件即可。
 
 几个约定：
 
@@ -250,9 +255,9 @@ src/
   components/            RouteMap / ElevationChart / Modal / Feedback / Skeleton / ErrorBoundary ...
   pages/                 Routes / RouteDetail / Plan / Prep / Admin / Settings
   pages/admin/           基本信息 / 途经点 / 住宿 / 看点 / 相册 五个编辑器
-public/photos/           官方路线图（maps/ + maps.json）与相册配图、署名清单
+public/photos/           官方路线图（maps/ + maps/cover/ + maps.json）与相册配图、署名清单
 scripts/fetch_photos.py  Commons 自由授权图片抓取脚本
-scripts/split_route_map.py  官方 Route Map PDF 按路线切割成卡片封面
+scripts/split_route_map.py  官方 Route Map PDF 按路线切割成卡片封面（压缩版）+ 详情页原图
 scripts/fetch_elevation.py  SRTM 30m 高程抓取脚本（生成 olleeElevation.ts）
 ```
 

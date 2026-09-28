@@ -13,11 +13,16 @@ import { buildSeedRoutes, nearestEle } from '../lib/seed'
 import { uid } from '../lib/id'
 
 export interface PhotoEntry {
-  /** 相对站点根目录的图片路径，如 photos/olle-01.jpg */
+  /** 相对站点根目录的原图路径，如 photos/olle-01.jpg */
   file: string
   caption: string
   credit: string
   source?: string
+  /**
+   * 卡片封面专用的压缩版（可选）；缺省时封面回落到 file。
+   * 列表里的封面只渲染到 ~300–400px 宽，用原图纯属浪费流量。
+   */
+  cover?: string
 }
 
 export type PhotoManifest = Record<string, PhotoEntry>
@@ -32,7 +37,8 @@ function resolveAsset(file: string): ImageRef {
  * 叠加随包分发的素材到路线上（不落库，manifest 变了刷新即生效）。
  *
  * 两个来源，各司其职：
- * - `public/photos/maps.json`  官方路线图（scripts/split_route_map.py 切 PDF 产出）→ 作卡片封面，并进相册以便点开看全尺寸
+ * - `public/photos/maps.json`  官方路线图（scripts/split_route_map.py 切 PDF 产出）
+ *     → `cover`（压缩版，约 30KB）作卡片封面；`file`（原图 1432px）进相册，点开看全尺寸
  * - `public/photos/manifest.json` Wikimedia 自由授权照片 → 只进相册
  *
  * 封面优先级：**用户自己在后台设的 cover > 官方路线图 > 照片**（官方图比地点示意照更能说明「这条线怎么走」）。
@@ -45,7 +51,9 @@ function mergeAssets(route: Route, photos: PhotoManifest, maps: PhotoManifest): 
   const photoEntry = photos[code]
   if (!mapEntry && !photoEntry) return route
 
+  // 相册/灯箱用原图，卡片封面用压缩版
   const mapImage = mapEntry ? resolveAsset(mapEntry.file) : undefined
+  const mapCover = mapEntry ? resolveAsset(mapEntry.cover ?? mapEntry.file) : undefined
   const photoImage = photoEntry ? resolveAsset(photoEntry.file) : undefined
   const inAlbum = (image?: ImageRef) =>
     !!image && route.album.some((a) => a.image.kind === image.kind && a.image.value === image.value)
@@ -61,7 +69,7 @@ function mergeAssets(route: Route, photos: PhotoManifest, maps: PhotoManifest): 
 
   return {
     ...route,
-    cover: route.cover ?? mapImage ?? photoImage,
+    cover: route.cover ?? mapCover ?? photoImage,
     album: [...prepend, ...route.album],
   }
 }
