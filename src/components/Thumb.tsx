@@ -39,6 +39,9 @@ export function Thumb({ image, alt = '', fit = 'cover', radius = 8 }: ThumbProps
       src={src}
       alt={alt}
       onError={() => setFailed(true)}
+      /* 首页 27 张封面各约 100KB，懒加载避免首屏一次性拉完 */
+      loading="lazy"
+      decoding="async"
       style={{ width: '100%', height: '100%', objectFit: fit, borderRadius: radius, display: 'block' }}
     />
   )

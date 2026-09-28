@@ -380,7 +380,9 @@ textarea.input {
 
 .route-cover {
   position: relative;
-  height: 150px;
+  /* 封面是官方路线图整页（842×596 横版），按页面比例留位才能零裁切；
+     换图源要同步改这里，否则 object-fit: cover 会把地图上下切掉 */
+  aspect-ratio: 842 / 596;
   background: var(--line-soft);
 }
 

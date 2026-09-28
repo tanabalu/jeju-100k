@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { AppSettings, ImageRef, Plan, Route } from '../types'
+import type { AlbumItem, AppSettings, ImageRef, Plan, Route } from '../types'
 import { store, LEGACY_SEED_IDS, SEED_VERSION, type ChecklistState } from '../lib/storage'
 import { buildSeedRoutes, nearestEle } from '../lib/seed'
 import { uid } from '../lib/id'
@@ -22,20 +22,47 @@ export interface PhotoEntry {
 
 export type PhotoManifest = Record<string, PhotoEntry>
 
-/** 把素材目录里的照片叠加到路线上（不落库，manifest 变了刷新即生效） */
-function mergePhotos(route: Route, manifest: PhotoManifest): Route {
-  const entry = route.code ? manifest[route.code] : undefined
-  if (!entry) return route
+/** 相对路径补成站点可用 URL；http 开头原样返回（base 为相对路径，子路径部署也能用） */
+function resolveAsset(file: string): ImageRef {
   const base = import.meta.env.BASE_URL || './'
-  const value = entry.file.startsWith('http') ? entry.file : `${base}${entry.file}`
-  const image: ImageRef = { kind: 'url', value }
-  const exists = route.album.some((a) => a.image.kind === 'url' && a.image.value === value)
+  return { kind: 'url', value: file.startsWith('http') ? file : `${base}${file}` }
+}
+
+/**
+ * 叠加随包分发的素材到路线上（不落库，manifest 变了刷新即生效）。
+ *
+ * 两个来源，各司其职：
+ * - `public/photos/maps.json`  官方路线图（scripts/split_route_map.py 切 PDF 产出）→ 作卡片封面，并进相册以便点开看全尺寸
+ * - `public/photos/manifest.json` Wikimedia 自由授权照片 → 只进相册
+ *
+ * 封面优先级：**用户自己在后台设的 cover > 官方路线图 > 照片**（官方图比地点示意照更能说明「这条线怎么走」）。
+ * 相册顺序：官方路线图 → 照片 → 用户自己上传的。
+ */
+function mergeAssets(route: Route, photos: PhotoManifest, maps: PhotoManifest): Route {
+  const code = route.code
+  if (!code) return route
+  const mapEntry = maps[code]
+  const photoEntry = photos[code]
+  if (!mapEntry && !photoEntry) return route
+
+  const mapImage = mapEntry ? resolveAsset(mapEntry.file) : undefined
+  const photoImage = photoEntry ? resolveAsset(photoEntry.file) : undefined
+  const inAlbum = (image?: ImageRef) =>
+    !!image && route.album.some((a) => a.image.kind === image.kind && a.image.value === image.value)
+
+  const prepend: AlbumItem[] = []
+  if (mapImage && !inAlbum(mapImage)) {
+    // 署名写进 caption：相册与灯箱都会显示，满足官方图的 © 标注要求
+    prepend.push({ id: `map_${code}`, image: mapImage, caption: `${mapEntry.caption} · ${mapEntry.credit}` })
+  }
+  if (photoImage && !inAlbum(photoImage)) {
+    prepend.push({ id: `photo_${code}`, image: photoImage, caption: photoEntry.caption })
+  }
+
   return {
     ...route,
-    cover: route.cover ?? image,
-    album: exists
-      ? route.album
-      : [{ id: `photo_${route.code}`, image, caption: entry.caption, takenAt: undefined }, ...route.album],
+    cover: route.cover ?? mapImage ?? photoImage,
+    album: [...prepend, ...route.album],
   }
 }
 
@@ -84,6 +111,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<AppSettings>({ mapStyle: 'standard' })
   const [staleSeed, setStaleSeed] = useState(false)
   const [photoManifest, setPhotoManifest] = useState<PhotoManifest>({})
+  const [routeMaps, setRouteMaps] = useState<PhotoManifest>({})
   const [checklist, setChecklist] = useState<ChecklistState>({ checked: [], skipped: [], custom: [] })
   const [fatalError, setFatalError] = useState<Error | null>(null)
 
@@ -118,20 +146,31 @@ export function DataProvider({ children }: { children: ReactNode }) {
     reload()
   }, [reload])
 
-  // 素材目录里的照片：有 manifest.json 才叠加，没有就当没有配图（不报错）
+  // 随包分发的素材清单：官方路线图（maps.json）+ 自由授权照片（manifest.json）。
+  // 缺文件就静默跳过，站点照常跑（卡片退化成「暂无配图」占位）
   useEffect(() => {
     const base = import.meta.env.BASE_URL || './'
-    fetch(`${base}photos/manifest.json`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: PhotoManifest | null) => data && setPhotoManifest(data))
-      .catch(() => {
-        /* 没有素材目录时静默跳过 */
-      })
+    const load = (file: string) =>
+      fetch(`${base}${file}`)
+        .then((r) => (r.ok ? (r.json() as Promise<PhotoManifest>) : null))
+        .catch(() => null)
+    let alive = true
+    Promise.all([load('photos/maps.json'), load('photos/manifest.json')]).then(([maps, photos]) => {
+      if (!alive) return
+      if (maps) setRouteMaps(maps)
+      if (photos) setPhotoManifest(photos)
+    })
+    return () => {
+      alive = false
+    }
   }, [])
 
   const routes = useMemo(
-    () => (Object.keys(photoManifest).length ? rawRoutes.map((r) => mergePhotos(r, photoManifest)) : rawRoutes),
-    [rawRoutes, photoManifest],
+    () =>
+      Object.keys(photoManifest).length || Object.keys(routeMaps).length
+        ? rawRoutes.map((r) => mergeAssets(r, photoManifest, routeMaps))
+        : rawRoutes,
+    [rawRoutes, photoManifest, routeMaps],
   )
 
   const upsertRoute = useCallback((route: Route) => {

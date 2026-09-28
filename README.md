@@ -30,6 +30,7 @@
 | 编号、起终点名称、官方里程、官方难度 | 官方网站，可直接用 | — |
 | 起终点经纬度 | **城镇级近似坐标，非官方实测轨迹** | 用于导航前请在后台用地图选点校正 |
 | 海拔与累计爬升 | **SRTM 30m 地形数据沿近似路径采样估算**，非官方实测 | 做行程判断请导入真实 GPX 轨迹 |
+| 卡片封面 | **官方 Route Map 路线图整页**（© Jeju Olle Foundation），26 条有图、18-2 无官方页 | 想换自己的照片：`/admin`「基本信息」里传一张 |
 | 住宿、看点、相册 | 预置为空 | 在 `/admin` 录入 |
 
 ### 爬升是怎么算出来的（重要）
@@ -108,7 +109,36 @@ python3 scripts/fetch_elevation.py --force    # 忽略缓存全部重抓
 
 > ⚠️ 合规提示：OpenStreetMap / OpenTopoMap 属境外图源，**不适用于面向中国大陆的测绘地图产品**。本项目定位是济州岛（海外）徒步攻略的个人自用工具，用境外图源没问题；若将来要对大陆用户作为测绘产品发布，需换回具备测绘资质且能覆盖目标区域的底图服务。
 
-## 6. 路线配图（Wikimedia Commons 自由授权）
+## 6. 路线配图与封面
+
+卡片封面用**官方路线图**（每条线一整页），相册用 **Wikimedia Commons 自由授权照片**。两套素材都放在 `public/photos/`，前端启动时读清单按路线编号自动绑定（**不写进 localStorage**，换图直接替换文件即可）。
+
+### 6.1 官方路线图 → 卡片封面
+
+把 Jeju Olle Foundation 官方《Route Map》PDF 按路线切成图片，每条线一页：
+
+```bash
+# 默认读 ~/Downloads/171011_jeju-olle-route-map.pdf
+python3 scripts/split_route_map.py
+python3 scripts/split_route_map.py --pdf /path/to/route-map.pdf
+python3 scripts/split_route_map.py --limit 2      # 先切 2 条看效果
+```
+
+| 产出 | 说明 |
+| --- | --- |
+| `public/photos/maps/olle-<编号>.webp` | 每条线一整页（1432×1012，WebP，约 100KB/张，26 张共 2.5MB） |
+| `public/photos/maps.json` | 编号 → 官方路线图，前端读它设 `cover` 并往相册里加一条（可点开看全尺寸） |
+
+几个约定：
+
+- **不要裁切**。官方页是 842×596 的横版，地图铺满整页，裁掉上下 30% 会切到路线本体（01 线南端、10-1 的济州本岛侧都会被切）。封面侧的 `.route-cover` 用 `aspect-ratio: 842 / 596` 按页面比例留位，零裁切。
+- **页码 ↔ 路线号必须核对**。脚本里的 `PAGE_CODES` 是按每页右下角印的粗体路线号整理的（PDF 第 1 页是封面，2~27 页才是路线）。换新版 PDF 一定要重新核对这张表，否则会把路线号配错。
+- 这份 2017.10 版**没有 Route 18-2（下楮子岛）那一页**，所以 18-2 走「暂无配图」占位。
+- 封面优先级：**后台自己设的 cover > 官方路线图 > Commons 照片**。想换成自己的照片，在 `/admin` 的「基本信息」里传一张即可。
+
+> ⚠️ 官方路线图版权归 **© Jeju Olle Foundation**，PDF 内页明确写着「未经许可禁止为商业目的翻印、复制与分发」。本项目是个人自用攻略工具、非商业用途，且相册与灯箱里都显示了署名的 `credit`；**不要拿去商用**。
+
+### 6.2 相册配图（Wikimedia Commons 自由授权）
 
 小红书等站点的图片有版权且禁止抓取，**不要**批量扒下来放进项目。本项目改用 Wikimedia Commons 的自由授权作品（CC0 / CC-BY / 公共领域）。
 
@@ -215,13 +245,14 @@ src/
   lib/imageStore.ts      IndexedDB 图片存储与压缩
   lib/seed.ts            27 条偶来小路预置数据
   lib/prep.ts            行前 checklist 与吃喝住行速查数据（政策项标 verify）
-  store/DataContext.tsx  全局数据 + 配图叠加 + checklist 状态
+  store/DataContext.tsx  全局数据 + 素材（官方路线图 / 照片）叠加 + checklist 状态
   hooks/useActivePlan.ts 行程篮操作
   components/            RouteMap / ElevationChart / Modal / Feedback / Skeleton / ErrorBoundary ...
   pages/                 Routes / RouteDetail / Plan / Prep / Admin / Settings
   pages/admin/           基本信息 / 途经点 / 住宿 / 看点 / 相册 五个编辑器
-public/photos/           路线配图与署名清单（运行 scripts/fetch_photos.py 生成）
+public/photos/           官方路线图（maps/ + maps.json）与相册配图、署名清单
 scripts/fetch_photos.py  Commons 自由授权图片抓取脚本
+scripts/split_route_map.py  官方 Route Map PDF 按路线切割成卡片封面
 scripts/fetch_elevation.py  SRTM 30m 高程抓取脚本（生成 olleeElevation.ts）
 ```
 
