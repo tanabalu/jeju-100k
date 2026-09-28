@@ -1,4 +1,4 @@
-import type { GeoPoint, Route, RouteMetrics, TrackPoint } from '../types'
+import type { ElevSample, GeoPoint, Route, RouteMetrics, TrackPoint } from '../types'
 
 const EARTH_RADIUS_KM = 6371.0088
 const RAD = Math.PI / 180
@@ -116,9 +116,6 @@ export const DEFAULT_WINDING_FACTOR = 1.2
 export function computeMetrics(route: Route, windingFactor = DEFAULT_WINDING_FACTOR): RouteMetrics {
   const points = route.points ?? []
   const straightKm = pathLengthKm(points)
-  const manual = route.manualDistanceKm
-  const distanceKm = typeof manual === 'number' && manual > 0 ? manual : straightKm * windingFactor
-
   // 爬升优先用密的地形采样序列；没有才退回途经点上的海拔
   const samples = route.elevationProfile ?? []
   const src: GeoPoint[] =
@@ -126,6 +123,16 @@ export function computeMetrics(route: Route, windingFactor = DEFAULT_WINDING_FAC
       ? samples.map(([lng, lat, ele]) => ({ lng, lat, ele }))
       : points
   const prof = elevationProfile(src)
+
+  // 真实轨迹（basis='track'）：采样序列就是实际走过的路径，
+  // 它的长度比「途经点直线 × 绕行系数」准得多，直接拿来当里程
+  const trackKm = route.elevationBasis === 'track' && samples.length >= 2 ? pathLengthKm(src) : undefined
+
+  const manual = route.manualDistanceKm
+  const distanceKm =
+    typeof manual === 'number' && manual > 0
+      ? manual
+      : (trackKm ?? straightKm * windingFactor)
 
   const hasManual = typeof route.manualGainM === 'number' && route.manualGainM > 0
   const gainM = hasManual ? (route.manualGainM as number) : (prof?.gainM ?? null)
@@ -140,6 +147,7 @@ export function computeMetrics(route: Route, windingFactor = DEFAULT_WINDING_FAC
   const eles = src.map((p) => p.ele).filter((e): e is number => typeof e === 'number')
   return {
     straightKm,
+    trackKm,
     distanceKm,
     gainM,
     lossM: prof?.lossM ?? null,
@@ -155,6 +163,16 @@ export function computeMetrics(route: Route, windingFactor = DEFAULT_WINDING_FAC
 /** 爬升展示：无数据时给「—」，别把「没采集」显示成 0 */
 export function formatGain(m: number | null | undefined): string {
   return m == null || !Number.isFinite(m) ? '—' : `${Math.round(m)} m`
+}
+
+/**
+ * 路线画线用的几何：有真实轨迹（`basis === 'track'`）就返回轨迹，否则返回 undefined，
+ * 让 RouteMap 自己把途经点连起来。各处地图都走它，保证口径一致。
+ */
+export function trackLines(route: Route): ElevSample[][] | undefined {
+  if (route.elevationBasis !== 'track') return undefined
+  const s = route.elevationProfile
+  return Array.isArray(s) && s.length > 1 ? [s] : undefined
 }
 
 /** 把路线按里程切成 N 段用于剖面/进度展示 */

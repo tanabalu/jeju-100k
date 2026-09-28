@@ -11,3 +11,9 @@ dist/
 # python / script 本地缓存
 **/__pycache__/
 scripts/.cache/
+
+# vite 构建时生成的临时配置（异常退出会残留）
+vite.config.ts.timestamp-*
+
+# 本地助手工作区（记忆 / 技能），不随仓库分发
+.workbuddy/

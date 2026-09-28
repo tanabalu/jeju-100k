@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { AlbumItem, AppSettings, ImageRef, Plan, Route } from '../types'
+import type { AlbumItem, AppSettings, ElevSample, ImageRef, Plan, Route, TrackPoint } from '../types'
 import { store, LEGACY_SEED_IDS, SEED_VERSION, type ChecklistState } from '../lib/storage'
 import { buildSeedRoutes, nearestEle } from '../lib/seed'
 import { uid } from '../lib/id'
@@ -26,6 +26,20 @@ export interface PhotoEntry {
 }
 
 export type PhotoManifest = Record<string, PhotoEntry>
+
+/** public/tracks.json 的一条：真实轨迹（scripts/import_tracks.py 从 GPX/KML/GeoJSON 导入） */
+export interface TrackEntry {
+  /** 轨迹点 [lng, lat, ele]；该轨迹没录海拔时 ele 为 null */
+  points: [number, number, number | null][]
+  basis: 'track'
+  /** 轨迹实测里程（km） */
+  km?: number
+  gainM?: number | null
+  /** 轨迹文件原名，便于回溯 */
+  source?: string
+}
+
+export type TrackManifest = Record<string, TrackEntry>
 
 /** 相对路径补成站点可用 URL；http 开头原样返回（base 为相对路径，子路径部署也能用） */
 function resolveAsset(file: string): ImageRef {
@@ -71,6 +85,78 @@ function mergeAssets(route: Route, photos: PhotoManifest, maps: PhotoManifest): 
     ...route,
     cover: route.cover ?? mapCover ?? photoImage,
     album: [...prepend, ...route.album],
+  }
+}
+
+/** 两个坐标是否视为同一点（预置值的比较用，1e-9 度 ≈ 0.1 mm，足够区分有没有被手改过） */
+const SAME_POINT_EPS = 1e-9
+
+/** 途经点是否仍是最初预置的那几个点（= 用户没在后台动过坐标） */
+function isUntouchedSeed(route: Route, seedPts: Map<string, { lng: number; lat: number }[]>): boolean {
+  const seed = seedPts.get(route.id)
+  const cur = route.points ?? []
+  if (!seed || cur.length !== seed.length) return false
+  return cur.every(
+    (p, i) => Math.abs(p.lng - seed[i].lng) < SAME_POINT_EPS && Math.abs(p.lat - seed[i].lat) < SAME_POINT_EPS,
+  )
+}
+
+/**
+ * 把起点/终点吸附到真实轨迹的首末点。
+ *
+ * 预置坐标是「城镇级近似值」，实测偏差可达 10~13 km（Route 1 的起终点就是这样），
+ * 所以只换折线不换途经点的话，起点/终点标记还会留在错的位置上。
+ * 轨迹首末点就是这条线真实的起终点，直接用它。
+ *
+ * ⚠️ 只在途经点「仍是预置值」时吸附 —— 你在后台手动校正过的坐标不会被覆盖。
+ */
+function snapRouteEnds(
+  route: Route,
+  track: [number, number, number | null][],
+  seedPts: Map<string, { lng: number; lat: number }[]>,
+): TrackPoint[] {
+  const pts = route.points ?? []
+  if (pts.length < 2 || !isUntouchedSeed(route, seedPts)) return pts
+  const first = track[0]
+  const last = track[track.length - 1]
+  const eleOf = (p: [number, number, number | null]) => (typeof p[2] === 'number' ? p[2] : undefined)
+  return pts.map((p, i) => {
+    if (i === 0) return { ...p, lng: first[0], lat: first[1], ele: eleOf(first) ?? p.ele }
+    if (i === pts.length - 1) return { ...p, lng: last[0], lat: last[1], ele: eleOf(last) ?? p.ele }
+    return p
+  })
+}
+
+/**
+ * 叠加真实轨迹（不落库，改 `public/tracks.json` 刷新即生效）。
+ *
+ * 轨迹一到位，这条线的「位置 / 形状 / 里程 / 爬升」就全部改用真实数据：
+ * - `elevationProfile` 换成轨迹点 —— 它本来就是「密采样序列」，剖面图与爬升都从它来；
+ * - `elevationBasis` 置为 `'track'`，界面据此改口径文案（不再说「估算」）；
+ * - 起点/终点吸附到轨迹首末点（见 `snapRouteEnds`）。
+ * 没录海拔的轨迹：剖面会显示「暂缺海拔数据」，而不是拿旧的错线剖面冒充。
+ */
+function mergeTrack(
+  route: Route,
+  tracks: TrackManifest,
+  seedPts: Map<string, { lng: number; lat: number }[]>,
+): Route {
+  const raw = route.code ? tracks[route.code]?.points : undefined
+  if (!Array.isArray(raw)) return route
+  const clean = raw.filter(
+    (p): p is [number, number, number | null] =>
+      Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]),
+  )
+  if (clean.length < 2) return route
+
+  const samples: ElevSample[] = clean.map((p) =>
+    typeof p[2] === 'number' ? [p[0], p[1], p[2]] : [p[0], p[1]],
+  )
+  return {
+    ...route,
+    points: snapRouteEnds(route, clean, seedPts),
+    elevationProfile: samples,
+    elevationBasis: 'track',
   }
 }
 
@@ -120,6 +206,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [staleSeed, setStaleSeed] = useState(false)
   const [photoManifest, setPhotoManifest] = useState<PhotoManifest>({})
   const [routeMaps, setRouteMaps] = useState<PhotoManifest>({})
+  const [trackManifest, setTrackManifest] = useState<TrackManifest>({})
+  /** 预置途经点坐标，用于判断某条路线有没有被手动改过（决定要不要吸附到轨迹） */
+  const seedPts = useMemo(
+    () =>
+      new Map(
+        buildSeedRoutes().map((r) => [r.id, r.points.map((p) => ({ lng: p.lng, lat: p.lat }))] as const),
+      ),
+    [],
+  )
   const [checklist, setChecklist] = useState<ChecklistState>({ checked: [], skipped: [], custom: [] })
   const [fatalError, setFatalError] = useState<Error | null>(null)
 
@@ -154,32 +249,40 @@ export function DataProvider({ children }: { children: ReactNode }) {
     reload()
   }, [reload])
 
-  // 随包分发的素材清单：官方路线图（maps.json）+ 自由授权照片（manifest.json）。
-  // 缺文件就静默跳过，站点照常跑（卡片退化成「暂无配图」占位）
+  // 随包分发的素材与轨迹清单：官方路线图（maps.json）+ 自由授权照片（manifest.json）
+  // + 真实轨迹（tracks.json）。缺文件就静默跳过，站点照常跑
+  // （卡片退化成「暂无配图」占位，路线退回预置的近似坐标）
   useEffect(() => {
     const base = import.meta.env.BASE_URL || './'
-    const load = (file: string) =>
+    const load = <T,>(file: string) =>
       fetch(`${base}${file}`)
-        .then((r) => (r.ok ? (r.json() as Promise<PhotoManifest>) : null))
+        .then((r) => (r.ok ? (r.json() as Promise<T>) : null))
         .catch(() => null)
     let alive = true
-    Promise.all([load('photos/maps.json'), load('photos/manifest.json')]).then(([maps, photos]) => {
+    Promise.all([
+      load<PhotoManifest>('photos/maps.json'),
+      load<PhotoManifest>('photos/manifest.json'),
+      load<TrackManifest>('tracks.json'),
+    ]).then(([maps, photos, tracks]) => {
       if (!alive) return
       if (maps) setRouteMaps(maps)
       if (photos) setPhotoManifest(photos)
+      if (tracks) setTrackManifest(tracks)
     })
     return () => {
       alive = false
     }
   }, [])
 
-  const routes = useMemo(
-    () =>
-      Object.keys(photoManifest).length || Object.keys(routeMaps).length
-        ? rawRoutes.map((r) => mergeAssets(r, photoManifest, routeMaps))
-        : rawRoutes,
-    [rawRoutes, photoManifest, routeMaps],
-  )
+  const routes = useMemo(() => {
+    const hasAssets = Object.keys(photoManifest).length > 0 || Object.keys(routeMaps).length > 0
+    const hasTracks = Object.keys(trackManifest).length > 0
+    if (!hasAssets && !hasTracks) return rawRoutes
+    return rawRoutes.map((r) => {
+      const withAssets = hasAssets ? mergeAssets(r, photoManifest, routeMaps) : r
+      return hasTracks ? mergeTrack(withAssets, trackManifest, seedPts) : withAssets
+    })
+  }, [rawRoutes, photoManifest, routeMaps, trackManifest, seedPts])
 
   const upsertRoute = useCallback((route: Route) => {
     setRawRoutes((prev) => {

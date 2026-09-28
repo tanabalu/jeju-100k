@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { GeoPoint, Route } from '../types'
+import type { ElevSample, GeoPoint, Route } from '../types'
 import { RouteMap } from './RouteMap'
 import { Modal } from './Modal'
 
@@ -9,6 +9,8 @@ interface Props {
   /** 已存在的额外标记，便于选点时参照 */
   hotels?: Route['hotels']
   sights?: Route['sights']
+  /** 真实轨迹线（有就别连途经点，否则选点参照会偏） */
+  lines?: ElevSample[][]
   label?: string
 }
 
@@ -16,7 +18,7 @@ interface Props {
  * 在地图上点选取点。
  * 底图加载失败时 RouteMap 会降级为离线示意图，示意图同样支持点击反算经纬度。
  */
-export function PointPicker({ points, hotels, sights, onChange, label = '选择坐标' }: Props) {
+export function PointPicker({ points, hotels, sights, lines, onChange, label = '选择坐标' }: Props) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -30,6 +32,7 @@ export function PointPicker({ points, hotels, sights, onChange, label = '选择�
         </p>
         <RouteMap
           points={points}
+          lines={lines}
           hotels={hotels}
           sights={sights}
           height={460}

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Route, TrackPoint, TrackPointKind } from '../../types'
 import { uid } from '../../lib/id'
+import { trackLines } from '../../lib/geo'
 import { PointPicker } from '../../components/PointPicker'
 import { RouteMap } from '../../components/RouteMap'
 import { useConfirm, useToast } from '../../components/Feedback'
@@ -71,7 +72,7 @@ export function PointsEditor({ route, onPatch }: Props) {
 
   return (
     <div>
-      <RouteMap points={points} hotels={route.hotels} sights={route.sights} height={320} />
+      <RouteMap points={points} lines={trackLines(route)} hotels={route.hotels} sights={route.sights} height={320} />
 
       <p className="muted" style={{ margin: '8px 0', fontSize: 12 }}>
         累计爬升和海拔剖面都来自这里的海拔值。预置的偶来小路自带地形采样序列；
@@ -117,6 +118,7 @@ export function PointsEditor({ route, onPatch }: Props) {
         />
         <PointPicker
           points={points}
+          lines={trackLines(route)}
           hotels={route.hotels}
           sights={route.sights}
           label="地图选点"

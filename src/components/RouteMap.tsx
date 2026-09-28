@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import * as L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import type { Hotel, MapStyle, Sight, TrackPoint } from '../types'
+import type { ElevSample, GeoPoint, Hotel, MapStyle, Sight, TrackPoint } from '../types'
 import { useData } from '../store/DataContext'
 
 const W = 800
@@ -105,6 +105,12 @@ interface RouteMapProps {
   points?: TrackPoint[]
   /** 多段路线：每段是一条折线，用于一次性展示多条路线的位置分布 */
   trails?: TrackPoint[][]
+  /**
+   * 真实轨迹几何（每条一段，[lng, lat] / [lng, lat, ele]）。
+   * 给了就用它画折线（形状与真实路线一致），否则把途经点直线连起来。
+   * 起终点/途经点标记始终来自 points / trails，不受这里影响。
+   */
+  lines?: ElevSample[][]
   hotels?: Hotel[]
   sights?: Sight[]
   height?: number
@@ -115,9 +121,46 @@ interface RouteMapProps {
 
 type Status = 'ready' | 'fallback'
 
+/** 只保留经纬度有效的轨迹点，并转成 {lng, lat}（脏数据直接丢弃，不让下游崩） */
+function finiteSegs(lines: ElevSample[] | undefined): GeoPoint[] {
+  if (!Array.isArray(lines)) return []
+  return lines
+    .filter((p) => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]))
+    .map((p) => ({ lng: p[0], lat: p[1] }))
+}
+
+interface MarkerItem {
+  lng: number
+  lat: number
+  name: string
+  kind: 'start' | 'end' | 'via'
+}
+
+/**
+ * 命名途经点的标记清单（每段首点=起点、末点=终点、中间=途经）。
+ * 抽出来给地图图层与兜底示意图共用 —— 两处各写一遍必然漂移。
+ * ⚠️ 标记只来自命名途经点，**不要**拿真实轨迹的几百个采样点来打标签。
+ */
+function markerList(trails: TrackPoint[][] | undefined, points: TrackPoint[]): MarkerItem[] {
+  const out: MarkerItem[] = []
+  normalizeSegments(trails, points).forEach((seg) => {
+    const valid = finitePts(seg)
+    valid.forEach((p, i) => {
+      out.push({
+        lng: p.lng,
+        lat: p.lat,
+        name: p.name,
+        kind: i === 0 ? 'start' : i === valid.length - 1 ? 'end' : 'via',
+      })
+    })
+  })
+  return out
+}
+
 export function RouteMap({
   points = [],
   trails,
+  lines,
   hotels = [],
   sights = [],
   height = 420,
@@ -138,6 +181,21 @@ export function RouteMap({
 
   const [status, setStatus] = useState<Status>('ready')
   const [tip, setTip] = useState('')
+
+  /**
+   * 折线几何：优先用真实轨迹（lines），没有才把途经点直线连起来。
+   * 这样「起终点位置」和「线形」可以各自独立来源 —— 轨迹对不上时也不影响出图。
+   */
+  const drawSegs = useMemo<GeoPoint[][]>(() => {
+    const fromLines = (lines ?? []).map(finiteSegs).filter((seg) => seg.length > 0)
+    if (fromLines.length) return fromLines
+    return normalizeSegments(trails, points).map((seg) =>
+      finitePts(seg).map((p) => ({ lng: p.lng, lat: p.lat })),
+    )
+  }, [lines, trails, points])
+
+  /** 命名途经点标记（真实轨迹不参与，避免几百个点各打一个标签） */
+  const markers = useMemo(() => markerList(trails, points), [trails, points])
 
   // 初始化地图（仅一次）
   useEffect(() => {
@@ -202,39 +260,30 @@ export function RouteMap({
     if (!map || !layer || status !== 'ready') return
     layer.clearLayers()
 
-    // 多段优先；否则把单段 points 视为一段
-    const segments = normalizeSegments(trails, points)
-    const allPoints: TrackPoint[] = []
-
-    segments.forEach((seg) => {
-      const valid = finitePts(seg)
-      allPoints.push(...valid)
-      if (valid.length > 1) {
-        const latlngs = valid.map((p) => [p.lat, p.lng] as [number, number])
-        // 白色描边 + 绿色主线，保证在任何底图上都清晰
-        L.polyline(latlngs, {
-          color: '#ffffff',
-          weight: 10,
-          opacity: 0.9,
-          lineJoin: 'round',
-          lineCap: 'round',
-        }).addTo(layer)
-        L.polyline(latlngs, {
-          color: '#2f7d4f',
-          weight: 6,
-          opacity: 1,
-          lineJoin: 'round',
-          lineCap: 'round',
-        }).addTo(layer)
-      }
+    // 折线：真实轨迹优先（形状真实），否则连途经点
+    drawSegs.forEach((seg) => {
+      if (seg.length < 2) return
+      const latlngs = seg.map((p) => [p.lat, p.lng] as [number, number])
+      // 白色描边 + 绿色主线，保证在任何底图上都清晰
+      L.polyline(latlngs, {
+        color: '#ffffff',
+        weight: 10,
+        opacity: 0.9,
+        lineJoin: 'round',
+        lineCap: 'round',
+      }).addTo(layer)
+      L.polyline(latlngs, {
+        color: '#2f7d4f',
+        weight: 6,
+        opacity: 1,
+        lineJoin: 'round',
+        lineCap: 'round',
+      }).addTo(layer)
     })
 
-    segments.forEach((seg) => {
-      const valid = finitePts(seg)
-      valid.forEach((p, i) => {
-        const kind = i === 0 ? 'start' : i === valid.length - 1 ? 'end' : 'via'
-        L.marker([p.lat, p.lng], { icon: makeIcon(kind) }).addTo(layer)
-      })
+    // 标记：按命名途经点画（起/终/途经），与折线来源解耦
+    markers.forEach((mk) => {
+      L.marker([mk.lat, mk.lng], { icon: makeIcon(mk.kind) }).addTo(layer)
     })
     const hotelOk = finitePts(hotels)
     const sightOk = finitePts(sights)
@@ -242,13 +291,20 @@ export function RouteMap({
     sightOk.forEach((s) => L.marker([s.lat, s.lng], { icon: makeIcon('sight') }).addTo(layer))
 
     const coords: [number, number][] = [
-      ...allPoints.map((p) => [p.lat, p.lng] as [number, number]),
+      ...drawSegs.flat().map((p) => [p.lat, p.lng] as [number, number]),
       ...hotelOk.map((h) => [h.lat, h.lng] as [number, number]),
       ...sightOk.map((s) => [s.lat, s.lng] as [number, number]),
     ]
     if (coords.length === 0) return
-    // 只有几何真的变了才重置视野，避免勾选「已完成」等无关状态变更把地图拉回全局
-    const key = coords.map((c) => `${c[0]},${c[1]}`).join(';')
+    // 只有几何真的变了才重置视野，避免勾选「已完成」等无关状态变更把地图拉回全局。
+    // 用「段数 + 各段点数 + 首末坐标」当签名：真实轨迹动辄几百点，
+    // 拼全量坐标串会白白生成几十 KB 字符串。
+    const key = [
+      drawSegs.length,
+      drawSegs.map((s) => s.length).join(','),
+      coords[0].join(','),
+      coords[coords.length - 1].join(','),
+    ].join('|')
     if (key === fitKeyRef.current) return
     fitKeyRef.current = key
     if (coords.length === 1) {
@@ -256,11 +312,11 @@ export function RouteMap({
     } else {
       map.fitBounds(L.latLngBounds(coords), { padding: [60, 60], maxZoom: 15 })
     }
-  }, [status, points, trails, hotels, sights])
+  }, [status, points, trails, lines, drawSegs, markers, hotels, sights])
 
   const fallbackBox = useMemo(
-    () => project(normalizeSegments(trails, points), hotels, sights),
-    [points, trails, hotels, sights],
+    () => project(drawSegs, markers, hotels, sights),
+    [drawSegs, markers, hotels, sights],
   )
 
   return (
@@ -295,14 +351,24 @@ interface Projected {
   latMax: number
 }
 
-/** 底图不可用时的离线示意图：把经纬度线性投影到画布 */
-function project(segments: TrackPoint[][], hotels: Hotel[], sights: Sight[]): Projected {
-  const segPts = segments.map((seg) => finitePts(seg))
+/**
+ * 底图不可用时的离线示意图：把经纬度线性投影到画布。
+ * 折线用 `segs`（可能是真实轨迹的几百个点，不带名字），
+ * 标签用 `markers`（只标命名途经点）—— 两者分开，免得几百个采样点各贴一个标签糊成一片。
+ */
+function project(
+  segs: GeoPoint[][],
+  markers: MarkerItem[],
+  hotels: Hotel[],
+  sights: Sight[],
+): Projected {
+  const segPts = segs.map((seg) => finitePts(seg))
   const hotelsOk = finitePts(hotels)
   const sightsOk = finitePts(sights)
 
   const coords = [
     ...segPts.flat().map((p) => ({ lng: p.lng, lat: p.lat })),
+    ...markers.map((m) => ({ lng: m.lng, lat: m.lat })),
     ...hotelsOk.map((h) => ({ lng: h.lng, lat: h.lat })),
     ...sightsOk.map((s) => ({ lng: s.lng, lat: s.lat })),
   ]
@@ -323,12 +389,7 @@ function project(segments: TrackPoint[][], hotels: Hotel[], sights: Sight[]): Pr
   const toY = (lat: number) => pad + (1 - (lat - latMin) / spanLat) * (H - pad * 2)
 
   const items: Projected['items'] = []
-  segPts.forEach((seg) => {
-    seg.forEach((p, i) => {
-      const kind = i === 0 ? 'start' : i === seg.length - 1 ? 'end' : 'via'
-      items.push({ x: toX(p.lng), y: toY(p.lat), kind, name: p.name })
-    })
-  })
+  markers.forEach((m) => items.push({ x: toX(m.lng), y: toY(m.lat), kind: m.kind, name: m.name }))
   hotelsOk.forEach((h) => items.push({ x: toX(h.lng), y: toY(h.lat), kind: 'hotel', name: h.name }))
   sightsOk.forEach((s) => items.push({ x: toX(s.lng), y: toY(s.lat), kind: 'sight', name: s.name }))
 

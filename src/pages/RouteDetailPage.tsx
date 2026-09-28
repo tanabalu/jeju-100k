@@ -5,7 +5,7 @@ import { RouteMap } from '../components/RouteMap'
 import { ElevationChart } from '../components/ElevationChart'
 import { Thumb } from '../components/Thumb'
 import { Modal } from '../components/Modal'
-import { computeMetrics, formatGain, formatKm, projectToRoute } from '../lib/geo'
+import { computeMetrics, formatGain, formatKm, projectToRoute, trackLines } from '../lib/geo'
 import { resolveImageSrc } from '../lib/imageStore'
 import { useActivePlan, routeKindLabel } from '../hooks/useActivePlan'
 import type { AlbumItem, RouteMetrics } from '../types'
@@ -18,12 +18,18 @@ function gainHint(m: RouteMetrics | undefined): string {
     case 'manual':
       return '手填值'
     case 'profile':
-      return `${loss}${m.elevationBasis === 'loop' ? '环线圆周采样估算' : '直线采样估算'}`
+      return `${loss}${basisLabel(m)}`
     case 'points':
       return `${loss}按途经点海拔累加`
     default:
       return '未采集海拔，可在后台补'
   }
+}
+
+/** 地形数据口径：真实轨迹就不再叫「估算」 */
+function basisLabel(m: RouteMetrics): string {
+  if (m.elevationBasis === 'track') return '沿真实轨迹逐点累加'
+  return m.elevationBasis === 'loop' ? '环线圆周采样估算' : '直线采样估算'
 }
 
 export function RouteDetailPage() {
@@ -108,7 +114,17 @@ export function RouteDetailPage() {
       <p className="detail-summary">{route.summary || '（还没有写简介）'}</p>
 
       <div className="stat-row">
-        <Stat label="总里程" value={`${formatKm(m?.distanceKm ?? 0)} km`} hint={route.manualDistanceKm ? '手填里程' : '按途经点估算'} />
+        <Stat
+          label="总里程"
+          value={`${formatKm(m?.distanceKm ?? 0)} km`}
+          hint={
+            m?.trackKm
+              ? `官方里程 · 轨迹实测 ${formatKm(m.trackKm)} km`
+              : route.manualDistanceKm
+                ? '手填里程'
+                : '按途经点估算'
+          }
+        />
         <Stat
           label="累计爬升"
           value={formatGain(m?.gainM)}
@@ -117,7 +133,7 @@ export function RouteDetailPage() {
         <Stat
           label="海拔区间"
           value={m?.highestM != null ? `${m.lowestM} ~ ${m.highestM} m` : '—'}
-          hint={m?.gainSource === 'profile' ? '取自地形采样' : '取自途经点海拔'}
+          hint={m?.gainSource === 'profile' ? (m.elevationBasis === 'track' ? '取自真实轨迹' : '取自地形采样') : '取自途经点海拔'}
         />
         <Stat label="途经点" value={`${route.points.length} 个`} hint={`${route.hotels.length} 住宿 / ${route.sights.length} 看点`} />
       </div>
@@ -145,7 +161,18 @@ export function RouteDetailPage() {
             </div>
           </div>
         </div>
-        <RouteMap points={route.points} hotels={route.hotels} sights={route.sights} height={440} />
+        <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+          {route.elevationBasis === 'track'
+            ? '坐标与轨迹均为实测数据（轨迹导入），可直接用于导航与爬升判断。'
+            : '坐标为城镇级近似值，用于排序 / 看分布；导航前请用「地图选点」校正，或导入真实轨迹一键替换。'}
+        </p>
+        <RouteMap
+          points={route.points}
+          lines={trackLines(route)}
+          hotels={route.hotels}
+          sights={route.sights}
+          height={440}
+        />
         {route.points.length > 2 && (
           <div className="point-flow">
             {route.points.map((p, i) => (
@@ -169,10 +196,18 @@ export function RouteDetailPage() {
         />
         {m?.gainSource === 'profile' && (
           <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>
-            剖面与爬升来自 SRTM 30m 公开地形数据，沿
-            {m.elevationBasis === 'loop' ? '「官方里程反推的圆周」' : '「起点→终点直线」'}
-            均匀采样估算，<b>不是官方实测爬升</b>。真实路线沿海岸蜿蜒，
-            实际爬升通常比这个数大；要用它做配速和补给判断，请导入真实 GPX 轨迹。
+            {m.elevationBasis === 'track' ? (
+              <>
+                剖面与爬升来自<b>导入的真实轨迹</b>（沿线逐点累加，3 m 噪声阈值），不是 SRTM 直线估算值。
+              </>
+            ) : (
+              <>
+                剖面与爬升来自 SRTM 30m 公开地形数据，沿
+                {m.elevationBasis === 'loop' ? '「官方里程反推的圆周」' : '「起点→终点直线」'}
+                均匀采样估算，<b>不是官方实测爬升</b>。真实路线沿海岸蜿蜒，
+                实际爬升通常比这个数大；要用它做配速和补给判断，请导入真实 GPX 轨迹。
+              </>
+            )}
           </p>
         )}
       </section>

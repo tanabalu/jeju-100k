@@ -3,7 +3,7 @@ import { emptySight } from '../../lib/storage'
 import { PointPicker } from '../../components/PointPicker'
 import { ImageField } from '../../components/ImageField'
 import { useConfirm } from '../../components/Feedback'
-import { projectToRoute, formatKm } from '../../lib/geo'
+import { projectToRoute, formatKm, trackLines } from '../../lib/geo'
 
 const TYPE_LABEL: Record<SightType, string> = {
   view: '观景',
@@ -95,6 +95,7 @@ export function SightsEditor({ route, onPatch }: Props) {
                   <span>坐标</span>
                   <PointPicker
                     points={route.points}
+                    lines={trackLines(route)}
                     hotels={route.hotels}
                     sights={route.sights}
                     onChange={(p) => patch(s.id, { lng: p.lng, lat: p.lat })}

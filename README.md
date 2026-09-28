@@ -28,8 +28,8 @@
 | 数据来源 | 准确度 | 需要你自己补的 |
 | --- | --- | --- |
 | 编号、起终点名称、官方里程、官方难度 | 官方网站，可直接用 | — |
-| 起终点经纬度 | **城镇级近似坐标，非官方实测轨迹** | 用于导航前请在后台用地图选点校正 |
-| 海拔与累计爬升 | **SRTM 30m 地形数据沿近似路径采样估算**，非官方实测 | 做行程判断请导入真实 GPX 轨迹 |
+| 起终点经纬度 | **城镇级近似坐标，非官方实测轨迹** | 用 `scripts/import_tracks.py` 导入真实轨迹一键替换，或在后台用地图选点校正 |
+| 海拔与累计爬升 | **SRTM 30m 地形数据沿近似路径采样估算**，非官方实测 | 导入真实 GPX 后自动改按轨迹逐点累加（更准） |
 | 卡片封面 | **官方 Route Map 路线图整页**（© Jeju Olle Foundation），26 条有图、18-2 无官方页 | 想换自己的照片：`/admin`「基本信息」里传一张 |
 | 住宿、看点、相册 | 预置为空 | 在 `/admin` 录入 |
 
@@ -44,7 +44,7 @@
 
 ⚠️ 这是**估算，不是官方实测爬升**：真实路线沿海岸蜿蜒、会翻越海岸小山丘，
 直线采样覆盖不到，所以实际爬升通常比显示值更大。27 条合计约 2230 m，
-拿来对「哪条更费力」排序可以，拿来配速和算补给请用真实轨迹。
+拿来对「哪条更费力」排序可以，拿来配速和算补给请用真实轨迹（见下一节，导入后爬升会自动改按轨迹算）。
 
 想刷新这些数据：
 
@@ -56,6 +56,29 @@ python3 scripts/fetch_elevation.py --force    # 忽略缓存全部重抓
 
 自己新建的路线没有采样数据，在 `/admin` 的「途经点」里给每个点填海拔即可；
 **少于 2 个点有海拔时，爬升显示「—」而不是 0**（0 会让人误以为这条路是平的）。
+
+### 用真实轨迹替换近似坐标（推荐）
+
+预置坐标是**城镇级近似**，落在地图上是「大概这一带」，用来排序和看分布没问题，
+但**导航、算补给、算真实爬升都不该用它**。拿到官方 / 自己记录的轨迹后，一条命令整体替换：
+
+```bash
+# 把 GPX / KML / GeoJSON 丢进一个目录，文件名带路线编号即可（1 / 01 / 10-1 都认）
+python3 scripts/import_tracks.py --src ~/tracks            # 生成 public/tracks.json
+python3 scripts/import_tracks.py --src ~/tracks --dry       # 只看识别结果，不落盘
+python3 scripts/import_tracks.py --src ~/tracks --strict    # 有未识别文件就退出（CI 用）
+```
+
+- 文件名自动认编号（`Olle_Trail_1_2023.gpx` → `01`，`route10_1.kml` → `10-1`）；
+  认不出的用 `--map 文件名=编号` 手动指定，或 `--reverse 01` 修正首尾反向的轨迹。
+- 落盘结构与官方里程、爬升一并写入 `public/tracks.json`，**运行时 `fetch` 读取，不进 localStorage**，换轨迹直接替换文件即可。
+- 有轨迹的路线，地图按真实轨迹画线、起终点吸附到轨迹首末点；
+  **累计爬升与海拔区间改按轨迹逐点累加**（标高提示变为「取自真实轨迹」）；
+  里程仍**以官方值为准**，详情页同时给出「轨迹实测 X km」便于对照。
+  没轨迹的仍走原来的近似逻辑，互不影响。
+- 轨迹抽稀默认容差 8 m / 上限 420 点（Douglas–Peucker），既保形状又不让产物膨胀。
+- 与官方里程偏差 >25% 会告警（多半是编号认错或轨迹含接驳段），先核对再落盘。
+- 只有轨迹没海拔也能用：总里程照算，爬升显示「—」并提示「暂缺海拔数据」。
 
 ## 2. 功能
 
@@ -252,19 +275,22 @@ src/
   lib/imageStore.ts      IndexedDB 图片存储与压缩
   lib/seed.ts            27 条偶来小路预置数据
   lib/prep.ts            行前 checklist 与吃喝住行速查数据（政策项标 verify）
-  store/DataContext.tsx  全局数据 + 素材（官方路线图 / 照片）叠加 + checklist 状态
+  store/DataContext.tsx  全局数据 + 素材（官方路线图 / 照片 / 真实轨迹）叠加 + checklist 状态
   hooks/useActivePlan.ts 行程篮操作
   components/            RouteMap / ElevationChart / Modal / Feedback / Skeleton / ErrorBoundary ...
   pages/                 Routes / RouteDetail / Plan / Prep / Admin / Settings
   pages/admin/           基本信息 / 途经点 / 住宿 / 看点 / 相册 五个编辑器
 public/photos/           官方路线图（maps/ + maps/cover/ + maps.json）与相册配图、署名清单
+public/tracks.json       真实轨迹（import_tracks.py 生成，运行时 fetch 读取）
 scripts/fetch_photos.py  Commons 自由授权图片抓取脚本
 scripts/split_route_map.py  官方 Route Map PDF 按路线切割成卡片封面（压缩版）+ 详情页原图
 scripts/fetch_elevation.py  SRTM 30m 高程抓取脚本（生成 olleeElevation.ts）
+scripts/import_tracks.py    GPX / KML / GeoJSON 轨迹导入（认编号、抽稀、算里程爬升 → tracks.json）
 ```
 
 ## 11. 已知边界与后续可做
 
-- 预置坐标为城镇级近似值，**不是官方轨迹**；后续可加 GPX 导入，直接算真实长度与真实爬升。
+- 预置坐标为城镇级近似值，**不是官方轨迹**；已提供 `scripts/import_tracks.py` 导入真实轨迹替换
+  （地图画线、总里程、爬升全部改按轨迹走），把官方 / 自采轨迹放进 `public/tracks.json` 即生效。
 - 住宿 / 看点 / 相册预置为空，需要你按实际行程录入（也可导入 JSON 批量填）。
 - 底图使用 OpenStreetMap / OpenTopoMap 免费瓦片，需要联网；若在无网环境使用，可用离线示意图 + 后台手动校正坐标。

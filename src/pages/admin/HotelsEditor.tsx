@@ -2,7 +2,7 @@ import type { Hotel, Route } from '../../types'
 import { emptyHotel } from '../../lib/storage'
 import { PointPicker } from '../../components/PointPicker'
 import { useConfirm } from '../../components/Feedback'
-import { projectToRoute, formatKm } from '../../lib/geo'
+import { projectToRoute, formatKm, trackLines } from '../../lib/geo'
 
 interface Props {
   route: Route
@@ -103,6 +103,7 @@ export function HotelsEditor({ route, onPatch }: Props) {
                   <span>坐标</span>
                   <PointPicker
                     points={route.points}
+                    lines={trackLines(route)}
                     hotels={route.hotels}
                     sights={route.sights}
                     onChange={(p) => patch(h.id, { lng: p.lng, lat: p.lat })}

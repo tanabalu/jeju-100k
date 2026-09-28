@@ -60,8 +60,13 @@ export interface AlbumItem {
 
 export type RouteKind = 'hike' | 'trailrun' | 'fastpack'
 
-/** 地形采样点：[lng, lat, ele]，用于剖面图与爬升估算 */
-export type ElevSample = [number, number, number]
+/**
+ * 地形采样点：[lng, lat, ele?]。
+ * - `olleeElevation.ts` 的 SRTM 采样点总是带 ele；
+ * - `public/tracks.json` 的真实轨迹点若未录海拔，ele 缺省（此时界面显示「暂缺海拔数据」，
+ *   而不是拿别的数据冒充）。
+ */
+export type ElevSample = [number, number, number?]
 
 /**
  * 地形数据来源：
@@ -133,7 +138,9 @@ export interface AppSettings {
 export interface RouteMetrics {
   /** 途经点直线累加里程（km） */
   straightKm: number
-  /** 生效里程：手填优先，否则直线里程 × 绕行系数 */
+  /** 真实轨迹实测里程（km）；有轨迹时它就是最准的里程，无轨迹为 undefined */
+  trackKm?: number
+  /** 生效里程：手填（官方）优先，其次真实轨迹，最后直线里程 × 绕行系数 */
   distanceKm: number
   /** 累计爬升（m）；无海拔数据时为 null，不要当成 0 展示 */
   gainM: number | null
