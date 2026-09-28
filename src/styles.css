@@ -11,6 +11,10 @@
   --muted: #6b7280;
   --radius: 12px;
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px rgba(16, 24, 40, 0.06);
+  /* 吸顶偏移：顶栏高度（目录吸顶时 top 用）+ 锚点哨兵高度（跳转余量，含顶栏+目录+间距）。
+     移动端顶栏会换行变高、目录也可能换行，故在断点里同步放大。纯 CSS 静态值，不依赖 JS 测量。 */
+  --topbar-h: 56px;
+  --anchor-offset: 110px;
 }
 
 * {
@@ -1885,6 +1889,10 @@ textarea.input {
 /* ---------- 移动端适配 ---------- */
 @media (max-width: 720px) {
   /* 顶栏：品牌一行，导航换到第二行并可横向滚动 */
+  :root {
+    --topbar-h: 76px;
+    --anchor-offset: 184px;
+  }
   .topbar {
     padding: 8px 14px;
     flex-wrap: wrap;
@@ -1902,16 +1910,6 @@ textarea.input {
   .toc-link {
     font-size: 12px;
     padding: 5px 12px;
-  }
-
-  /* 移动端顶栏会换行变高（约 76px），跳转锚点要留更多余量，否则标题被吸顶栏遮住 */
-  #prep-progress,
-  #prep-custom,
-  #prep-skipped,
-  #prep-budget,
-  [id^='prep-g-'],
-  [id^='prep-s-'] {
-    scroll-margin-top: 84px;
   }
 
   .brand-text {
@@ -2142,12 +2140,17 @@ textarea.input {
 
 /* ---------- 行前准备：本页目录 ---------- */
 .prep-toc {
+  position: sticky;
+  top: var(--topbar-h, 56px);
+  z-index: 15;
   display: flex;
   gap: 8px;
   overflow-x: auto;
   padding: 10px 0;
   margin: 6px 0 18px;
   border-bottom: 1px solid var(--line-soft);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
 }
@@ -2179,12 +2182,8 @@ textarea.input {
   border-color: var(--brand);
   color: #fff;
 }
-/* 锚点定位时给模块顶部留余量，避免被 sticky 顶栏遮住（桌面顶栏约 56px） */
-#prep-progress,
-#prep-custom,
-#prep-skipped,
-#prep-budget,
-[id^='prep-g-'],
-[id^='prep-s-'] {
-  scroll-margin-top: 64px;
+/* 锚点哨兵：跳转时给模块顶部留余量（= 顶栏+目录高度+间距），标题落点正好在吸顶区下方，
+   不被遮住。纯 CSS 静态值，随 --anchor-offset 在移动端自动放大，无需 JS 动态测量。 */
+.section {
+  scroll-margin-top: var(--anchor-offset);
 }

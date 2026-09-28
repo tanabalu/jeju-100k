@@ -72,7 +72,8 @@ export function PrepPage() {
           .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
         if (visible.length > 0) setActiveId(visible[0].target.id)
       },
-      { rootMargin: '-20% 0px -65% 0px', threshold: 0 },
+      // 顶部边距覆盖吸顶区(顶栏+目录)，使高亮在模块真正露出吸顶区下方时触发
+      { rootMargin: '-140px 0px -55% 0px', threshold: 0 },
     )
     toc.forEach((t) => {
       const el = document.getElementById(t.id)
