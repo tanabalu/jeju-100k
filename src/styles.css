@@ -2113,3 +2113,52 @@ textarea.input {
     flex: 1 1 40%;
   }
 }
+
+/* ---------- 行前准备：本页目录 ---------- */
+.prep-toc {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 10px 0;
+  margin: 6px 0 18px;
+  border-bottom: 1px solid var(--line-soft);
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+.prep-toc::-webkit-scrollbar {
+  height: 6px;
+}
+.prep-toc::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 3px;
+}
+.toc-link {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.toc-link:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+.toc-link.is-active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+/* 锚点定位时给模块顶部留点余量，避免贴边 */
+#prep-progress,
+#prep-custom,
+#prep-skipped,
+#prep-budget,
+[id^='prep-g-'],
+[id^='prep-s-'] {
+  scroll-margin-top: 16px;
+}

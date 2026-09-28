@@ -1,0 +1,20 @@
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # 无尾斜杠自动补齐，避免 /jeju 与 /jeju/ 被视为两个入口
+    location = /jeju {
+        return 301 /jeju/;
+    }
+
+    # 子路径静态托管 + SPA 回退
+    # try_files 末尾的 /jeju/index.html 让直接访问深层路由时回退到单页入口；
+    # 本项目用 HashRouter（路由在 # 之后），服务端实际只认 /jeju/，
+    # 但保留回退可兼容将来改用 history 路由。
+    location /jeju/ {
+        try_files $uri $uri/ /jeju/index.html;
+    }
+}

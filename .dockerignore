@@ -1,0 +1,11 @@
+node_modules
+dist
+.git
+.env
+.env.*
+*.log
+.DS_Store
+
+# 本地脚本缓存（不影响构建，但别带进镜像上下文）
+**/__pycache__/
+scripts/.cache/

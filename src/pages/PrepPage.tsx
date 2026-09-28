@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useData } from '../store/DataContext'
 import { useConfirm, useToast } from '../components/Feedback'
 import { BUDGET_HINTS, GUIDE_SECTIONS, PREP_GROUPS, type PrepGroup, type PrepItem } from '../lib/prep'
@@ -51,6 +51,36 @@ export function PrepPage() {
   const skippedCount = allItems.length - total
   const verifyLeft = active.filter((i) => i.verify && !checked.has(i.id)).length
 
+  // 本页目录：列出所有模块，点击平滑滚动。
+  // ⚠️ HashRouter 下「href="#id"」会破坏路由，必须用 scrollIntoView 而非锚点链接。
+  const toc = useMemo<{ id: string; label: string }[]>(() => {
+    const items = [{ id: 'prep-progress', label: '总进度' }]
+    groups.forEach((g) => items.push({ id: `prep-g-${g.id}`, label: g.title }))
+    items.push({ id: 'prep-custom', label: '我的条目' })
+    if (skippedCount > 0) items.push({ id: 'prep-skipped', label: '已放弃' })
+    GUIDE_SECTIONS.forEach((s) => items.push({ id: `prep-s-${s.id}`, label: s.title }))
+    items.push({ id: 'prep-budget', label: '预算' })
+    return items
+  }, [groups, skippedCount])
+
+  const [activeId, setActiveId] = useState('prep-progress')
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
+        if (visible.length > 0) setActiveId(visible[0].target.id)
+      },
+      { rootMargin: '-20% 0px -65% 0px', threshold: 0 },
+    )
+    toc.forEach((t) => {
+      const el = document.getElementById(t.id)
+      if (el) observer.observe(el)
+    })
+    return () => observer.disconnect()
+  }, [toc])
+
   return (
     <div className="page">
       <h1 className="detail-title">行前准备 · 济州岛</h1>
@@ -59,8 +89,25 @@ export function PrepPage() {
         的项目请自己再确认一遍。
       </p>
 
+      {/* ---------- 本页目录：快速跳转模块 ---------- */}
+      <nav className="prep-toc" aria-label="本页目录">
+        {toc.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            className={`toc-link${activeId === t.id ? ' is-active' : ''}`}
+            onClick={() => {
+              const el = document.getElementById(t.id)
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
+
       {/* ---------- 总进度 ---------- */}
-      <section className="section prep-summary">
+      <section id="prep-progress" className="section prep-summary">
         <div className="prep-summary-head">
           <div className="prep-summary-num">
             <b>{done}</b>
@@ -102,57 +149,10 @@ export function PrepPage() {
         </div>
       </section>
 
-      {/* ---------- 已放弃：集中查看 + 恢复（不受「只看未完成」影响） ---------- */}
-      {skippedCount > 0 && (
-        <section className="section prep-skipped">
-          <div className="section-head">
-            <h2>
-              已放弃
-              <span className="count">{skippedCount}</span>
-            </h2>
-            <button
-              className="btn btn-sm"
-              onClick={() => {
-                skipped.forEach((id) => toggleSkip(id))
-                toast('已恢复全部放弃项', 'success')
-              }}
-            >
-              全部恢复
-            </button>
-          </div>
-          <ul className="check-list">
-            {allItems
-              .filter((i) => skipped.has(i.id))
-              .map((item) => {
-                const grp = PREP_GROUPS.find((g) => g.items.some((x) => x.id === item.id))
-                const isCustom = checklist.custom.some((c) => c.id === item.id)
-                const src = isCustom ? '我自己加的' : grp ? grp.title : ''
-                return (
-                  <li key={item.id} className="check-item is-skipped">
-                    <div className="check-main">
-                      <span className="check-text">
-                        {item.text}
-                        {item.verify && <span className="verify-tag">临行复核</span>}
-                        <span className="skip-tag">已放弃</span>
-                      </span>
-                      <div className="check-actions">
-                        <button className="btn-link" onClick={() => toggleSkip(item.id)}>
-                          恢复
-                        </button>
-                      </div>
-                    </div>
-                    {src && <p className="check-note">来自：{src}</p>}
-                  </li>
-                )
-              })}
-          </ul>
-        </section>
-      )}
-
       {/* ---------- checklist ---------- */}
       {groups.map((g) => {
         return (
-          <section className="section" key={g.id}>
+          <section id={`prep-g-${g.id}`} className="section" key={g.id}>
             <div className="section-head">
               <h2>
                 {g.title}
@@ -227,7 +227,7 @@ export function PrepPage() {
       {groups.length === 0 && <div className="empty">清单都勾完了，没有未完成项</div>}
 
       {/* ---------- 自己补充 ---------- */}
-      <section className="section">
+      <section id="prep-custom" className="section">
         <h2>补充我自己的条目</h2>
         <div className="add-row">
           <input
@@ -255,6 +255,53 @@ export function PrepPage() {
         </div>
       </section>
 
+      {/* ---------- 已放弃：集中查看 + 恢复（次要信息，置于自定义补充下方） ---------- */}
+      {skippedCount > 0 && (
+        <section id="prep-skipped" className="section prep-skipped">
+          <div className="section-head">
+            <h2>
+              已放弃
+              <span className="count">{skippedCount}</span>
+            </h2>
+            <button
+              className="btn btn-sm"
+              onClick={() => {
+                skipped.forEach((id) => toggleSkip(id))
+                toast('已恢复全部放弃项', 'success')
+              }}
+            >
+              全部恢复
+            </button>
+          </div>
+          <ul className="check-list">
+            {allItems
+              .filter((i) => skipped.has(i.id))
+              .map((item) => {
+                const grp = PREP_GROUPS.find((g) => g.items.some((x) => x.id === item.id))
+                const isCustom = checklist.custom.some((c) => c.id === item.id)
+                const src = isCustom ? '我自己加的' : grp ? grp.title : ''
+                return (
+                  <li key={item.id} className="check-item is-skipped">
+                    <div className="check-main">
+                      <span className="check-text">
+                        {item.text}
+                        {item.verify && <span className="verify-tag">临行复核</span>}
+                        <span className="skip-tag">已放弃</span>
+                      </span>
+                      <div className="check-actions">
+                        <button className="btn-link" onClick={() => toggleSkip(item.id)}>
+                          恢复
+                        </button>
+                      </div>
+                    </div>
+                    {src && <p className="check-note">来自：{src}</p>}
+                  </li>
+                )
+              })}
+          </ul>
+        </section>
+      )}
+
       {/* ---------- 吃喝住行 ---------- */}
       <h2 className="prep-h2">吃喝住行速查</h2>
       <p className="muted">
@@ -262,7 +309,7 @@ export function PrepPage() {
         价格是公开攻略里的常见区间，只用来估预算。
       </p>
       {GUIDE_SECTIONS.map((s) => (
-        <section className="section" key={s.id}>
+        <section id={`prep-s-${s.id}`} className="section" key={s.id}>
           <div className="section-head">
             <h2>{s.title}</h2>
           </div>
@@ -293,7 +340,7 @@ export function PrepPage() {
         </section>
       ))}
 
-      <section className="section">
+      <section id="prep-budget" className="section">
         <h2>预算粗算（每人每天，含住）</h2>
         <ul className="plain-list">
           {BUDGET_HINTS.map((b) => (
