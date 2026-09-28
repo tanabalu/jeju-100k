@@ -63,7 +63,7 @@ python3 scripts/fetch_elevation.py --force    # 忽略缓存全部重抓
 | 路线列表 | `/` | 27 条按编号排列；搜索（名称/地区/标签，支持「偶来 07」「西归浦」）、按类型筛选、按编号/里程/更新时间/名称排序；顶部行程篮可直接切换；卡片一键加入行程篮 |
 | 路线详情 | `/routes/:id` | 地图看起终点、海拔剖面、沿途住宿（自动算「沿线 N km / 离路线 N km」）、路边景色、相册灯箱 |
 | 行程篮 | `/plan` | 把路线加进来（**每条路线只算一次**，已加入的按钮置灰）、自定义目标里程（快捷选 **100** 或 **437 全程**），实时算累计并判达标；差多少给补线建议；**默认按加入顺序排列**（可切「按里程」），复制的 Markdown 跟随当前顺序；每条可勾选「已走完」查看走线进度（X/Y 条 + 已走里程），支持「只看未完成」 |
-| 行前准备 | `/prep` | 济州岛 checklist（6 组 43 项，可勾选、手动放弃/恢复、只看未完成、自己加条目；已放弃项集中在页面顶部区可查看与逐项/一键恢复）+ 吃喝住行速查（含 T-money 办卡/乘车要点、导航 App 对比、打车支付）与预算粗算 |
+| 行前准备 | `/prep` | 济州岛 checklist（6 组 43 项，可勾选、手动放弃/恢复、只看未完成、自己加条目；已放弃项集中在「补充我自己的条目」下方可查看与逐项/一键恢复）+ 吃喝住行速查（含 T-money 办卡/乘车要点、导航 App 对比、打车支付）与预算粗算 |
 | 素材管理 | `/admin` | 路线增删改（含编号）；途经点支持地图点选与上下调序；住宿、看点（多图）、相册（本地上传自动压缩或外链）；JSON 导入导出 |
 | 设置 | `/settings` | 地图 Key、查看当前底图模式、清空数据 |
 
@@ -166,9 +166,38 @@ python3 scripts/fetch_photos.py --dry      # 只检索不下载
 ⚠️ 它只捕获**渲染期**错误。事件回调、`setTimeout`、请求回调里的异步错误 React 不会往上抛（表现为"点了没反应"，不会白屏）。
 `DataProvider` 的数据加载在 `requestAnimationFrame` 里跑，异常同样冒泡不到 React —— 所以那里单独转成渲染期抛错交给边界，避免卡在骨架屏上假死。
 
-## 9. 部署到子路径
+## 9. 部署（Docker + nginx + Dokploy 子路径）
 
-`vite.config.ts` 已设 `base: './'`，路由用 `HashRouter`，`dist/` 可直接放在任意子路径（如 `https://app.hbuecx.com/olle/`），无需 rewrite 配置。
+项目是**纯静态前端**（`HashRouter` + `base: './'`），无后端，按 `asset-system-frontend` 的范式打包成 nginx 静态镜像，挂在 `/jeju/` 子路径下，由 Dokploy 的 Traefik 按 PathPrefix 分发。
+
+### 关键文件
+
+| 文件 | 作用 |
+| --- | --- |
+| `Dockerfile` | 多阶段构建：node 装依赖 + `npm run build`，产物 `dist/` 复制到 nginx 的 `/usr/share/nginx/html/jeju` |
+| `nginx.conf.template` | nginx:alpine 启动时会把 `templates/*.template` 经 envsubst 渲染成 `conf.d/default.conf`；本模板只做 `/jeju` → `/jeju/` 重定向 + 静态托管 + SPA 回退 |
+| `.dockerignore` | 排除 node_modules / dist / .git / 本地脚本缓存，缩小构建上下文 |
+| `.npmrc` | 用 npmmirror 镜像加速容器内 `npm ci` |
+
+> 因为是 `HashRouter` + `base: './'`，`dist/` 资源用相对路径，`/jeju/` 下无需改 `vite.config.ts`，也不需要 history 路由的 rewrite。
+
+### 构建并本地自测镜像
+
+```bash
+docker build -t trail-100k .
+docker run --rm -p 8080:80 trail-100k
+# 浏览器打开 http://localhost:8080/jeju/ 验证
+```
+
+### 推到 Dokploy
+
+1. Dokploy 新建 **Application**，源码接 GitHub 公开仓 `tanabalu/trail-100k`（main 分支）。
+2. 构建方式选 **Dockerfile**（多阶段已写好，无需额外参数）。
+3. 端口：容器暴露 `80`，Dokploy 内网端口填 `80`。
+4. **Traefik 路由规则**（PathPrefix）：`PathPrefix(\`/jeju\`)`，与 nginx 里的 `/jeju/` 对应（Traefik 的 PathPrefix 会自动匹配 `/jeju` 和 `/jeju/...`）。
+5. 部署后访问 `https://你的域名/jeju/`（把「你的域名」换成你实际托管该子路径的域名）。
+
+> 换子路径时改两处即可：`Dockerfile` 的 `COPY ... /usr/share/nginx/html/<新路径>` 与 `nginx.conf.template` 里的 `/jeju`、`/jeju/`、`/jeju/index.html`。
 
 ## 10. 目录结构
 
