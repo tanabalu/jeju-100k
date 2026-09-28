@@ -1,0 +1,435 @@
+"""把真实轨迹（GPX / KML / GeoJSON）导入成前端用的 public/tracks.json。
+
+为什么需要它：`src/lib/seed.ts` 的 `PLACES` 是手填的「城镇级近似坐标」，实测偏差
+最大 10~13 km（Route 1 起终点真实轨迹 126.89590,33.47720 / 126.92410,33.45180，
+表里写的是 126.78330,33.46220 / 126.79000,33.43000），地图上整条线被平移进了内陆，
+海拔剖面也是沿那条错线采出来的。本脚本用真实轨迹替掉它。
+
+用法：
+  python3 import_tracks.py --src ~/Downloads/jeju-olle-tracks          # 目录里放 *.gpx/*.kml/*.geojson
+  python3 import_tracks.py --src a.gpx b.kml c.geojson                 # 也可以直接给文件
+  python3 import_tracks.py --src dir --dry                             # 只解析报告，不写文件
+  python3 import_tracks.py --src dir --map jeju-olle-1.gpx=01          # 文件名认不出编号时手工指定
+  python3 import_tracks.py --src dir --reverse 01                      # 该条轨迹方向反了，翻转
+  python3 import_tracks.py --src dir --tolerance 10 --max-points 500   # 调简化力度
+
+产出：public/tracks.json
+  { "01": { "basis": "track", "km": 15.87, "gainM": 200, ...,
+            "points": [[lng, lat, ele], ...] }, ... }
+
+前端怎么用（`src/store/DataContext.tsx`）：
+  运行时 fetch 该文件，把 `points` 写进 `route.elevationProfile`、`elevationBasis` 置为
+  'track' —— 地图折线、海拔剖面、里程、爬升随即全部改用真实数据。
+  **不落库**：换轨迹只要重跑本脚本，刷新即可，不用清 localStorage。
+
+几个刻意的设计：
+- **点要简化**：官方 GPX 一条动辄几千点，直接塞进 JSON 会有好几 MB。用 Douglas–Peucker
+  （默认 8 m 容差）压到几百点，肉眼无差别；`--max-points` 还会自动放宽容差兜底。
+- **爬升口径与前端一致**：3 m 滞后阈值（与 `src/lib/geo.ts` 的 `ELEV_NOISE_M` 相同），
+  否则脚本报的爬升和界面上显示的会对不上。
+- **没有海拔的轨迹如实标注**：JSON 里不带 ele，前端会显示「暂缺海拔数据」，
+  而不是拿旧的错线剖面冒充。需要海拔就跑 `scripts/fetch_elevation.py` 重新采样。
+- **方向与编号都要人工可核对**：脚本会打印「文件 → 编号」与「轨迹起终点坐标 + 里程」，
+  方向反了用 `--reverse`；认不出编号的会明确列出来，不会瞎猜。
+"""
+
+import argparse
+import glob
+import json
+import math
+import os
+import re
+import sys
+import time
+import xml.etree.ElementTree as ET
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+OUT = os.path.join(ROOT, "public", "tracks.json")
+
+# 官方 27 条（21 主线 + 6 支线）。-1/-2 是支线，不要写成 01.1
+ROUTE_CODES = [
+    "01", "01-1", "02", "03", "04", "05", "06", "07", "07-1", "08", "09", "10",
+    "10-1", "11", "12", "13", "14", "14-1", "15", "16", "17", "18", "18-1",
+    "18-2", "19", "20", "21",
+]
+
+# 官方公布的里程（km），用于对照轨迹里程是否离谱
+OFFICIAL_KM = {
+    "01": 15.1, "01-1": 13.2, "02": 14.8, "03": 20.9, "04": 19.0, "05": 13.4,
+    "06": 10.1, "07": 12.9, "07-1": 16.7, "08": 18.7, "09": 8.0, "10": 15.6,
+    "10-1": 3.6, "11": 17.3, "12": 17.8, "13": 14.0, "14": 19.1, "14-1": 9.2,
+    "15": 19.0, "16": 15.7, "17": 18.2, "18": 19.8, "18-1": 10.8, "18-2": 9.7,
+    "19": 18.7, "20": 17.6, "21": 10.5,
+}
+
+ELEV_NOISE_M = 3.0          # 与 src/lib/geo.ts 的 ELEV_NOISE_M 保持一致
+R_EARTH_M = 6371008.8
+
+# 文件名里常见的干扰词（去掉后剩下的数字才是路线编号）
+NOISE_WORDS = [
+    "jeju", "olle", "olletrail", "trail", "route", "course", "stage",
+    "gpx", "kml", "geojson", "track", "tracks", "map", "final", "update",
+]
+
+
+def haversine_m(a, b):
+    lng1, lat1 = a[0], a[1]
+    lng2, lat2 = b[0], b[1]
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp = p2 - p1
+    dl = math.radians(lng2 - lng1)
+    h = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * R_EARTH_M * math.asin(min(1.0, math.sqrt(h)))
+
+
+def path_len_m(pts):
+    return sum(haversine_m(pts[i - 1], pts[i]) for i in range(1, len(pts)))
+
+
+def gain_loss(eles):
+    """累计爬升/下降（m），3 m 滞后阈值 —— 与前端 geo.ts 同口径"""
+    gain = loss = 0.0
+    ref = eles[0]
+    for e in eles[1:]:
+        d = e - ref
+        if d > ELEV_NOISE_M:
+            gain += d
+            ref = e
+        elif d < -ELEV_NOISE_M:
+            loss += -d
+            ref = e
+    return round(gain), round(loss)
+
+
+# ---------- 解析：GPX / KML / GeoJSON ----------
+
+def _local(tag):
+    return tag.rsplit("}", 1)[-1].lower()
+
+
+def parse_gpx(path):
+    root = ET.parse(path).getroot()
+    pts = []
+    for el in root.iter():
+        name = _local(el.tag)
+        if name not in ("trkpt", "rtept", "wpt"):
+            continue
+        try:
+            lat = float(el.get("lat"))
+            lng = float(el.get("lon"))
+        except (TypeError, ValueError):
+            continue
+        ele = None
+        for child in el:
+            if _local(child.tag) == "ele" and child.text:
+                try:
+                    ele = float(child.text)
+                except ValueError:
+                    pass
+                break
+        pts.append((lng, lat, ele))
+    return pts
+
+
+def parse_kml(path):
+    root = ET.parse(path).getroot()
+    pts = []
+    for el in root.iter():
+        name = _local(el.tag)
+        if name == "coordinates" and el.text:
+            # "lng,lat,alt lng,lat,alt ..."（也有用换行分隔的）
+            for chunk in el.text.replace("\n", " ").replace("\t", " ").split():
+                parts = chunk.split(",")
+                if len(parts) < 2:
+                    continue
+                try:
+                    lng, lat = float(parts[0]), float(parts[1])
+                    ele = float(parts[2]) if len(parts) > 2 and parts[2] else None
+                except ValueError:
+                    continue
+                pts.append((lng, lat, ele))
+        elif name == "coord" and el.text:
+            # gx:Track 的 <gx:coord>lng lat alt</gx:coord>
+            parts = el.text.split()
+            if len(parts) >= 2:
+                try:
+                    ele = float(parts[2]) if len(parts) > 2 else None
+                    pts.append((float(parts[0]), float(parts[1]), ele))
+                except ValueError:
+                    pass
+    return pts
+
+
+def parse_geojson(path):
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+
+    def walk(node, out):
+        if isinstance(node, dict):
+            t = node.get("type")
+            if t == "LineString":
+                out.extend(_geojson_coords(node.get("coordinates") or []))
+            elif t == "MultiLineString":
+                for line in node.get("coordinates") or []:
+                    out.extend(_geojson_coords(line))
+            elif t == "FeatureCollection":
+                for feat in node.get("features") or []:
+                    walk(feat, out)
+            elif t == "Feature":
+                walk(node.get("geometry") or {}, out)
+            elif t == "GeometryCollection":
+                for g in node.get("geometries") or []:
+                    walk(g, out)
+            elif t == "Point":
+                out.extend(_geojson_coords([node.get("coordinates")]))
+        return out
+
+    def _geojson_coords(coords):
+        pts = []
+        for c in coords or []:
+            if not isinstance(c, (list, tuple)) or len(c) < 2:
+                continue
+            try:
+                ele = float(c[2]) if len(c) > 2 and c[2] is not None else None
+                pts.append((float(c[0]), float(c[1]), ele))
+            except (TypeError, ValueError):
+                continue
+        return pts
+
+    return walk(data, [])
+
+
+def load_track(path):
+    ext = os.path.splitext(path)[1].lower()
+    if ext == ".gpx":
+        return parse_gpx(path)
+    if ext == ".kml":
+        return parse_kml(path)
+    if ext in (".geojson", ".json"):
+        return parse_geojson(path)
+    raise ValueError(f"不支持的格式：{ext}")
+
+
+# ---------- 清理与简化 ----------
+
+def dedupe(pts, min_m=1.0):
+    out = []
+    for p in pts:
+        if not out or haversine_m(out[-1], p) >= min_m:
+            out.append(p)
+    return out
+
+
+def simplify(pts, tol_m):
+    """Douglas–Peucker（在等距平面近似下算，济州岛尺度足够准）"""
+    if len(pts) < 3 or tol_m <= 0:
+        return pts
+    kx = math.cos(math.radians(sum(p[1] for p in pts) / len(pts)))
+    xs = [p[0] * kx for p in pts]
+    ys = [p[1] for p in pts]
+    keep = [False] * len(pts)
+    keep[0] = keep[-1] = True
+    stack = [(0, len(pts) - 1)]
+    # 平面近似里 x 已按 cos(lat) 缩放、y 直接用纬度，两者单位都是「度」，
+    # 所以容差也从米换算成度（1° 纬 ≈ 111.32 km）
+    tol = tol_m / 111320.0
+    while stack:
+        i, j = stack.pop()
+        if j <= i + 1:
+            continue
+        ax, ay, bx, by = xs[i], ys[i], xs[j], ys[j]
+        dx, dy = bx - ax, by - ay
+        den = dx * dx + dy * dy
+        best_d = -1.0
+        best_k = -1
+        for k in range(i + 1, j):
+            if den == 0:
+                d = math.hypot(xs[k] - ax, ys[k] - ay)
+            else:
+                t = ((xs[k] - ax) * dx + (ys[k] - ay) * dy) / den
+                t = max(0.0, min(1.0, t))
+                d = math.hypot(xs[k] - (ax + t * dx), ys[k] - (ay + t * dy))
+            if d > best_d:
+                best_d, best_k = d, k
+        if best_d > tol:
+            keep[best_k] = True
+            stack.append((i, best_k))
+            stack.append((best_k, j))
+    return [p for p, k in zip(pts, keep) if k]
+
+
+def simplify_to_budget(pts, tol_m, max_points):
+    """先按容差简化；仍超预算就逐步放宽容差，保证 JSON 体积可控"""
+    out = simplify(pts, tol_m)
+    t = tol_m
+    while len(out) > max_points and t < 400:
+        t *= 1.6
+        out = simplify(pts, t)
+    return out, t
+
+
+# ---------- 编号识别 ----------
+
+def guess_code(path, explicit):
+    stem = os.path.splitext(os.path.basename(path))[0]
+    if stem in explicit:
+        return explicit[stem], "指定"
+    s = stem.lower()
+    for w in NOISE_WORDS:
+        s = s.replace(w, "_")
+    # 年份与版本号不是路线编号，先剔掉（"JejuOlle2024_18-1_v2" 里的 2024 与 v2）。
+    # ⚠️ 不能用 \b：'2024_18' 里 4 与 _ 都是正则的「词字符」，\b 不会成立。
+    s = re.sub(r"(?<!\d)20\d{2}(?!\d)", "_", s)
+    s = re.sub(r"(?<![a-z0-9])v\d+(?![a-z0-9])", "_", s)
+    s = re.sub(r"[^0-9]+", "_", s).strip("_")
+    if not s:
+        return None, "无法识别"
+    parts = s.split("_")
+    if len(parts) == 1 and len(parts[0]) == 1:
+        code = f"0{parts[0]}"
+    elif len(parts) == 1:
+        code = parts[0]
+    elif len(parts) == 2 and len(parts[1]) == 1:
+        head = parts[0] if len(parts[0]) == 2 else f"0{parts[0]}"
+        code = f"{head}-{parts[1]}"
+    else:
+        return None, f"数字歧义（{s}）"
+    return (code, "文件名") if code in ROUTE_CODES else (None, f"编号 {code} 不在 27 条里")
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--src", nargs="+", required=True, help="轨迹文件或目录（可多个）")
+    ap.add_argument("--out", default=OUT)
+    ap.add_argument("--tol", "--tolerance", dest="tol", type=float, default=8.0, help="简化容差（米）")
+    ap.add_argument("--max-points", type=int, default=420)
+    ap.add_argument("--map", action="append", default=[], help="文件名=编号，如 jeju1.gpx=01")
+    ap.add_argument("--reverse", action="append", default=[], help="翻转方向，可多次")
+    ap.add_argument("--dry", action="store_true", help="只解析报告，不写文件")
+    ap.add_argument("--strict", action="store_true", help="有认不出编号的文件就报错退出")
+    args = ap.parse_args()
+
+    explicit = dict(m.split("=", 1) for m in args.map if "=" in m)
+
+    files = []
+    for src in args.src:
+        src = os.path.expanduser(src)
+        if os.path.isdir(src):
+            for ext in ("gpx", "kml", "geojson", "json"):
+                files.extend(sorted(glob.glob(os.path.join(src, f"*.{ext}"))))
+                files.extend(sorted(glob.glob(os.path.join(src, f"*.{ext.upper()}"))))
+        elif os.path.isfile(src):
+            files.append(src)
+        else:
+            sys.exit(f"找不到：{src}")
+    files = sorted(set(files), key=lambda p: os.path.basename(p).lower())
+    if not files:
+        sys.exit("没找到任何 .gpx / .kml / .geojson 文件")
+
+    print(f"扫到 {len(files)} 个轨迹文件\n")
+    print(f"{'文件':<38} {'编号':<6} {'来源':<8} 说明")
+    print("-" * 88)
+    matched, unmatched = {}, []
+    for path in files:
+        code, how = guess_code(path, explicit)
+        name = os.path.basename(path)
+        short = name if len(name) <= 36 else name[:33] + "..."
+        note = "" if code else how
+        if code and code in matched:
+            note = f"⚠️ 编号 {code} 已被 {os.path.basename(matched[code])} 占用，本条忽略"
+            code, how = None, "冲突"
+        print(f"{short:<38} {code or '—':<6} {how:<8} {note}")
+        if code:
+            matched[code] = path
+        else:
+            unmatched.append(path)
+
+    if unmatched and args.strict:
+        sys.exit(f"\n有 {len(unmatched)} 个文件认不出编号，--strict 模式退出。用 --map 文件名=编号 指定。")
+
+    print()
+    out = {}
+    suspicious = []
+    t0 = time.time()
+    print(
+        f"{'编号':<6} {'原始点':>7} {'简化':>6} {'轨迹km':>8} {'官方km':>7} {'差':>6} "
+        f"{'爬升m':>6} {'海拔':>5}  起点 → 终点"
+    )
+    print("-" * 112)
+    for code in ROUTE_CODES:
+        path = matched.get(code)
+        if not path:
+            continue
+        try:
+            raw = load_track(path)
+        except Exception as err:
+            print(f"{code:<6} 解析失败：{err}")
+            continue
+        raw = dedupe(raw)
+        if code in args.reverse:
+            raw = raw[::-1]
+        if len(raw) < 2:
+            print(f"{code:<6} ⚠️ 有效点不足 2 个，跳过")
+            continue
+
+        pts, tol = simplify_to_budget(raw, args.tol, args.max_points)
+        km = path_len_m(pts) / 1000
+        has_ele = all(p[2] is not None for p in pts)
+        if has_ele:
+            gain, loss = gain_loss([p[2] for p in pts])
+            eles = [p[2] for p in pts]
+            hi, lo = round(max(eles)), round(min(eles))
+        else:
+            gain = loss = None
+            hi = lo = None
+        off = OFFICIAL_KM.get(code)
+        diff = f"{km - off:+.1f}" if off else "—"
+
+        # 坐标压到 6 位（约 0.1 m）、海拔 1 位，控制体积
+        out[code] = {
+            "source": os.path.basename(path),
+            "basis": "track",
+            "km": round(km, 2),
+            "gainM": gain,
+            "lossM": loss,
+            "highestM": hi,
+            "lowestM": lo,
+            "toleranceM": round(tol, 1),
+            "points": [[round(p[0], 6), round(p[1], 6), (round(p[2], 1) if p[2] is not None else None)]
+                       for p in pts],
+        }
+        s, e = pts[0], pts[-1]
+        print(
+            f"{code:<6} {len(raw):>7} {len(pts):>6} {km:>8.2f} {off or 0:>7.1f} {diff:>6} "
+            f"{(gain if gain is not None else '—'):>6} {('有' if has_ele else '无'):>5}  "
+            f"{s[0]:.5f},{s[1]:.5f} → {e[0]:.5f},{e[1]:.5f}"
+        )
+        # 与官方里程差太多 → 轨迹可能不完整、方向不对或根本是另一条线，值得人工看一眼
+        if off and abs(km - off) / off > 0.25:
+            suspicious.append(f"{code}（轨迹 {km:.1f}km vs 官方 {off}km）")
+
+    print()
+    missing = [c for c in ROUTE_CODES if c not in out]
+    print(f"导入 {len(out)}/{len(ROUTE_CODES)} 条，耗时 {time.time() - t0:.1f}s")
+    if missing:
+        print(f"仍缺（前端会保持原样，不走真实轨迹）：{', '.join(missing)}")
+    if suspicious:
+        print(f"⚠️ 里程与官方差 >25%，请人工核对是不是这条线 / 方向反了：{'、'.join(suspicious)}")
+    no_ele = [c for c, v in out.items() if v["gainM"] is None]
+    if no_ele:
+        print(f"⚠️ 轨迹里没有海拔、剖面会显示「暂缺海拔数据」：{', '.join(no_ele)}")
+        print("   想补海拔：改完 tracks.json 后跑 scripts/fetch_elevation.py 重新采样。")
+
+    if args.dry:
+        print("\n--dry：未写文件。")
+        return
+    os.makedirs(os.path.dirname(args.out), exist_ok=True)
+    with open(args.out, "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
+    size = os.path.getsize(args.out) / 1024
+    print(f"\n-> {args.out}（{size:.0f} KB）")
+    print("刷新页面即可生效（前端运行时读取，不落 localStorage）。")
+
+
+if __name__ == "__main__":
+    main()
