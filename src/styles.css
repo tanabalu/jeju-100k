@@ -1029,6 +1029,24 @@ textarea.input {
   border-radius: 50%;
 }
 
+/* 地图模块「途经点来源免责」提示：右下角浮层（覆盖在线/离线两种展示模式） */
+.map-wp-disclaimer {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 1000;
+  max-width: calc(100% - 20px);
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
+  color: #9a3412;
+  font-size: 11.5px;
+  line-height: 1.5;
+  letter-spacing: 0.2px;
+  text-align: right;
+}
+
 /* 取点提示同样放右上角，与图例互斥（取点时不出图例） */
 .map-pick-hint {
   position: absolute;
@@ -1178,11 +1196,139 @@ textarea.input {
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 4px 8px;
-  background: rgba(0, 0, 0, 0.45);
+  padding: 8px 8px 6px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0));
   color: #fff;
   font-size: 12px;
+  line-height: 1.4;
   text-align: left;
+  /* 默认隐藏，hover 到图片上才显示中文说明 */
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  pointer-events: none;
+}
+
+.album-cell:hover .album-cap,
+.album-cell:focus-visible .album-cap {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 相册全屏查看器：直接铺在背景蒙层上，不走 Modal 框 */
+.viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.viewer-stage {
+  position: relative;
+  max-width: 100%;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.viewer-img {
+  max-width: 100vw;
+  max-height: 84vh;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+.viewer-skeleton {
+  width: min(80vw, 900px);
+  height: 70vh;
+  border-radius: 8px;
+}
+
+.viewer-cap {
+  margin: 0;
+  color: #f3f4f6;
+  font-size: 14px;
+  text-align: center;
+}
+
+.viewer-taken {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  text-align: center;
+}
+
+.viewer-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease;
+}
+
+.viewer-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.viewer-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 30px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease;
+}
+
+.viewer-nav:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.viewer-prev {
+  left: 16px;
+}
+
+.viewer-next {
+  right: 16px;
+}
+
+.viewer-counter {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 4px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
 }
 
 /* ---------- 表格 ---------- */
@@ -1381,6 +1527,7 @@ textarea.input {
   border: 1px solid var(--line);
   border-radius: 10px;
   flex-wrap: wrap;
+  margin-bottom: 12px;
 }
 
 .admin-meta {
@@ -1521,10 +1668,29 @@ textarea.input {
 }
 
 .album-editor-img {
+  position: relative;
   height: 120px;
   background: var(--line-soft);
   border-radius: 8px;
   overflow: hidden;
+}
+
+/* 「系统」角标：标记程序默认提供的照片素材（不可删除） */
+.album-system-tag {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.92);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.4;
+  letter-spacing: 0.5px;
+}
+
+.album-editor-cell.is-system {
+  background: #f7f9fc;
 }
 
 .thumb-empty {
@@ -1687,6 +1853,14 @@ textarea.input {
 }
 
 /* ---------- 行前准备页 ---------- */
+/* 标题+描述包成一个块：作为 .page（gap:18px 的 flex 列）的单一子项，
+   二者间距由这里自己控制，不再被父级 gap 撑开 */
+.prep-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .prep-summary {
   gap: 12px;
 }

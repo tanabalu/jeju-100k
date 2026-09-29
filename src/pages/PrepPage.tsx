@@ -190,11 +190,14 @@ export function PrepPage() {
 
   return (
     <div className="page">
-      <h1 className="detail-title">行前准备 · 济州岛</h1>
-      <p className="muted">
-        出发前逐项打勾，进度保存在本机浏览器。政策与价格会变，标「<span className="verify-tag">临行复核</span>」
-        的项目请自己再确认一遍。想按性别补充的，到下面「<b>女士常用 / 男士常用</b>」两份备选清单里挑着加入。
-      </p>
+      {/* 标题+描述单独包一层：.page 是 gap:18px 的 flex 列，标题和描述合为一个子项，间距不受父级 gap 影响 */}
+      <div className="prep-head">
+        <h1 className="detail-title">行前准备 · 济州岛</h1>
+        <p className="muted">
+          出发前逐项打勾，进度保存在本机浏览器。政策与价格会变，标「<span className="verify-tag">临行复核</span>」
+          的项目请自己再确认一遍。想按性别补充的，到下面「<b>女士常用 / 男士常用</b>」两份备选清单里挑着加入。
+        </p>
+      </div>
 
       {/* ---------- 本页目录：快速跳转模块 ---------- */}
       <nav className="prep-toc" aria-label="本页目录">

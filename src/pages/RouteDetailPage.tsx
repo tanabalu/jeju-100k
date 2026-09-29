@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useParams } from 'react-router-dom'
 import { useData } from '../store/DataContext'
 import { RouteMap } from '../components/RouteMap'
 import { ElevationChart } from '../components/ElevationChart'
 import { Thumb } from '../components/Thumb'
-import { Modal } from '../components/Modal'
 import { computeMetrics, formatGain, formatKm, projectToRoute, trackLines } from '../lib/geo'
 import { TRIP_PLANS, TRIP_PLAN_DISCLAIMER } from '../lib/tripPlans'
 import { resolveImageSrc } from '../lib/imageStore'
@@ -39,7 +39,7 @@ export function RouteDetailPage() {
   const { getRoute } = useData()
   const route = id ? getRoute(id) : undefined
   const { addRoute, has } = useActivePlan()
-  const [lightbox, setLightbox] = useState<AlbumItem | null>(null)
+  const [lbIndex, setLbIndex] = useState<number | null>(null)
 
   const m = useMemo(() => (route ? computeMetrics(route) : undefined), [route])
 
@@ -337,8 +337,8 @@ export function RouteDetailPage() {
           <p className="muted">还没有照片，去管理后台上传。</p>
         ) : (
           <div className="album-grid">
-            {route.album.map((item) => (
-              <button key={item.id} className="album-cell" onClick={() => setLightbox(item)}>
+            {route.album.map((item, idx) => (
+              <button key={item.id} className="album-cell" onClick={() => setLbIndex(idx)}>
                 <Thumb image={item.image} alt={item.caption ?? ''} radius={8} />
                 {item.caption && <span className="album-cap">{item.caption}</span>}
               </button>
@@ -347,7 +347,18 @@ export function RouteDetailPage() {
         )}
       </section>
 
-      {lightbox && <Lightbox item={lightbox} onClose={() => setLightbox(null)} />}
+      {lbIndex != null && (
+        <Lightbox
+          album={route.album}
+          index={lbIndex}
+          onClose={() => setLbIndex(null)}
+          onNav={(d) =>
+            setLbIndex((i) =>
+              i == null ? i : (i + d + route.album.length) % route.album.length,
+            )
+          }
+        />
+      )}
     </div>
   )
 }
@@ -384,23 +395,83 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
   )
 }
 
-function Lightbox({ item, onClose }: { item: AlbumItem; onClose: () => void }) {
+function Lightbox({
+  album,
+  index,
+  onClose,
+  onNav,
+}: {
+  album: AlbumItem[]
+  index: number
+  onClose: () => void
+  onNav: (delta: number) => void
+}) {
+  const item = album[index]
   const [src, setSrc] = useState<string>()
+  const canNav = album.length > 1
+
+  // 切换照片时重新解析图片源，切换过程中先显示骨架占位
   useEffect(() => {
     let alive = true
+    setSrc(undefined)
     resolveImageSrc(item.image).then((u) => alive && setSrc(u))
     return () => {
       alive = false
     }
   }, [item])
-  return (
-    <Modal open title={item.caption || '照片'} onClose={onClose} width={760}>
-      {src ? (
-        <img src={src} alt={item.caption ?? ''} style={{ width: '100%', borderRadius: 10 }} />
-      ) : (
-        <div className="skeleton" style={{ width: '100%', height: 380 }} />
+
+  // 键盘：Esc 关闭、左右方向键切换（方向键仅多张时生效）
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+      else if (canNav && e.key === 'ArrowLeft') onNav(-1)
+      else if (canNav && e.key === 'ArrowRight') onNav(1)
+    }
+    document.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [canNav, onClose, onNav])
+
+  return createPortal(
+    <div
+      className="viewer"
+      role="dialog"
+      aria-modal="true"
+      aria-label={item.caption || `照片 ${index + 1} / ${album.length}`}
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <button className="viewer-close" onClick={onClose} aria-label="关闭">
+        ✕
+      </button>
+      {canNav && (
+        <button className="viewer-nav viewer-prev" onClick={() => onNav(-1)} aria-label="上一张">
+          ‹
+        </button>
       )}
-      {item.takenAt && <p className="muted" style={{ marginTop: 8 }}>{item.takenAt}</p>}
-    </Modal>
+      {canNav && (
+        <button className="viewer-nav viewer-next" onClick={() => onNav(1)} aria-label="下一张">
+          ›
+        </button>
+      )}
+      <div className="viewer-stage">
+        {src ? (
+          <img src={src} alt={item.caption ?? ''} className="viewer-img" />
+        ) : (
+          <div className="skeleton viewer-skeleton" />
+        )}
+        {item.caption && <p className="viewer-cap">{item.caption}</p>}
+        {item.takenAt && <p className="viewer-taken">{item.takenAt}</p>}
+      </div>
+      {canNav && (
+        <div className="viewer-counter">
+          {index + 1} / {album.length}
+        </div>
+      )}
+    </div>,
+    document.body,
   )
 }

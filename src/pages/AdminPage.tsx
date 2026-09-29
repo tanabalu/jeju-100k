@@ -1,9 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useData } from '../store/DataContext'
-import { exportBackup, importBackup } from '../lib/storage'
 import { computeMetrics, formatKm } from '../lib/geo'
-import { useToast } from '../components/Feedback'
 import type { Route } from '../types'
 import { BasicForm } from './admin/BasicForm'
 import { PointsEditor } from './admin/PointsEditor'
@@ -22,15 +20,12 @@ const TABS: { key: Tab; label: string }[] = [
 ]
 
 export function AdminPage() {
-  const { routes, upsertRoute, reload } = useData()
+  const { routes, upsertRoute } = useData()
   const [params, setParams] = useSearchParams()
-  const toast = useToast()
-  const fileRef = useRef<HTMLInputElement>(null)
 
   const routeId = params.get('route') ?? ''
   const route = useMemo(() => routes.find((r) => r.id === routeId), [routes, routeId])
   const [tab, setTab] = useState<Tab>('basic')
-  const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge')
 
   useEffect(() => {
     if (!routeId && routes.length > 0) {
@@ -44,31 +39,6 @@ export function AdminPage() {
   }
 
   const metrics = route ? computeMetrics(route) : undefined
-
-  const handleExport = () => {
-    const blob = new Blob([exportBackup()], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `trail100k-backup-${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-    toast('已导出备份文件', 'success')
-  }
-
-  const handleImport = async (file?: File) => {
-    if (!file) return
-    try {
-      const text = await file.text()
-      const res = importBackup(text, importMode)
-      reload()
-      toast(`导入完成：${res.routes} 条路线`, 'success')
-    } catch (err) {
-      toast(`导入失败：${err instanceof Error ? err.message : String(err)}`, 'error')
-    } finally {
-      if (fileRef.current) fileRef.current.value = ''
-    }
-  }
 
   return (
     <div className="page">
@@ -91,27 +61,6 @@ export function AdminPage() {
             ))}
           </select>
         </div>
-      </div>
-
-      <div className="backup-bar">
-        <span className="muted">数据备份</span>
-        <button className="btn btn-sm" onClick={handleExport}>
-          导出 JSON
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="application/json,.json"
-          hidden
-          onChange={(e) => handleImport(e.target.files?.[0])}
-        />
-        <button className="btn btn-sm" onClick={() => fileRef.current?.click()}>
-          导入 JSON
-        </button>
-        <select className="input input-sm" value={importMode} onChange={(e) => setImportMode(e.target.value as 'merge' | 'replace')}>
-          <option value="merge">合并（同 id 覆盖）</option>
-          <option value="replace">替换（清空后导入）</option>
-        </select>
       </div>
 
       {!route ? (

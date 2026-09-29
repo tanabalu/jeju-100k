@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useData } from '../store/DataContext'
+import { exportBackup, importBackup } from '../lib/storage'
 import type { MapStyle } from '../types'
 import { useConfirm, useToast } from '../components/Feedback'
 
@@ -7,6 +8,8 @@ export function SettingsPage() {
   const { settings, updateSettings, reload, loading } = useData()
   const toast = useToast()
   const confirm = useConfirm()
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge')
   /** 「重新加载数据」按下的瞬间置真；等 context 的 loading 回落即视为完成 */
   const [reloading, setReloading] = useState(false)
 
@@ -20,6 +23,31 @@ export function SettingsPage() {
   const setStyle = (mapStyle: MapStyle) => {
     updateSettings({ mapStyle })
     toast('已切换底图样式', 'success')
+  }
+
+  const handleExport = () => {
+    const blob = new Blob([exportBackup()], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `trail100k-backup-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast('已导出备份文件', 'success')
+  }
+
+  const handleImport = async (file?: File) => {
+    if (!file) return
+    try {
+      const text = await file.text()
+      const res = importBackup(text, importMode)
+      reload()
+      toast(`导入完成：${res.routes} 条路线`, 'success')
+    } catch (err) {
+      toast(`导入失败：${err instanceof Error ? err.message : String(err)}`, 'error')
+    } finally {
+      if (fileRef.current) fileRef.current.value = ''
+    }
   }
 
   return (
@@ -60,8 +88,31 @@ export function SettingsPage() {
         <h2>数据</h2>
         <p className="muted">
           路线、住宿、看点、相册都保存在当前浏览器的 localStorage 与 IndexedDB 中，不会上传到任何服务器。
-          换设备或清理浏览器数据前，请到管理后台导出 JSON 备份。
+          换设备或清理浏览器数据前，可在下方导出 / 导入 JSON 备份。
         </p>
+        <div className="backup-bar">
+          <button className="btn btn-sm" onClick={handleExport}>
+            导出 JSON
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={(e) => handleImport(e.target.files?.[0])}
+          />
+          <button className="btn btn-sm" onClick={() => fileRef.current?.click()}>
+            导入 JSON
+          </button>
+          <select
+            className="input input-sm"
+            value={importMode}
+            onChange={(e) => setImportMode(e.target.value as 'merge' | 'replace')}
+          >
+            <option value="merge">合并（同 id 覆盖）</option>
+            <option value="replace">替换（清空后导入）</option>
+          </select>
+        </div>
         <div className="btn-row">
           <button
             className="btn"

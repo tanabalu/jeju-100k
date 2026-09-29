@@ -535,6 +535,9 @@ export function RouteMap({
           <span><i style={{ background: COLORS.sight }} />看点</span>
         </div>
       )}
+      {!pickable && (
+        <div className="map-wp-disclaimer">⚠️  途经点均整理自网络公开资料，仅作参考，不保障其真实性和有效性！</div>
+      )}
     </div>
   )
 }
