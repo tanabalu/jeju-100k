@@ -18,7 +18,7 @@
 从 OSM 取偶来小路走向的话，先跑 scripts/fetch_olle_osm.py 导出 GeoJSON，再：
   python3 import_tracks.py --src tracks/osm --elevation
 
-产出：public/tracks.json
+产出：public/tracks.json。单文件导入时仅覆盖对应编号，保留其余已有路线。
   { "01": { "basis": "track", "km": 15.87, "gainM": 200, ...,
             "points": [[lng, lat, ele], ...] }, ... }
 
@@ -787,10 +787,10 @@ def main():
                 small_gaps.append(f"{code}（{len(gaps)} 处，最大 {worst:.0f}m）")
 
     print()
-    missing = [c for c in ROUTE_CODES if c not in out]
-    print(f"导入 {len(out)}/{len(ROUTE_CODES)} 条，耗时 {time.time() - t0:.1f}s")
-    if missing:
-        print(f"仍缺（前端会保持原样，不走真实轨迹）：{', '.join(missing)}")
+    not_imported = [c for c in ROUTE_CODES if c not in out]
+    print(f"本次导入 {len(out)} 条，耗时 {time.time() - t0:.1f}s")
+    if not_imported:
+        print(f"本次未更新（写入时保留已有对应数据）：{', '.join(not_imported)}")
     if suspicious:
         print(f"⚠️ 需要人工看一眼：{'；'.join(suspicious)}")
     if small_gaps:
@@ -809,8 +809,17 @@ def main():
         print("\n--dry：未写文件。")
         return
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
+    # Partial imports (for example one repaired GPX) must not erase every other route.
+    # Replace only imported route codes and preserve the rest of the existing manifest.
+    existing = {}
+    if os.path.isfile(args.out):
+        with open(args.out, encoding="utf-8") as f:
+            existing = json.load(f)
+        if not isinstance(existing, dict):
+            raise SystemExit(f"现有路线清单格式错误：{args.out}")
+    merged = {**existing, **out}
     with open(args.out, "w", encoding="utf-8") as f:
-        json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
+        json.dump(merged, f, ensure_ascii=False, separators=(",", ":"))
     size = os.path.getsize(args.out) / 1024
     print(f"\n-> {args.out}（{size:.0f} KB）")
     print("刷新页面即可生效（前端运行时读取，不落 localStorage）。")

@@ -117,7 +117,7 @@ function isUntouchedSeed(route: Route, seedPts: Map<string, { lng: number; lat: 
  * 轨迹首末点就是这条线真实的起终点，直接用它。
  *
  * ⚠️ 例外：route.startPoint / route.endPoint 设置了官方权威坐标时，优先钉到官方命名地点
- *   （目前只有缺少可靠轨迹的 06 / 07）。07-1 的官方终点锚点离现有路线末点约 1.3km，
+ *   （06 起点现在与 05 真实轨迹终点一致；07 暂无现行 GPX）。07-1 的官方终点锚点离现有路线末点约 1.3km，
  *   因此保留其轨迹端点作为地图标记，避免标记脱离用户确认正确的线路。
  *   折线仍走真实轨迹，只把起终点标记挪回官方位置。
  *
@@ -186,8 +186,11 @@ function mergeTrack(
         .filter((s) => s.length >= 2)
     : []
 
+  // Track data is authoritative: strip any old locally cached segments before applying the
+  // current manifest, otherwise a newly continuous route can still render as split.
+  const { elevationSegments: _oldSegments, ...routeWithoutOldSegments } = route
   return {
-    ...route,
+    ...routeWithoutOldSegments,
     points: snapRouteEnds(route, clean, seedPts),
     elevationProfile: samples,
     ...(segs.length > 1 ? { elevationSegments: segs } : {}),
@@ -281,12 +284,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
           store.setRoutes(r)
           store.setSeedVersion(SEED_VERSION)
         } else if (store.getSeedVersion() < SEED_VERSION) {
-          // 07 / 07-1 / 14-1 的历史端点曾被错误保存到浏览器 localStorage；
+          // 06 / 07 / 07-1 / 14-1 的历史端点曾被错误保存到浏览器 localStorage；
           // 仅修复仍保持默认两点名称的官方路线，用户手工编辑过的点位不动。
           const seeds = new Map(buildSeedRoutes().map((route) => [route.id, route]))
           let changed = false
           r = r.map((route) => {
-            if (route.code !== '07' && route.code !== '07-1' && route.code !== '14-1') return route
+            if (route.code !== '06' && route.code !== '07' && route.code !== '07-1' && route.code !== '14-1') return route
             const seed = seeds.get(route.id)
             const points = route.points ?? []
             const seedPoints = seed?.points ?? []

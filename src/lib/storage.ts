@@ -38,8 +38,8 @@ export interface ChecklistState {
 
 const EMPTY_CHECKLIST: ChecklistState = { checked: [], skipped: [], custom: [], extras: [] }
 
-/** 默认素材版本：内容变更时 +1；5=剥离 07/07-1/14-1 错误本机缓存；6=14-1 还原为跟随真实 GPX 端点（取消 jeoji/seogwang 错锚点） */
-export const SEED_VERSION = 6
+/** 默认素材版本：5=清理错误端点缓存；6=14-1 跟随真实 GPX 端点；7=06 起点对齐 05 号线真实终点 */
+export const SEED_VERSION = 7
 
 /** 上一版（国内徒步 3 条）的示例路线 id，用于识别旧素材 */
 export const LEGACY_SEED_IDS = ['route_wugong_demo', 'route_xihu_demo', 'route_shenzhen_demo']

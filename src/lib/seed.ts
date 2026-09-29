@@ -54,7 +54,8 @@ const PLACES: Record<PlaceKey, { zh: string; ko: string; lng: number; lat: numbe
   onpyeong: { zh: '温坪', ko: '온평', lng: 126.823, lat: 33.42 },
   pyoseon: { zh: '表善', ko: '표선', lng: 126.851, lat: 33.324 },
   namwon: { zh: '南元', ko: '남원', lng: 126.79, lat: 33.283 },
-  soesokkak: { zh: '牛沼河口', ko: '쇠소깍', lng: 126.68, lat: 33.279 },
+  // 与 05 号线真实轨迹终点相同，作为 06 号线的准确起点。
+  soesokkak: { zh: '牛沼河口', ko: '쇠소깍', lng: 126.622978, lat: 33.251662 },
 // ⚠️ 除下面标注「官方 GPS」的两条外，其余是**城镇/地点级近似坐标**（偏差可达 10km）。
 //    seogwipoTerminal 原先写 126.563,33.253（在市区里），与官方实测点差了约 5km，
 //    会让 07 / 07-1 的近似连线短成一根 0.9km 的短棒 —— 已按 jejuolle.org 官方 GPS 校正。
@@ -248,7 +249,7 @@ function buildRoute(spec: OlleSpec): Route {
     region: `韩国 · 济州岛 · ${spec.region ?? ''}`,
     // 对有可信线路几何、但采集端点不在官方命名地点的路线，地图标记钉在官方地点。
     // 07-1 的现有路径以其几何首末点为准：官方中心锚点会把终点标记拉离路径约 1.3km。
-    // 只给缺少可靠实走轨迹的 06 / 07 保留官方坐标锚点。
+    // 06 起点锚点已校准到 05 号线 GPS 终点；07 暂无现行线路的可验证 GPX，保留官方端点。
     // 14-1 已有 codex 校正过的真实 GPX 轨迹（tracks.json 14-1 条目，sungbh98 2024 实走），
     // 起终点标记直接跟随真实轨迹端点，不再钉到 jeoji/seogwang 近似地点（偏离真实端点 4~5km）。
     ...(spec.code === '06' || spec.code === '07'
