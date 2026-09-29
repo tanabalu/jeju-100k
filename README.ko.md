@@ -1,67 +1,67 @@
-# Jeju Olle Trail · 100K Guide (Jeju Island 제주올레)
+# 제주올레 · 100km 가이드 (Jeju Olle Trail)
 
-> 🌐 Language: [中文](README.md) · **English** · [日本語](README.ja.md) · [한국어](README.ko.md)
+> 🌐 언어 / Language: [中文](README.md) · [English](README.en.md) · [日本語](README.ja.md) · **한국어**
 >
-> This document translates the user- and deployment-facing sections. The data-acquisition developer log (§1.3 "Replace approximate coordinates with real tracks" — OSM three-source comparison, historical import records) is kept in Chinese in `README.md`. See the link above.
+> 이 문서는 사용자·배포 대상 섹션을 번역한 것입니다. 데이터 수집 개발 로그(§1.3 "실측 궤적으로 근사 좌표 대체" — OSM 3소스 비교, 과거 임포트 기록)는 `README.md`에 중국어 원문 그대로 남겨두었습니다. 위 링크 참조.
 
-## Overview
+## 개요
 
-Turn Jeju Island's 27 Olle trails (올레길) into your own itinerary: automatically calculate distance, see whether you've pieced together a 100 km, and manage start/end points, roadside lodging, scenery, and a photo album.
+제주도의 27개 올레길(올레길)을 내 일정으로 모아 거리를 자동 계산하고 100km를 채웠는지 확인하며, 출도착점·길가 숙소·경치·앨범을 관리합니다.
 
-Pure front-end. Data is saved in the local browser (localStorage + IndexedDB). Dependencies are managed with npm; end users use the static site produced by `npm run build`.
+순수 프런트엔드입니다. 데이터는 로컬 브라우저(localStorage + IndexedDB)에 저장됩니다. 의존성은 npm으로 관리하고, 최종 사용자는 `npm run build`가 만드는 정적 사이트를 이용합니다.
 
-## Quick Start (Overview)
+## 빠른 시작 (개요)
 
-| Step | Command | Description |
+| 단계 | 명령 | 설명 |
 | --- | --- | --- |
-| 1 | `npm install` | Install dependencies |
-| 2 | `npm run dev` | Local development, open http://127.0.0.1:5180 |
-| 3 | `npm run build` | Produce `dist/`, the static site end users use |
-| 4 | `npm run preview` | Verify the build locally |
-| 5 | Deploy (optional) | Serve `dist/` from any static server / Dokploy subpath |
+| 1 | `npm install` | 의존성 설치 |
+| 2 | `npm run dev` | 로컬 개발, http://127.0.0.1:5180 열기 |
+| 3 | `npm run build` | 최종 사용자가 쓰는 정적 사이트 `dist/` 생성 |
+| 4 | `npm run preview` | 빌드 결과 로컬 검증 |
+| 5 | 배포(선택) | `dist/`를 아무 정적 서버 / Dokploy 서브경로에 올림 |
 
-> Key: **Basemap data comes from OpenStreetMap — global coverage, no API key needed**. Jeju's streets, coastline, and terrain all render normally; when offline the map area is blank but core functions like distance tallying are unaffected. See §5.
+> 핵심: **지도 배경 데이터는 OpenStreetMap 출처로 전 세계 커버되며 API 키가 필요 없습니다**. 제주의 도로·해안선·지형이 정상 표시됩니다. 오프라인일 때 지도 영역은 비어 있지만 거리 합산 등 핵심 기능에는 영향이 없습니다. §5 참조.
 
-## 1. What's preloaded
+## 1. 미리 채워지는 것
 
-On first open, the **official 27 Olle trails** (source: jejuolle.org) are written automatically:
+최초 실행 시 공식 **제주올레 27개 코스**(출처: jejuolle.org)가 자동으로 기록됩니다:
 
-- **21 main routes + 6 branch routes** (1-1 Udo Island, 7-1, 10-1 Gapado, 14-1, 18-1 Sangchujado, 18-2 Hajuchado)
-- Official distances are filled into "actual distance", so **distance uses official values**, not straight-line estimates
-- Official difficulty Low / Medium / High mapped to 2 / 3 / 4 stars
-- Main routes are 10.1–20.9 km each; **27 routes total 403 km** (`OLLE_TOTAL_KM` is derived from `SPECS`, not hard-coded — the homepage's "437km 27코스" is a marketing figure, see "Official distance has versions" below)
+- **본선 21개 + 지선 6개** (1-1 우도, 7-1, 10-1 가파도, 14-1, 18-1 상추자, 18-2 하추자)
+- 공식 거리는 "실제 거리"에 채워져 있으므로 **거리는 공식값을 우선**, 직선 추정하지 않음
+- 공식 난이도 Low / Medium / High는 2 / 3 / 4성으로 매핑
+- 본선은 하나당 10.1~20.9 km; **27개 합계 403 km** (`OLLE_TOTAL_KM`은 `SPECS`에서 도출, 하드코딩 안 함 — 홈의 "437km 27코스"는 홍보 수치, 아래 "공식 거리에도 버전이 있다" 참조)
 
-| Data source | Accuracy | What you must supply yourself |
+| 데이터 출처 | 정확성 | 직접 채워야 할 것 |
 | --- | --- | --- |
-| Route numbers, start/end names, official distance, official difficulty | Official website, directly usable | — |
-| Start/end lat/lng | **Town-level approximate coordinates, not official measured tracks** | Import real tracks with `scripts/import_tracks.py` to replace in one step, or correct via map point-picking in the admin panel |
-| Elevation & cumulative climb | **SRTM 30m terrain sampled along the approximate path — estimate, not official** | After importing real GPX, automatically switches to per-point accumulation along the track (more accurate) |
-| Card cover | **Official Route Map page** (© Jeju Olle Foundation), 26 routes have images, 18-2 has no official page | To use your own photo: upload one in `/admin` "Basic Info" |
-| Lodging, sights, album | Preloaded empty | Enter in `/admin` |
+| 코스 번호, 출도착 명칭, 공식 거리, 공식 난이도 | 공식 사이트, 그대로 사용 가능 | — |
+| 출도착 위경도 | **읍면동 단위 근사 좌표, 공식 실측 궤적 아님** | `scripts/import_tracks.py`로 실측 궤적 일괄 대체, 또는 관리화면에서 지도 클릭으로 보정 |
+| 표고 및 누적 오르막 | **SRTM 30m 지형을 근사 경로 따라 샘플링한 추정값, 공식 실측 아님** | 실제 GPX 임포트 후 궤적 따라 점별 누적으로 자동 전환(더 정확) |
+| 카드 표지 | **공식 Route Map 페이지**(© Jeju Olle Foundation), 26개 코스에 이미지 있음, 18-2는 공식 페이지 없음 | 내 사진으로 쓰려면 `/admin` "기본 정보"에서 업로드 |
+| 숙소, 볼거리, 앨범 | 빈 값으로 미리 채워짐 | `/admin`에서 입력 |
 
-### How climb is calculated (important)
+### 오르막 계산 방식 (중요)
 
-The preset routes' elevation series are fetched by `scripts/fetch_elevation.py` from opentopodata.org's public **SRTM 30m** dataset, landing in `src/lib/olleeElevation.ts` (bundled at build time, no network at runtime).
+미리 채워진 코스의 표고 열은 `scripts/fetch_elevation.py`가 opentopodata.org의 공개 **SRTM 30m** 데이터셋에서 가져와 `src/lib/olleeElevation.ts`에 저장합니다(빌드 시 번들, 실행 시 통신 안 함).
 
-- **Non-loop routes**: uniform sampling along the "start → end" line (20–43 points each)
-- **Loop routes** (Udo / Gapado / Sang/Hajuchado): circular sampling inferred from official distance
-- Climb uses a **3m hysteresis threshold** on adjacent differences to suppress terrain-data jitter
+- **비순환 코스**: "출발→도착" 직선을 균등 샘플링(각 20~43점)
+- **순환 코스**(우도 / 가파도 / 상·하추자): 공식 거리에서 역산한 원주 샘플링
+- 오르막은 인접 차이에 **3m 히스테리시스 임계값**을 적용해 지형 데이터 자체의 떨림을 억제
 
-⚠️ This is an **estimate, not official measured climb**: the real route winds along the coast and climbs small coastal hills that straight-line sampling can't capture, so actual climb is usually larger than shown. 27 routes total ~2230 m — fine for ranking "which is harder", but for pacing and resupply planning use real tracks (see next section; after import, climb auto-switches to track-based).
+⚠️ 이는 **추정값이지 공식 실측 오르막이 아닙니다**: 실제 코스는 해안을 따라 구불구불하고 해안 작은 언덕을 넘기 때문에 직선 샘플링으로는 잡히지 않아 실제 오르막이 보통 표시값보다 큽니다. 27개 합계 약 2230 m — "어느 코스가 더 힘든가" 순위 매기기에는 쓸 수 있으나, 페이스 조절과 보급 계획에는 실측 궤적을 쓰세요(다음 절; 임포트 후 오르막은 궤적 기준으로 자동 전환).
 
-To refresh this data:
+이 데이터를 갱신하려면:
 
 ```bash
-python3 scripts/fetch_elevation.py            # refetch all (has local cache, only fills missing)
-python3 scripts/fetch_elevation.py --limit 2  # try 2 first to see effect
-python3 scripts/fetch_elevation.py --force    # ignore cache, refetch all
+python3 scripts/fetch_elevation.py            # 전체 재수집(로컬 캐시 있음, 부족분만 보충)
+python3 scripts/fetch_elevation.py --limit 2  # 먼저 2개만 시도해 효과 확인
+python3 scripts/fetch_elevation.py --force    # 캐시 무시 전체 재수집
 ```
 
-Routes you create yourself have no sampled data; fill elevation per point in `/admin` "Waypoints"; **with fewer than 2 points having elevation, climb shows "—" not 0** (0 would falsely imply the route is flat).
+직접 만든 코스는 샘플링 데이터가 없으므로 `/admin` "경유점"에서 각 점에 표고를 입력합니다; **표고가 있는 점이 2개 미만이면 오르막은 0이 아닌 "—"로 표시**(0이면 평탄한 것으로 오해).
 
-### 1.3 Replace approximate coordinates with real tracks (developer log — Chinese only)
+### 1.3 실측 궤적으로 근사 좌표 대체 (개발 로그 — 중국어만)
 
-> ⚠️ **dev log, zh only.** The following section is kept in Chinese. See `README.md` §1.3 for the original.
+> ⚠️ **dev log, zh only.** 아래 섹션은 중국어 원문 그대로 남겨둡니다. 원본은 `README.md` §1.3 참조.
 >
 > 预置坐标是**城镇级近似**，落在地图上是「大概这一带」，用来排序和看分布没问题，
 > 但**导航、算补给、算真实爬升都不该用它**。
@@ -415,21 +415,21 @@ Routes you create yourself have no sampled data; fill elevation per point in `/a
 >
 > #### 走向会自动校正（`import_tracks.py`）
 >
-> **方向 = 行进方向**，不是装饰：详情页的「起点 → 终点」坐标、剖面的爬升/下降都按它读，
+> **方向 = 行进方向**，不是装饰：详情页의「起点 → 终点」坐标、剖面의 爬升/下降都按它读，
 > 反了会把上坡读成下坡，起点坐标还会贴到另一端去。而**拼接时不看成员顺序，方向本来就是随机的**
-> （见上面「缝合算法」的警告），所以必须校正。
+> （见上面「缝合算法」의 警告），所以必须校正。
 >
 > 校正靠一条结构事实，不需要任何外部坐标：
 >
-> > 偶来 27 条**首尾相接**：课程 N 的终点 = 课程 N+1 的起点（`seed.ts` 的 `SPECS` 写死的）。
+> > 偶来 27 条**首尾相接**：课程 N 의 终点 = 课程 N+1 의 起点（`seed.ts` 의 `SPECS` 写死的）。
 >
-> 于是相邻两条课程在 OSM 里必然共享一个端点节点，共享点应当落在「N 的终点 / N+1 的起点」上；
-> 若落成「N+1 的终点」，则这一对里**有且仅有**一条被反着拼了。谁错 —— 取**翻转条数最少**的解。
+> 于是相邻两条课程在 OSM 里必然共享一个端点节点，共享点应当落在「N 의 终点 / N+1 의 起点」上；
+> 若落成「N+1 의 终点」，则这一对里**有且仅有**一条被反着拼了。谁错 —— 取**翻转条数最少**의 解。
 > 两个好处：
 >
 > - **数据源本身没问题时它给出 0 次翻转**，不会误伤一份方向本来就对的 Wikiloc GPX；
-> - 实测 2026-09-28 的 23 条里判出 `06 / 11` 两条反向（`05↔06`、`10↔11` 共享的端点落成
->   「终点对终点」），导入时已自动翻回。**判得对**：这两条的几何来自 relation 侧（方向随机），
+> - 实测 2026-09-28 의 23 条里判出 `06 / 11` 两条反向（`05↔06`、`10↔11` 共享의 端点落成
+>   「终点对终点」），导入时已自动翻回。**判得对**：这两条의 几何来自 relation 侧（方向随机），
 >   而 05、10 来自 GPX（方向本来就是官方的）；翻转后 06 = 「牛沼河口 → 独立岩」、
 >   11 = 「摹瑟浦 → 武陵」，与官方一致。
 > - 复核手段：拿 GPX（官方走向）当基准，逐条比「导入后的首点 ↔ GPX 首点 / 末点 ↔ GPX 末点」。
@@ -481,257 +481,256 @@ Routes you create yourself have no sampled data; fill elevation per point in `/a
 > - 只有轨迹没海拔也能用：总里程照算，爬升显示「—」并提示「暂缺海拔数据」；
 >   加 `--elevation` 就用 opentopodata 的 SRTM 30m 补上（同一份数据源口径与预置剖面一致，结果有缓存）。
 
-## 2. Features
+## 2. 기능
 
-| Module | Page | Capabilities |
+| 모듈 | 페이지 | 할 수 있는 것 |
 | --- | --- | --- |
-| Route list | `/` | 27 routes listed by number; search (name/region/tag, supports "올레 07"/"Seogwipo"), filter by type, sort by number/distance/updated/name; top trip basket toggles directly; one-click add to basket from card |
-| Route detail | `/routes/:id` | Map shows start/end, elevation profile, roadside lodging (auto "N km along route / N km from route"), roadside scenery, photo lightbox |
-| Trip basket | `/plan` | Add routes (each counted once; added button disabled), custom target distance (quick 100 or 437 full), live cumulative +达标 check; suggests fill routes by gap; **default order by adding sequence** (switchable to "by distance"), Markdown copy follows current order; per-route "done" checkbox shows progress (X/Y + distance), supports "unfinished only" |
-| Pre-trip | `/prep` | Jeju checklist (6 groups 43 items, checkable, manually skip/restore, unfinished-only, add own; skipped items gathered under "my own items" for review/restore) + **women's / men's commonly-used preset lists** (11/10 each, add per-item or whole list, brings source tag, removable anytime) + transport/lodging/food cheat-sheet (T-money card/riding notes, nav app comparison, taxi payment) + rough budget |
-| Asset management | `/admin` | Route CRUD (incl. number); waypoints support map point-pick + reorder; lodging, sights (multi-image), album (local upload auto-compress or external link); JSON import/export |
-| Settings | `/settings` | Basemap style, clear data |
+| 코스 목록 | `/` | 27개를 번호순 표시; 검색(명칭/지역/태그, "올레 07"/"서귀포" 지원), 유형 필터, 번호/거리/갱신일/명칭 정렬; 상단 여행 바구니에서 바로 전환; 카드에서 원클릭 바구니 추가 |
+| 코스 상세 | `/routes/:id` | 지도에 출도착·표고 프로파일·길가 숙소("경로 기준 N km / 경로에서 N km" 자동 계산)·길가 경치·앨범 라이트박스 |
+| 여행 바구니 | `/plan` | 코스 추가(각 코스 1회만 계산, 추가된 버튼 비활성), 목표 거리 커스텀(빠른 100 또는 437 전체), 실시간 누계와 달성 판정; 부족분으로 보충 코스 제안; **기본은 추가 순서**(거리순 전환 가능), Markdown 복사는 현재 순서 따름; 각 코스 "완료" 체크로 진행 표시(X/Y개 + 거리), "미완료만" 지원 |
+| 출발 전 준비 | `/prep` | 제주 체크리스트(6그룹 43항목, 체크·수동 건너뛰기/복원·미완료만·직접 추가 가능; 건너뛴 항목은 "내 항목" 아래 모아서 복원 가능) + **여성/남성 자주 쓰는 목록**(각 11/10항목, 항목 단위 또는 전체 추가, 출처 태그 부여, 언제든 제거) + 교통/숙박/식사 빠른 참고(T-money 카드/탑승 요령, 내비 앱 비교, 택시 결제) + 예산 대략 계산 |
+| 자료 관리 | `/admin` | 코스 CRUD(번호 포함); 경유점은 지도 클릭 선택과 순서 변경 지원; 숙소, 볼거리(다중 이미지), 앨범(로컬 업로드 자동 압축 또는 외부 링크); JSON 가져오기/내보내기 |
+| 설정 | `/settings` | 지도 배경 스타일, 데이터 초기화 |
 
-> Footer credit: basemap OpenStreetMap, data source **jejuolletrailguide.net** (Jeju Olle Trail official English guide); also listed in footer "friend links" (external links always new tab + `rel="noopener noreferrer"`). Friend links live in `src/App.tsx`'s `FRIEND_LINKS`; add one line to add.
+> 푸터 출처 표시: 지도 배경 OpenStreetMap, 데이터 출처 **jejuolletrailguide.net**(Jeju Olle Trail 공식 영문 가이드); 이 사이트는 푸터 "친구 링크"에도 나열(외부 링크는 항상 새 탭 + `rel="noopener noreferrer"`). 친구 링크는 `src/App.tsx`의 `FRIEND_LINKS`, 한 줄 추가하면 됨.
 
-Typical 100K usage: main routes average 15–20 km, **pick ~6 routes to reach 100 km**; to walk the whole island set target to 437.
+100km typical usage: 본선은 평균 15~20 km, **약 6개 고르면 100 km**; 섬 전체를 걷다면 목표를 437로.
 
-## 3. Where data is stored
+## 3. 데이터 저장 위치
 
-| Content | Location |
+| 내용 | 위치 |
 | --- | --- |
-| Routes / trip basket / settings | `localStorage` (key prefix `trail100k.`) |
-| Pre-trip checklist checks & custom items | `localStorage`'s `trail100k.checklist` |
-| Locally uploaded images | `IndexedDB` (db `trail100k` → store `images`), compressed to max edge 1600px, JPEG 0.82 on upload |
+| 코스 / 여행 바구니 / 설정 | `localStorage`(키 접두어 `trail100k.`) |
+| 출발 전 체크리스트 체크 및 커스텀 항목 | `localStorage`의 `trail100k.checklist` |
+| 로컬 업로드 이미지 | `IndexedDB`(db `trail100k` → store `images`), 업로드 시 장변 1600px, JPEG 0.82 압축 |
 
-Data is not uploaded to any server. Before switching devices or clearing the browser, go to `/admin` top "Export JSON" to back up; after switching, "Import JSON" to restore (merge or replace optional).
+데이터는 어떤 서버에도 업로드되지 않습니다. 기기 변경이나 브라우저 초기화 전에 `/admin` 상단 "JSON 내보내기"로 백업, 이전 후 "JSON 가져오기"로 복원(병합 또는 교체 선택 가능).
 
-## 4. How distance is calculated
+## 4. 거리 계산 방식
 
-| Scenario | Value |
+| 시나리오 | 값 |
 | --- | --- |
-| Preset Olle routes | Official distance (`manualDistanceKm`) first, no estimate |
-| Routes you create, not manually filled | Adjacent waypoint straight-line sum × 1.2 (detour factor) |
-| Climb | Prefer "terrain sampling series" (3m threshold); fall back to waypoint elevation if none; manually filled "actual cumulative climb" highest priority; if none show "—" |
+| 미리 채워진 올레 코스 | 공식 거리(`manualDistanceKm`) 우선, 추정 안 함 |
+| 직접 만든, 미입력 코스 | 인접 경유점 직선 거리 합 × 1.2(우회 계수) |
+| 오르막 | 우선 "지형 샘플링 열"(3m 임계값); 없으면 경유점 표고로 후퇴; 손입력 "실제 누적 오르막"이 최우선; 없으면 "—" 표시 |
 
-Trip basket: each route counted once, sum of all distances compared to target, directly gives "reached / N km short", and suggests fillable routes by gap size.
+여행 바구니: 각 코스를 1회만 계산, 전체 거리 합을 목표와 비교해 "달성 / N km 부족"을 바로 표시하고 부족분에 따라 보충 가능한 코스를 제안.
 
-## 5. Map basemap notes
+## 5. 지도 배경 설명
 
-The basemap is rendered with **Leaflet**, data from **OpenStreetMap** (tiles served by OpenStreetMap / OpenTopoMap public services), global coverage, Jeju's streets/coastline/terrain all render normally, **no API key needed, no configuration needed**.
+지도 배경은 **Leaflet**으로 렌더, 데이터는 **OpenStreetMap**(타일은 OpenStreetMap / OpenTopoMap 공개 서비스) 출처, 전 세계 커버, 제주 도로/해안선/지형 정상 표시, **API 키 불필요, 설정 불필요**.
 
-| Basemap style | Tile source | Traits |
+| 배경 스타일 | 타일 출처 | 특징 |
 | --- | --- | --- |
-| Standard map (default) | OpenStreetMap `tile.openstreetmap.org` | Most complete road/POI/name elements |
-| Terrain map | OpenTopoMap `tile.opentopomap.org` | Contour + hillshade, good for hiking / off-road climb判断 |
+| 표준 지도(기본) | OpenStreetMap `tile.openstreetmap.org` | 도로·POI·지명 요소 가장 충실 |
+| 지형도 | OpenTopoMap `tile.opentopomap.org` | 등고선 + 음영기복, 하이킹/오프로드 오르막 판단에 적합 |
 
-> ⚠️ Tile source selection note: **Do not use CARTO** (`basemaps.cartocdn.com`) — it now forces tiles with "API key required" watermark on anonymous requests, requiring your own key. OSM / OpenTopoMap public services are the truly key-free ones.
+> ⚠️ 타일 출처 선택 주의: **CARTO는 쓰지 마세요**(`basemaps.cartocdn.com`) — 익명 요청에 "API key required" 워터마크 타일을 강제해 자체 키가 필요합니다. OSM / OpenTopoMap 공개 서비스가 진짜 키 불필요.
 
-Style switches with one click in "Settings", takes effect immediately, choice stored locally.
+스타일은 "설정" 페이지에서 원클릭 전환, 즉시 적용, 선택은 로컬 저장.
 
-- Tiles need network to load; **offline the map area is blank**, other functions unaffected.
-- **Two line types** (`src/lib/geo.ts`'s `mapLineSet()` → `MapLine.approx`):
-  **Solid line (white border + green core)** = measured track in `public/tracks.json`; **gray-green dashed** = no measured track yet,
-  just connecting `seed.ts`'s approximate coordinates as a **schematic line** (deviation up to 10km, don't treat as the route).
-  Detail page and trip basket page both point this out in their descriptions.
-- In extreme cases Leaflet init failure auto-downgrades to **offline schematic** (SVG projection), still clickable to reverse geocode.
-- Coordinates unified as **WGS-84** (consistent with OSM). Jeju is outside China; the GCJ-02 offset algorithm doesn't apply abroad, so historical coordinates are equivalent to WGS-84, switching basemaps won't cause position shift.
+- 타일은 통신 필요; **오프라인 시 지도 영역 비어 있음**, 다른 기능 영향 없음.
+- **두 선 종류**(`src/lib/geo.ts`의 `mapLineSet()` → `MapLine.approx`):
+  **실선(흰 테두리 + 초록 심)** = `public/tracks.json`의 실측 궤적; **회녹색 점선** = 아직 실측 궤적 없는 것,
+  `seed.ts`의 근사 좌표를 이은 **예시선**(오차 최대 10km, 코스로 보지 말 것).
+  상세 페이지, 여행 바구니 페이지 모두 설명에서 이 점을 명시.
+- 극단적 경우 Leaflet 초기화 실패는 **오프라인 예시도**(SVG 투영)로 자동 강등, 클릭으로 역지오코딩 가능.
+- 좌표는 통일해 **WGS-84**(OSM과 일치). 제주는 중국 본토 밖이므로 GCJ-02 오프셋 알고리즘은 해외에서 동작 안 해, 역사 좌표는 WGS-84와 등가, 배경을 바꿔도 위치 어긋남 없음.
 
-> ⚠️ Compliance note: OpenStreetMap / OpenTopoMap are foreign tile sources, **not applicable to surveying/mapping map products aimed at mainland China**. This project is positioned as a personal self-use tool for Jeju Island (overseas) hiking guides, foreign tile sources are fine; if later published to mainland users as a surveying product, you must switch to a basemap service with surveying qualifications that covers the target region.
+> ⚠️ 컴플라이언스 주의: OpenStreetMap / OpenTopoMap은 해외 타일 출처, **중국 대륙 대상 측지 지도 제품에는 부적합**. 이 프로젝트는 제주도(해외) 하이킹 가이드의 개인 자작 도구로, 해외 타일 사용은 문제 없음; 추후 대륙 사용자 대상 측지 제품으로 발행 시 대상 지역을 커버하는 측지 자격을 갖춘 배경 서비스로 교체 필요.
 
-## 6. Route illustrations & covers
+## 6. 코스 일러스트 및 표지
 
-Card covers use **official Route Map** (one page per route), album uses **Wikimedia Commons freely-licensed photos**. Both assets live in `public/photos/`, read by the frontend at startup by route number (not in localStorage, replace files to swap).
+카드 표지는 **공식 Route Map**(코스당 1페이지), 앨범은 **Wikimedia Commons 자유 라이선스 사진**. 두 자료 모두 `public/photos/`에 두고 프런트엔드 시작 시 번호로 자동 바인딩(localStorage에 안 쓰며, 파일 교체로 바로 변경).
 
-### 6.1 Official Route Map → card cover
+### 6.1 공식 Route Map → 카드 표지
 
-Split Jeju Olle Foundation's official "Route Map" PDF by route into images, one page per route:
+Jeju Olle Foundation 공식 "Route Map" PDF를 코스별로 이미지 분할, 코스당 1페이지:
 
 ```bash
-# default reads ~/Downloads/171011_jeju-olle-route-map.pdf
+# 기본은 ~/Downloads/171011_jeju-olle-route-map.pdf 읽기
 python3 scripts/split_route_map.py
 python3 scripts/split_route_map.py --pdf /path/to/route-map.pdf
-python3 scripts/split_route_map.py --limit 2      # cut 2 first to see effect
+python3 scripts/split_route_map.py --limit 2      # 먼저 2개만 잘라 효과 확인
 ```
 
-| Output | Description |
+| 산출물 | 설명 |
 | --- | --- |
-| `public/photos/maps/olle-<number>.webp` | **Detail page original**: one full page per route (1432×1012, ~100KB each, 26 images total 2.5MB), for album and lightbox |
-| `public/photos/maps/cover/olle-<number>.webp` | **Card cover (compressed)**: 760×537, ~25KB each, 26 images total 0.65MB |
-| `public/photos/maps.json` | number → `{ file: original, cover: cover }`, frontend reads it to set `cover` and add original to album (clickable for full size) |
+| `public/photos/maps/olle-<번호>.webp` | **상세 페이지 원본**: 코스당 1페이지 전체(1432×1012, 약 100KB/장, 26장 계 2.5MB), 앨범과 라이트박스용 |
+| `public/photos/maps/cover/olle-<번호>.webp` | **카드 표지(압축판)**: 760×537, 약 25KB/장, 26장 계 0.65MB |
+| `public/photos/maps.json` | 번호 → `{ file: 원본, cover: 표지 }`, 프런트엔드가 읽어 `cover` 설정하고 원본을 앨범에 추가(전체 크기 클릭 열람) |
 
-**Why two sizes from one image**: card cover renders only ~300–400px wide in the list (`.cards` is `minmax(min(300px,100%),1fr)`), cramming the 1432px original is wasteful — 26 covers on homepage would pull 2.5MB. Separate compressed cover drops first screen to 0.65MB, while detail/lightbox still shows 1432px original, zooming to read place names unaffected.
+**왜 한 이미지에서 두 사이즈인가**: 카드 표지는 목록에서 약 300~400px 폭만 렌더(`.cards`는 `minmax(min(300px,100%),1fr)`), 1432px 원본을 그대로 넣는 것은 낭비 — 홈 26장 표지가 2.5MB를 끌어옴. 표지별 압축본을 두니 첫 화면은 0.65MB, 상세/라이트박스는 종전대로 1432px 원본 표시, 확대해 지명 봐도 영향 없음.
 
-Compression is **local** (Pillow resize + WebP quality drop, `--cover-width` / `--cover-quality` adjustable), same class as TinyPNG / tinyimg online services, but no API key, no uploading images to third parties, reproducible. You can switch to online services too, just overwrite the compressed result to the same-named file in `maps/cover/`.
+압축은 **로컬**에서 함(Pillow 리사이즈 + WebP 품질 하향, `--cover-width` / `--cover-quality` 조정 가능), TinyPNG / tinyimg 같은 온라인 서비스와 동급이나 API 키 불필요, 제3자 이미지 업로드 불필요, 재현 가능. 온라인 서비스로 바꿔도 `maps/cover/` 동명 파일을 덮어쓰면 됨.
 
-Conventions:
+약속:
+- **자르지 마세요**. 공식 페이지는 842×596 가로판, 지도가 페이지 전체를 채움; 상하 30% 자르면 코스 본체가 잘림(01선 남단, 10-1의 제주 본섬 측이 잘림). 표지측 `.route-cover`는 `aspect-ratio: 842 / 596`로 페이지 비율 유지, 제로 크롭.
+- **페이지 번호 ↔ 코스 번호는 검증 필수**. 스크립트의 `PAGE_CODES`는 각 페이지 우하단 굵은 코스 번호로 정리(PDF 1페이지가 표지, 2~27페이지가 코스). 새 PDF 버전으로 바꾸면 이 표를 재검증해야 하며, 안 그러면 코스 번호가 어긋남.
+- 이 2017.10판에는 **Route 18-2(하추자도) 페이지가 없음** — 18-2는 "이미지 없음" 플레이스홀더.
+- 표지 우선순위: **관리자가 직접 정한 표지 > 공식 루트맵 > Commons 사진**. 내 사진으로 쓰려면 `/admin` "기본 정보"에서 업로드.
 
-- **Do not crop**. Official page is 842×596 landscape, map fills the whole page; cropping 30% top/bottom cuts into the route body (01's south end, 10-1's Jeju-mainland side get cut). Cover side's `.route-cover` uses `aspect-ratio: 842 / 596` to reserve space by page ratio, zero crop.
-- **Page number ↔ route number must be verified**. `PAGE_CODES` in the script is organized by the bold route number printed at each page's bottom-right (PDF page 1 is cover, pages 2–27 are routes). When switching to a new PDF version, re-verify this table, otherwise route numbers get mismatched.
-- This 2017.10 version **has no Route 18-2 (Hajuchado) page**, so 18-2 uses "no illustration" placeholder.
-- Cover priority: **admin-set cover > official route map > Commons photo**. To use your own photo, upload one in `/admin` "Basic Info".
+> ⚠️ 공식 루트맵 저작권은 **© Jeju Olle Foundation**, PDF 내페이지에 "허가 없이 상업적 복제·전재·배포 금지" 명시. 이 프로젝트는 개인 자작 비상업 도구이며, 앨범/라이트박스 모두 귀속 `credit` 표시; **상업적 사용 금지**.
 
-> ⚠️ Official route map copyright belongs to **© Jeju Olle Foundation**, PDF inner pages explicitly say "no permission for commercial reproduction, copying and distribution". This project is a personal self-use guide tool, non-commercial, and album/lightbox both show the credited `credit`; **do not use commercially**.
+### 6.2 앨범 일러스트(Wikimedia Commons 자유 라이선스)
 
-### 6.2 Album illustrations (Wikimedia Commons free license)
-
-Images from Xiaohongshu etc. have copyright and are forbidden to scrape, **do not** bulk-download them into the project. This project uses Wikimedia Commons freely-licensed works (CC0 / CC-BY / public domain) instead.
+샤오홍슈 등 사이트 이미지는 저작권이 있어 긁어오기 금지, **프로젝트에 일괄 다운로드하지 마세요**. 이 프로젝트는 대신 Wikimedia Commons 자유 라이선스 작품(CC0 / CC-BY / 퍼블릭 도메인) 사용.
 
 ```bash
-# download illustrations for 27 routes (needs network access to commons.wikimedia.org)
-python3 scripts/fetch_photos.py            # full
-python3 scripts/fetch_photos.py --limit 2  # try 2 first
-python3 scripts/fetch_photos.py --dry      # search only, no download
+# 27개 코스 일러스트 다운로드(commons.wikimedia.org 접근 가능한 네트워크 필요)
+python3 scripts/fetch_photos.py            # 전체
+python3 scripts/fetch_photos.py --limit 2  # 먼저 2개 시도
+python3 scripts/fetch_photos.py --dry      # 검색만, 다운로드 안 함
 ```
 
-The script outputs:
+스크립트 산출물:
 
-| File | Role |
+| 파일 | 역할 |
 | --- | --- |
-| `public/photos/olle-<number>.jpg` | illustration (max edge 1600px) |
-| `public/photos/manifest.json` | number → image mapping, read at frontend startup and bound to corresponding route (not in localStorage, replace file to swap) |
-| `public/photos/CREDITS.md` | attribution list (author / license / source page), satisfies CC-BY attribution requirement, distribute with the project |
+| `public/photos/olle-<번호>.jpg` | 일러스트(장변 1600px) |
+| `public/photos/manifest.json` | 번호 → 이미지 매핑, 시작 시 읽어 해당 코스에 바인딩(localStorage 안 씀, 파일 교체로 변경) |
+| `public/photos/CREDITS.md` | 귀속 목록(저자 / 라이선스 / 출처 페이지), CC-BY 귀속 요건 충족, 프로젝트와 함께 배포 |
 
-When the script isn't run the album is empty, interface shows "no image" placeholder, no error.
+스크립트 미실행 시 앨범 비어 있음, 화면은 "이미지 없음" 플레이스홀더, 오류 없음.
 
-> Note: photos are illustrative photos of "the place the route passes through", **not official route photography**, and **not measured tracks**. To use as guide basis, please rely on official materials and your own photos.
-> If a photo is unsuitable: delete the corresponding file under `public/photos/` and the entry in `manifest.json`.
+> 참고: 사진은 "그 코스가 지나는 장소"의 예시 사진, **공식 코스의 공식 촬영이 아니며** **실측 궤적도 아님**. 가이드 근거로 삼으려면 공식 자료와 본인 실촬영을 따르세요.
+> 부적절한 사진은: `public/photos/` 하위 해당 파일과 `manifest.json` 항목 삭제하면 됨.
 
-## 7. Pre-trip page data boundaries
+## 7. 출발 전 준비 페이지의 데이터 경계
 
-`/prep` content references the Olle trail official site (jejuolle.org), Korea Tourism Organization public materials, and public travelogues, compiled 2026-09, written in `src/lib/prep.ts`.
+`/prep` 내용은 올레 공식 사이트(jejuolle.org), 한국관광공사 공개 자료, 공개 여행기를 참고해 2026-09에 정리, `src/lib/prep.ts`에 작성.
 
-- **Policy items marked "verify before departure"** (red small tag): visa waiver caliber, whether K-ETA is required, IDP car rental, Olle passport price and emergency phone may change, confirm again before departure.
-- **Prices are only common ranges**, for budget estimation, subject to booking platform and store real-time info.
-- **No specific store or hotel names** — unverified names aren't invented, check reviews on Kakao Maps / Naver Maps yourself.
-- **Transit & payment operation details** (T-money card fee and transfer caliber, iOS card limit, STOP bell and skip-stop, Uber face-to-face pay, etc.) come from hands-on experience and public travelogues, not official terms, change faster, already marked red in page with reference links.
-- The car rental item is a key reminder: Korea requires short-stay visitors to hold a 1949 Geneva Convention paper IDP, and **mainland China driver's licenses are not within the scope of issuable IDP**, most rental companies won't take the order in practice. For self-driving please confirm in writing with the rental company first.
-- **Women's / men's preset lists** are experiential advice on "what to bring, why", **no policy or price assertions**; hard rules like carry-on liquid capacity, security (nail clippers suggest checked baggage) are written in `note` as prompts per conventional caliber, not promises. The two lists' copy is deliberately not overlapping with the official 43 items — otherwise the de-dup logic judges them as "already in list", equaling wasted writing.
+- **정책류 항목은 "출발 전 재확인" 표시**(빨간 작은 태그): 무비자 범위, K-ETA 필요 여부, IDP 렌터카, 올레 패스포트 가격과 긴급 전화는 바뀌므로 출발 전 재확인.
+- **가격은 일반적 범위만**, 예산 추정용, 예약 플랫폼과 매장 실시간 정보 따름.
+- **구체적 점포명·호텔명은 쓰지 않음** — 미확인 이름은 지어내지 않고, Kakao Maps / Naver Maps에서 직접 후기 확인.
+- **버스·결제 조작 세부**(T-money 카드 수수료와 환승, iOS 발급 제한, STOP 벨과 정류소 통과, Uber 대면 결제 등)는 실사용 경험과 공개 여행기 출처, 공식 조항 아니며 변화 빠름, 페이지 내 빨간 주의와 참조 링크 부여.
+- 렌터카 항목은 중점 주의: 한국은 단기 체류자에게 1949 제네바 협약 종이 IDP를 요구하며 **중국 대륙 운전면허는 IDP 발급 대상 아닌** 관계로 실무상 다수 업체가 접수 안 함. 자가운전은 업체와 서면 확인 먼저.
+- **여성/남성 자주 쓰는 목록**은 "무엇을 챙길지, 왜 챙기는지" 경험적 조언, **정책·가격 단정 안 함**; 휴대액체 용량, 보안검색(손톱깎이는 위탁 권장) 등 하드 규정은 `note`에常规口径으로 프롬프트로 쓰고 약속 않음. 두 목록 본문은 의도적으로 공식 43항목과 중복 안 시킴 — 그렇지 않으면 중복 제거 로직에 "이미 목록에 있음" 판정돼 백지화.
 
-### Checklist check / skip state machine
+### 체크리스트 체크 / 건너뛰기 상태 머신
 
-`trail100k.checklist` (see `ChecklistState` in `src/lib/storage.ts`) manages four mutually-exclusive id sets:
+`trail100k.checklist`(`src/lib/storage.ts`의 `ChecklistState` 참조)는 4개 상호 배타 id 집합 관리:
 
-| State | Field | Meaning |
+| 상태 | 필드 | 의미 |
 | --- | --- | --- |
-| Ready | `checked` | checked items, counted in progress |
-| Skipped | `skipped` | manually skipped items, **not counted in progress denominator, nor unfinished**, still shown normally (grayed + "skipped" tag, one-click "restore") |
-| Custom | `custom` | self-added items (`PrepItem[]`) |
-| Preset added | `extras` | items picked from "women's/men's commonly-used list" (`ChecklistExtra[]`, one more `from` than `PrepItem` to remember source) |
+| 준비됨 | `checked` | 체크한 항목, 진행에 계산 |
+| 건너뜀 | `skipped` | 수동 건너뛴 항목, **진행 분모에도 미완료에도 계산 안 됨**, 평소도 표시(회색 + "건너뜀" 태그, 원클릭 "복원") |
+| 커스텀 | `custom` | 직접 추가한 항목(`PrepItem[]`) |
+| 프리셋 추가됨 | `extras` | "여성/남성 자주 쓰는 목록"에서 고른 항목(`PrepItem`보다 `from` 하나 많은 `ChecklistExtra[]`) |
 
-- Checking an item auto-removes it from `skipped` (mutually exclusive); skipping an item auto-unchecks it.
-- "Unfinished only" hides both checked and skipped; normal mode skipped items still visible, for easy restore.
-- "Select all in group" only acts on unskipped items, won't re-check skipped ones.
-- Progress bar and each group's `done/total` only count "unskipped" items.
+- 항목 체크하면 `skipped`에서 자동 제거(배타); 건너뛰면 그 체크 자동 해제.
+- "미완료만"은 체크됨과 건너뜀 모두 숨김; 평소 모드 건너뜀도 보여 복원 용이.
+- "그룹 전체 선택"은 건너뛰지 않은 항목에만 작용, 건너뛴 항목 재체크 안 함.
+- 진행 바와 각 그룹 `done/total`은 "건너뛰지 않은" 항목만 계산.
 
-### How preset lists (women's / men's) enter the master list
+### 프리셋 목록(여성/남성)의 마스터 목록 편입
 
-Data source is `PREP_PRESETS` in `src/lib/prep.ts` (two sets with independent ids: `preset.f.*` / `preset.m.*`).
-They are **not the default list**, just a candidate pool: when `extras` is empty the page shows nothing extra, only after the user picks some does the "preset list added" group appear.
+데이터 출처는 `src/lib/prep.ts`의 `PREP_PRESETS`(두 세트 독립 id: `preset.f.*` / `preset.m.*`).
+이들은 **기본 목록이 아니며** 후보 풀일 뿐: `extras`가 비면 페이지에 아무 추가도 없고, 사용자가 몇 개 고르면 "프리셋 목록 추가됨" 그룹 등장.
 
-| Action | Behavior |
+| 동작 | 거동 |
 | --- | --- |
-| Single "add" / "remove" | write / delete one entry in `extras`, equivalent to toggle, no second confirmation |
-| "Add all (N)" | `ids` omitted → whole merged in; N on button is **de-duped real new count** |
-| "Remove all" | whole removed from master list (goes through Confirm, since it clears these items' check/skip states) |
-| "Reset list" | `checked / skipped / custom / extras` all cleared |
+| 단건 "추가" / "제거" | `extras`의 한 건 쓰기/지우기, 토글과 같음, 재확인 없음 |
+| "전체 추가(N)" | `ids` 생략 → 통째 병합; 버튼의 N은 **중복 제거 후 실제 새로 추가될 건수** |
+| "전체 제거" | 마스터 목록에서 통째 제거(Confirm 경유, 이 항목들의 체크/건너뛰기 상태도 연동 소거) |
+| "목록 초기화" | `checked / skipped / custom / extras` 전체 클리어 |
 
-De-dup caliber (`addPresetItems`): **judge "added this" by id, judge "is there already the same thing in list" by `normItemText(text)`** (ignore all whitespace and case). Matched entries aren't written again, selector shows "already in list" and removes button. When the same item already exists in the official group it won't be added again — so the two lists' copy is deliberately not overlapping with the official 43 items.
+중복 제거 기준(`addPresetItems`): **id로 "이 건 추가됐나", `normItemText(text)`로 "목록에 같은 일이 이미 있나" 판정**(모든 공백과 대소문자 무시). 해당 항목은 재기록 안 하고, 선택기에서 "이미 목록에 있음" 표시 후 버튼 제거. 공식 그룹에 같은 게 이미 있으면 역시 재추가 안 함 — 따라서 두 목록 본문은 공식 43항목과 의도적 중복 없음.
 
-⚠️ De-dup must be calculated by `prev` inside `setChecklist(prev => ...)` updater, can't judge by render-phase `checklist`: clicking "add" repeatedly the render-phase snapshot is old, writes the same item repeatedly. Likewise, updater returning no new value returns `prev` original object (React skips re-render, also doesn't waste a localStorage write).
+⚠️ 중복 제거는 `setChecklist(prev => ...)` updater 내에서 `prev`로 계산해야 하며, 렌더 시점 `checklist`로 판단하면 안 됨: "추가" 연타 시 렌더 스냅샷이 옛것이라 같은 건 반복 기록. 마찬가지로 updater가 신규 없으면 `prev` 원객체 반환(React는 재렌더 스킵, localStorage 기록도 낭비 않음).
 
-## 8. No white screen on error
+## 8. 오류 시에도 화면 안 깨짐
 
-Two-layer `ErrorBoundary` (`src/components/ErrorBoundary.tsx`):
+이중 `ErrorBoundary`(`src/components/ErrorBoundary.tsx`):
 
-| Layer | Location | Catches |
+| 층 | 위치 | 잡는 것 |
 | --- | --- | --- |
-| Whole site | `main.tsx` wraps `<App />` | even Router / Provider itself crashing has a page |
-| Page | `App.tsx` content area, `key` bound to pathname | single page crash still keeps top nav, switch pages to continue; route change auto-resets error state |
+| 전체 | `main.tsx`가 `<App />` 감쌈 | Router / Provider 자체가 죽어도 페이지 있음 |
+| 페이지 | `App.tsx` 내용 영역, `key`를 pathname에绑定 | 단일 페이지 붕괴에도 상단 내비 남아, 다른 페이지 전환해 계속 사용; 라우트 변경 시 오류 상태 자동 리셋 |
 
-Error page offers: retry / back to home / copy error info / expand component stack / **clear local data and reload** (last resort when bad records in data, goes through self-made Modal second confirmation).
+오류 페이지 제공: 재시도 / 홈으로 / 오류 정보 복사 / 컴포넌트 스택 펼치기 / **로컬 데이터 초기화 후 재적재**(데이터에 나쁜 레코드 있을 때 최후 수단, 자작 Modal 2단 확인).
 
-⚠️ It only catches **render-phase** errors. Event callbacks, `setTimeout`, request callbacks' async errors React won't bubble up (manifests as "click does nothing", no white screen).
-`DataProvider`'s data loading runs in `requestAnimationFrame`, exceptions also can't bubble to React — so there it's separately converted to render-phase throw to the boundary, avoiding stuck on skeleton screen fake-death.
+⚠️ 잡는 것은 **렌더 시점** 오류뿐. 이벤트 콜백, `setTimeout`, 요청 콜백 내 비동기 오류는 React에 올라오지 않음("클릭해도 무반응"으로 백화 없음).
+`DataProvider` 데이터 로드는 `requestAnimationFrame` 내에서 돌고 예외도 React에 올라오지 않아 — 거기서는 별도로 렌더 시점 투척으로 경계에 넘겨 스켈레톤 화면 가짜 죽음 방지.
 
-## 9. Deployment (Docker + nginx + Dokploy subpath)
+## 9. 배포 (Docker + nginx + Dokploy 서브경로)
 
-The project is a **pure static front-end** (`HashRouter` + `base: './'`), no backend, packaged as nginx static image per `asset-system-frontend` paradigm, mounted under `/jeju/` subpath, distributed by Dokploy's Traefik by PathPrefix.
+프로젝트는 **순수 정적 프런트엔드**(`HashRouter` + `base: './'`), 백엔드 없음, `asset-system-frontend` 패러다임 따라 nginx 정적 이미지로 패키징, `/jeju/` 서브경로 하에 마운트, Dokploy의 Traefik이 PathPrefix로 분배.
 
-### Key files
+### 주요 파일
 
-| File | Role |
+| 파일 | 역할 |
 | --- | --- |
-| `Dockerfile` | multi-stage build: node install deps + `npm run build`, product `dist/` copied to nginx's `/usr/share/nginx/html/jeju` |
-| `nginx.conf.template` | nginx:alpine renders `templates/*.template` via envsubst into `conf.d/default.conf` at startup; this template only does `/jeju` → `/jeju/` redirect + static hosting + SPA fallback |
-| `.dockerignore` | exclude node_modules / dist / .git / local script cache, shrink build context |
-| `.npmrc` | use npmmirror to speed up in-container `npm ci` |
+| `Dockerfile` | 다단계 빌드: node 의존 설치 + `npm run build`, 산물 `dist/`를 nginx의 `/usr/share/nginx/html/jeju`에 복사 |
+| `nginx.conf.template` | nginx:alpine 시작 시 `templates/*.template`을 envsubst로 `conf.d/default.conf`에 렌더; 이 템플릿은 `/jeju` → `/jeju/` 리다이렉트 + 정적 호스트 + SPA 폴백만 |
+| `.dockerignore` | node_modules / dist / .git / 로컬 스크립트 캐시 제외, 빌드 컨텍스트 축소 |
+| `.npmrc` | npmmirror로 컨테이너 내 `npm ci` 가속 |
 
-> Because it's `HashRouter` + `base: './'`, `dist/` resources use relative paths, no need to change `vite.config.ts` under `/jeju/`, no history route rewrite needed.
+> `HashRouter` + `base: './'`라 `dist/` 리소스는 상대 경로, `/jeju/` 하에서 `vite.config.ts` 변경 불필요, history 라우트 rewrite도 불필요.
 
-### Build and self-test image locally
+### 로컬에서 이미지 빌드·자체 검증
 
 ```bash
 docker build -t jeju-100k .
 docker run --rm -p 8080:80 jeju-100k
-# open http://localhost:8080/jeju/ in browser to verify
+# 브라우저에서 http://localhost:8080/jeju/ 열어 검증
 ```
 
-### Push to Dokploy
+### Dokploy에 push
 
-1. Dokploy create **Application**, source connect GitHub public repo `tanabalu/jeju-100k` (main branch).
-2. Build method select **Dockerfile** (multi-stage already written, no extra params).
-3. Port: container exposes `80`, Dokploy internal port fill `80`.
-4. **Traefik route rule** (PathPrefix): `Path(\`/jeju\`) || PathPrefix(\`/jeju/\`)`, which matches the `/jeju` path segment only and keeps a same-host Pages path such as `/jeju-100k/` out of Dokploy.
-5. After deploy access `https://your-domain/jeju/` (replace "your-domain" with the domain actually hosting this subpath).
+1. Dokploy에서 **Application** 신규 생성, 소스는 GitHub 공개 저장소 `tanabalu/jeju-100k`(main 브랜치) 연결.
+2. 빌드 방식은 **Dockerfile** 선택(다단계 이미 작성됨, 추가 파라미터 불필요).
+3. 포트: 컨테이너는 `80` 노출, Dokploy 내부 포트는 `80` 입력.
+4. **Traefik 라우트 규칙**(PathPrefix): `Path(\`/jeju\`) || PathPrefix(\`/jeju/\`)`를 사용해 `/jeju` 경로 세그먼트만 일치시킵니다. 같은 호스트의 Pages 경로 `/jeju-100k/`가 Dokploy에 가로채이지 않게 합니다.
+5. 배포 후 `https://your-domain/jeju/` 접속("your-domain"을 실제 서브경로 호스팅 도메인으로 교체).
 
-> When switching subpath change two places: `Dockerfile`'s `COPY ... /usr/share/nginx/html/<new-path>` and `/jeju`, `/jeju/`, `/jeju/index.html` in `nginx.conf.template`.
+> 서브경로 바꿀 때 두 곳만: `Dockerfile`의 `COPY ... /usr/share/nginx/html/<새 경로>`와 `nginx.conf.template` 내 `/jeju`, `/jeju/`, `/jeju/index.html`.
 
-## 10. Directory structure
+## 10. 디렉터리 구조
 
 ```
 src/
-  types.ts               data model (Route with code route number)
-  lib/geo.ts             Haversine distance, climb (with noise threshold), POI projection to route
-  lib/olleeElevation.ts  27 routes' terrain sampling series (script-generated, do not hand-edit)
-  lib/storage.ts         localStorage repository + import/export
-  lib/imageStore.ts      IndexedDB image storage and compression
-  lib/seed.ts            27 Olle trails preset data
-  lib/prep.ts            pre-trip checklist & transport/lodging/food cheat-sheet data (policy items marked verify)
-  store/DataContext.tsx  global data + assets (official route map / photos / real tracks) overlay + checklist state
-  hooks/useActivePlan.ts trip basket operations
+  types.ts               데이터 모델(Route는 code 코스 번호 보유)
+  lib/geo.ts             Haversine 거리, 오르막(노이즈 임계값 포함), POI의 코스 투영
+  lib/olleeElevation.ts  27 코스의 지형 샘플링 열(스크립트 생성, 수동 편집 금지)
+  lib/storage.ts         localStorage 저장소 + 가져오기/내보내기
+  lib/imageStore.ts      IndexedDB 이미지 저장 및 압축
+  lib/seed.ts            27 올레 미리 채워진 데이터
+  lib/prep.ts            출발 전 체크리스트 & 교통/숙박/식사 빠른 참고 데이터(정책 항목은 verify 표시)
+  store/DataContext.tsx  전역 데이터 + 자료(공식 루트맵 / 사진 / 실측 궤적) 오버레이 + 체크리스트 상태
+  hooks/useActivePlan.ts 여행 바구니 조작
   components/            RouteMap / ElevationChart / Modal / Feedback / Skeleton / ErrorBoundary ...
   pages/                 Routes / RouteDetail / Plan / Prep / Admin / Settings
-  pages/admin/           Basic Info / Waypoints / Lodging / Sights / Album five editors
-public/photos/           official route map (maps/ + maps/cover/ + maps.json) and album illustrations, attribution list
-public/tracks.json       real tracks (import_tracks.py generated, fetched at runtime)
-scripts/fetch_photos.py  Commons free-license image scrape script
-scripts/split_route_map.py  official Route Map PDF split by route into card cover (compressed) + detail original
-scripts/fetch_elevation.py  SRTM 30m elevation scrape script (generates olleeElevation.ts)
-scripts/fetch_olle_osm.py    from OSM (relation + loose way) and whole GPX **three-source comparison**, grab each route's real direction (→ tracks/osm/*.geojson)
-scripts/selftest_fetch_osm.py  stitcher regression self-test (no network, 52 assertions, run this first after changing stitcher logic)
-scripts/import_tracks.py    GPX / KML / GeoJSON track import (recognize number, correct direction, simplify, calculate distance/climb → tracks.json)
-scripts/selftest_import_tracks.py  importer regression self-test (no network, run this first after changing direction correction/import logic)
-scripts/check_official_consistency.py  per-route reconciliation "seed.ts official caliber ↔ tracks.json actual geometry" (must run after changing SPECS or re-import)
-scripts/check-elevation.ts  verify tracks.json elevation and climb self-consistency
+  pages/admin/           기본 정보 / 경유점 / 숙박 / 볼거리 / 앨범 5개 편집기
+public/photos/           공식 루트맵(maps/ + maps/cover/ + maps.json)과 앨범 일러스트, 귀속 목록
+public/tracks.json       실측 궤적(import_tracks.py 생성, 실행 시 fetch 읽기)
+scripts/fetch_photos.py  Commons 자유 라이선스 이미지 스크레이핑 스크립트
+scripts/split_route_map.py  공식 Route Map PDF를 코스별 카드 표지(압축판) + 상세 원본으로 분할
+scripts/fetch_elevation.py  SRTM 30m 표고 스크레이핑 스크립트(olleeElevation.ts 생성)
+scripts/fetch_olle_osm.py    OSM(relation + 산발 way)과 전체 GPX에서 **3소스 비교**, 각 코스 실제 방향 획득(→ tracks/osm/*.geojson)
+scripts/selftest_fetch_osm.py  스티처 회귀 자체 테스트(통신 없음, 52 단언, 스티처 로직 바꾼 후 먼저 이것)
+scripts/import_tracks.py    GPX / KML / GeoJSON 궤적 임포트(번호 인식, 방향 보정, 단순화, 거리/오르막 계산 → tracks.json)
+scripts/selftest_import_tracks.py  임포터 회귀 자체 테스트(통신 없음, 방향 보정/임포트 로직 바꾼 후 먼저 이것)
+scripts/check_official_consistency.py  코스별 "seed.ts 공식口径 ↔ tracks.json 실제 기하" 대조(SPECS 바꾸거나 재임포트 후 필수)
+scripts/check-elevation.ts  tracks.json 표고와 오르막 자체 정합 검증
 ```
 
-## 11. Known boundaries & future work
+## 11. 알려진 경계와 향후 과제
 
-- Preset coordinates are town-level approximations, **not official tracks** (deviation up to 13km measured, e.g. `yongsu`, `seogwang`).
-  **Routes without measured tracks draw as gray-green dashed on the map** (`mapLineSet()`'s `approx: true`) —
-  dashed = just connecting two approximate coordinates, not a walked path; ones with tracks are solid (white border + green core).
-- **24/27 routes already have real tracks** (`public/tracks.json`). Still missing **07, 14-1, 18-2**:
-  - `07` (Traveler Center → Seogwipo Bus Terminal, 12.9km) and `14-1` (Jeoji → Seogwang, 9.3km) are **main-island routes** with no trustworthy measured track yet, drawn as gray-green dashed:
-    `07` lacks the post-2026-07 reroute GPX; `14-1`'s alignment is unclear (script `SKIP`-excluded).
-  - `18-2` (Hajuchujado, lower Chujado) is an **island branch**; OSM relation / loose way / whole GPX all three sources have no geometry and it's outside the main-island view (`chuja` 126.28,33.96). To fill only by finding a Wikiloc single GPX.
-  - The island branches `01-1` (Udo) and `18-1` (Sangchujado) already have real geometry from OSM coast road / footways (see §1.3).
-- **14-1 explicitly excluded** (script's `SKIP`): loose way stitched 4 segments jumping head-to-tail, GPX segment 189% over-long,
-  neither qualifies → keep schematic dashed. To fix need to first clarify how official 14-1 (저지→서광, 9.3km) actually goes.
-- **Two routes' distance still questionable** (geometry itself credible, but doesn't match published distance):
-  `15` walked 18.67km / official 15.5km (120%); `08` walked 17.14km / official 19.3km (89%).
-  Page shows official value, detail page's "track measured" reveals this difference.
-- **Official promotional total 437km vs per-route sum ~403km** (`SPECS` 27 routes sum; frontend `OLLE_TOTAL_KM` derives from it, not hardcoded) —
-  the ~34km gap is unexplained, suspected official counts "connecting segments" into 437; the frontend distance target uses the derived 403, with 437 shown only as the "full island" quick preset.
-- Lodging / sights / album preset empty, need you to enter by actual itinerary (or import JSON batch fill).
-- Basemap uses OpenStreetMap / OpenTopoMap free tiles, needs network; if used in no-network environment, can use offline schematic + admin manual coordinate correction.
+- 미리 채워진 좌표는 읍면동 단위 근사, **공식 궤적 아님**(오차 실측 최대 13km, 예 `yongsu`, `seogwang`).
+  **실측 궤적 없는 코스는 지도에 회녹색 점선**(`mapLineSet()`의 `approx: true`) —
+  점선 = 근사 좌표 둘을 이은 것뿐, 걸은 길 아님; 궤적 있는 것은 실선(흰 테두리 + 초록 심).
+- **24/27 코스는 이미 실측 궤적 있음**(`public/tracks.json`). 아직 빠진 것은 **07, 14-1, 18-2**:
+  - `07`(여행자센터→서귀포버스터미널, 12.9km)과 `14-1`(저지→서광, 9.3km)은 **본섬 코스**로 신뢰할 만한 실측 궤적이 아직 없어 회녹색 점선 표시:
+    `07`은 2026-07 개선(改線) 후 GPX 부족, `14-1`은 경로 불명(스크립트 `SKIP` 제외).
+  - `18-2`(하추자도)는 **도서 지선**으로 OSM relation / 산발 way / 전체 GPX 3소스 모두 기하 없고 본섬 시야에도 안 들어옴(`chuja` 126.28,33.96). 보충하려면 Wikiloc 단일 GPX를 찾는 수밖에.
+  - 도서 지선 `01-1`(우도), `18-1`(상추자도)은 OSM 해안로 / 산책로에서 실기하를 이미 보충함(§1.3 참조).
+- **14-1은 명시적으로 제외**(스크립트의 `SKIP`): 산발 way 봉합은 4세그먼트로 머리끝 엉켜, GPX 세그먼트는 189% 과장,
+  어느 쪽도 부적격 → 예시 점선 유지. 고치려면 공식 14-1(저지→서광, 9.3km) 실제 경로를 먼저 확인해야.
+- **2개 코스 거리 여전히 의심**(기하 자체는 신뢰되나 공표 거리와 안 맞음):
+  `15` 실측 18.67km / 공식 15.5km(120%); `08` 실측 17.14km / 공식 19.3km(89%).
+  페이지는 공식값 표시, 상세 페이지 "궤적 실측"이 이 차이를 드러냄.
+- **공식 홍보 총거리 437km vs 코스별 합 약403km**(`SPECS` 27코스 합, 프런트엔드 `OLLE_TOTAL_KM`은 이에서 도출·하드코딩 아님) —
+  이 약34km 차이는 미해명, 공식이 "연결 구간"도 437에 넣은 의심. 프런트엔드 거리 목표는 도출값 403 사용, 437은 "전섬" 빠른 프리셋으로만 표시.
+- 숙소 / 볼거리 / 앨범은 빈 값으로 미리 채워져, 실제 일정대로 입력 필요(JSON 일괄 채우기 가능).
+- 지도 배경은 OpenStreetMap / OpenTopoMap 무료 타일, 통신 필요; 비통신 환경에선 오프라인 예시도 + 관리자 수동 좌표 보정 사용 가능.
