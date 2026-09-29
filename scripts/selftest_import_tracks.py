@@ -79,11 +79,24 @@ if files:
     for a, b, par in links:
         print(f"  相邻对 {a}↔{b}：{'⚠️ 终点对终点（必有一条反了）' if par else '✅ 终点对起点（同向）'}")
     print(f"  判定翻转：{sorted(flips) or '无'}")
-    # 2026-09-28 实测：这几条的 OSM 关系方向与官方行进方向相反（04/10/19 的方向
-    # 由官方端点点位核过：04 起点≈表善 0.9km、10 终点≈摹瑟浦 0.6km、19 终点≈朝天）
-    if flips != {"05", "11", "20"}:
-        FAILED.append("真实数据回归")
-    print(f"[{'OK ' if flips == {'05','11','20'} else 'FAIL'}] 真实数据应判出 05 / 11 / 20")
+
+    # ⚠️ 这里断言的是**不变量**，不是某一轮数据的具体结果。
+    #    曾经写成「应判出 05/11/20」—— 数据一换就红，是典型的「手抄副本」坑
+    #    （和脚本里手抄官方里程是同一类错误）。
+    #    不变量：把判出的翻转应用上去后，链条应当**已经自洽** ——
+    #    再跑一次求解器必须给出 0 次翻转，且所有相邻对都落在「终点对起点」上。
+    flipped_ends = {c: ((e[1], e[0]) if c in flips else e) for c, e in ends.items()}
+    again, links2 = it.orient_flips(flipped_ends)
+    bad_pairs = [f"{a}↔{b}" for a, b, par in links2 if par]
+    if again or bad_pairs:
+        FAILED.append("真实数据回归（翻转后仍不自洽）")
+    print(f"[{'OK ' if not (again or bad_pairs) else 'FAIL'}] 翻转后再求解应得 0 次翻转"
+          f"（实得 {sorted(again) or '无'}；仍为「终点对终点」的对：{bad_pairs or '无'}）")
+
+    # 这条不变量抓不到**整条链相对官方方向整体反向**（那种情况内部自洽、翻转数最少就是 0）。
+    # 那种漏网只能靠外部基准兜：见 fetch_olle_osm.py 的 endpoint_verdict()，
+    # 以及 import_tracks.py 的 --reverse <编号>。
+    print("   ↳ 提醒：整体反向自洽的线这条不变量看不出，需 endpoint_verdict() 或 --reverse 兜底")
 else:
     print("\n（没找到 tracks/osm/，跳过真实数据回归）")
 

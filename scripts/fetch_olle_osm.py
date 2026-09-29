@@ -8,6 +8,18 @@
   而 OSM 里部分偶来小路建了 `route=hiking` 的 route relation，成员就是实际步道
   （footway / path / 村道）的 way。**把成员 way 缝起来，就是一条能照着走的轨迹。**
 
+⚠️ **OSM 里这些线有两个来源，缺一不可**（实测 2026-09-28）：
+  1. **route relation** —— 整条线编成了一个关系，取成员 way 即可；
+  2. **名字里带编号的散 way** —— 一大批线**根本没建关系**，而是被人一条条 way 地
+     打了名字（`올레길 12`、`올레길 13`、`올레길 14 (Ollegil 14)`、`올레길15-A`…）。
+     只查 relation 会把 12 / 13 / 14 / 15 全判成「OSM 没建」，前端只能拿 seed.ts 里
+     的**城镇级近似坐标连直线** —— 地图上看就是西部凭空一根斜穿岛内的直线，
+     既没沿海岸走、也接不上相邻课程。**这不是「OSM 数据不全」，是取数只取了一半。**
+  所以本脚本会**两个来源都取**，同一编号按「判定档位 → 断口总长 → 覆盖接近 1.0」
+  择优（见 `main()` 里的候选比选）：relation 有缺口的（如 08 少 5.6km）常常被散 way 补上，
+  而散 way 覆盖不全的又常常靠 relation 补回来。
+  实测：只跑 relation 拿到 14/27；加上散 way 后 12 / 13 / 14 / 15 与 14-1 都能成线。
+
 用法：
     python3 scripts/fetch_olle_osm.py                    # 全量抓取并导出
     python3 scripts/fetch_olle_osm.py --dry              # 只报告覆盖情况，不写文件
@@ -70,6 +82,7 @@
 """
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -110,10 +123,31 @@ MIN_COVERAGE = 0.60
 PARALLEL_TOL_M = 120.0
 # ⚠️ 实走里程 / 官方里程 **高于**它就不再是「缝合噪声」，而是**走向与官方不符**，
 #    默认直接判定不可用、不导出（宁可缺、不可假）。实测依据：
-#      · 07 = 154% —— OSM 关系走的是延长到月坪浦口的旧走向，官方现行 7 线止于西归浦巴士总站；
+#      · 07 的 OSM 关系 = 154% —— 它把线从月坪继续往西延到了月坪浦口以外；
+#        官方现行 7 线止于月坪（月坪正是 8 线的起点，偶来各线首尾相接）。
 #      · 正常线都落在这个阈值以内（03 剔并联段后 109%、05 109%、16 108%）。
 #    确实想把超长的也收进来，传 `--max-coverage 0` 关掉这道闸（或 `--keep-bad`）。
 MAX_COVERAGE = 1.30
+
+# 变体编号 → 主线编号的默认映射（命令行 --alias 可以覆盖/追加）。
+# ⚠️ 这条要放成默认值，否则「重跑一遍」的命令会长到没法记，早晚会漏参数导致
+#    某个编号静默退回「没数据」。当前只有一条：OSM / GPX 把 3 线拆成 3-A、3-B 两种走法，
+#    官方的 03 对应的是 3-A 那条（GPX 22.34km/107%、0 断口）。
+DEFAULT_ALIAS = {"03-A": "03"}
+
+# 明确不导出的编号（连同原因）。**故意写成「对某一条线的判断」，而不是再去调阈值** ——
+# 阈值是全局的，为了一条线放宽/收紧会连带影响另外 20 多条。
+# 判据：现有几套几何**没有一套能拼成一条连贯的线**时，宁可留一条标注「示意」的虚线，
+# 也不要把一条首尾乱跳的折线放到地图上冒充实测轨迹。
+SKIP = {
+    "14-1": (
+        "现有两套几何都不可信 —— "
+        "OSM 那 19 条 en way 缝出来是 4 段且首尾乱跳（第 1 段往西南走 6.9km 后断掉，"
+        "第 2 段又跳回起点附近往北走），覆盖率 122% 但走的是「回头路 + 岔路」；"
+        "GPX 里的 14-1 段 17.55km = 官方 9.3km 的 **189%**，八成是官方改线前的旧走向。"
+        "官方 14-1 只有 9.3km（渚旨→西光），两套候选一个碎一个超长，都不够格。"
+    ),
+}
 
 # 올레길 / 제주올레 / Jeju Olle Trail 后面的编号；允许 1 / 01 / 1-1 / 3-A / 3(A) 这些写法。
 # ⚠️ 后面的字母后缀必须整体可选，否则「올레길 19코스」这种最普通的写法会匹配失败；
@@ -287,6 +321,308 @@ def build_broad_query():
         '["route"~"^(hiking|foot|walking)$"];\n'
         "out tags;\n"
     )
+
+
+def build_ways_query():
+    """抓「名字里带 올레 / Olle 的道路 way」—— 第二个数据源，见模块 docstring。
+
+    为什么必须分开查：
+      · 相当一部分线**没有 route relation**，只以「打了名字的 way」形式存在；
+      · 关系也可能只画了一半，而缺掉的那半在这里有（08 少 5.6km 就是这种）。
+    只限定 `highway` 是因为「바다올레길 카라반 캠핑장 / 자주올레펜션」这类**同名 POI**
+    也带「올레」，不筛会把露营地、民宿的轮廓当成步道缝进去。
+    """
+    s, w, n, e = BBOX
+    box = f"{s},{w},{n},{e}"
+    return (
+        "[out:json][timeout:600];\n"
+        "(\n"
+        f'  way({box})["highway"]["name"~"올레"];\n'
+        f'  way({box})["highway"]["name"~"Olle",i];\n'
+        ");\n"
+        "out geom;\n"
+    )
+
+
+KO_RE = re.compile("올레")
+EN_RE = re.compile(r"Olle\s*(?:Trail|Route|Gil)", re.I)
+
+
+def style_of(name):
+    """这条 way 的名字属于哪套命名习惯：'ko' / 'en' / '?'。
+
+    ⚠️ **OSM 上同一个编号有两套名字，是两个不同的 way 集合，覆盖同一段路**：
+        韩文 `올레길 12`（零散，全岛 7 条）  和  英文 `Ollegil 12`（完整，70 条）。
+        只按韩文名统计会得出「OSM 没建 12 / 13 / 14 / 15」的**错误结论** ——
+        这正是前一轮走的最大弯路。反过来，把两套混在一个池子里缝，
+        等于把同一段路喂两遍：段数暴涨、断口满天飞（实测 12 只画出 43%、15 只有 73%）。
+    """
+    if not name:
+        return "?"
+    if KO_RE.search(name):
+        return "ko"
+    if EN_RE.search(name):
+        return "en"
+    return "?"
+
+
+def named_ways(elements):
+    """把散 way 按 (编号, 命名习惯) 分组 → {(code, style): [{'id','role','pts'}]}。
+
+    ⚠️ 必须按 way id 去重：两条 name 规则（韩文 / Olle）会命中同一条 way，
+        不去重会把它缝进同一条线两次 —— 表现是「里程凭空翻倍 + 段内有折返」。
+    ⚠️ 拿不到 geometry 的 way（镜像省略了几何）直接跳过，不要让空 pts 进池子。
+    """
+    out, seen = {}, set()
+    for e in elements or []:
+        if e.get("type") != "way":
+            continue
+        wid = e.get("id")
+        if wid in seen:
+            continue
+        name = (e.get("tags") or {}).get("name") or ""
+        code = code_from_name(name)
+        if not code:
+            continue
+        pts = [
+            (float(p["lon"]), float(p["lat"]))
+            for p in (e.get("geometry") or [])
+            if isinstance(p, dict) and "lon" in p and "lat" in p
+        ]
+        if len(pts) < 2:
+            continue
+        seen.add(wid)
+        out.setdefault((code, style_of(name)), []).append(
+            {"id": wid, "role": "", "pts": pts})
+    return out
+
+
+def named_by_style(named, code):
+    """某个编号下按命名习惯分好的 {style: [ways]}。缝的时候要按这一层分开取。"""
+    return {st: ws for (c, st), ws in named.items() if c == code}
+
+
+def cached_overpass(endpoint, query, cache_dir=None, offline=False):
+    """带缓存的 Overpass 调用（`--cache-dir` / `--offline`）。
+
+    为什么值得有：Overpass 公共实例**经常 504/429**，一条大查询能连着失败十几分钟。
+    把每次响应按「查询内容的哈希」落盘，重跑时同一条查询直接读盘 ——
+    调参、改判定、重出图都不用再赌一次网络。
+    """
+    path = None
+    if cache_dir:
+        path = os.path.join(cache_dir,
+                            hashlib.sha1(query.encode("utf-8")).hexdigest()[:16] + ".json")
+        if os.path.exists(path):
+            print(f"  读缓存 {os.path.basename(path)}（要按 OSM 最新重抓就删掉它）")
+            with open(path, encoding="utf-8") as f:
+                return json.load(f)
+        if offline:
+            raise QueryRejected(f"缓存里没有这条查询（{os.path.basename(path)}），--offline 下不联网")
+        os.makedirs(cache_dir, exist_ok=True)
+    data = overpass(endpoint, query)
+    if path:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+    return data
+
+
+def load_reused(directory):
+    """把上一轮导出的 `olle-<编号>.geojson` 读回来，当作 relation 侧的几何。
+
+    返回 {code: (ways, rel_like)}；ways 的格式与 `ways_of()` 一致，可以直接丢给 join_ways。
+    属性里的 osmRelation / name 会还原成 rel_like，重新导出时不丢出处。
+
+    ⚠️ 这是「续跑」用的，不是「替代 OSM」：拿到的永远是**上次那份**快照。
+        想按 OSM 最新重抓，别传 --reuse-dir。
+    """
+    out = {}
+    skipped_src = []
+    if not directory or not os.path.isdir(directory):
+        return out
+    for fn in sorted(os.listdir(directory)):
+        if not (fn.startswith("olle-") and fn.endswith(".geojson")):
+            continue
+        code = fn[len("olle-"):-len(".geojson")]
+        try:
+            with open(os.path.join(directory, fn), encoding="utf-8") as f:
+                gj = json.load(f)
+            feat = gj["features"][0]
+        except (OSError, ValueError, KeyError, IndexError):
+            continue
+        g = feat.get("geometry") or {}
+        raw = g.get("coordinates") or []
+        if g.get("type") == "LineString":
+            raw = [raw]
+        # ⚠️ 只复用「来历是 OSM 关系」的文件。
+        #    否则会把**上一轮的产物**当成 relation 复用成自引用：比如 14-1 上一轮
+        #    是用散 way 缝的，这一轮它又会被当成「relation 侧几何」，来源标签就从
+        #    「way」变成「复用的 geojson」，越滚越看不出来历；GPX 产物同理
+        #    （`geomSource: gpx` 却摆进 relation 槽位）。
+        #    `both-*` 放行：它的底子就是 relation，补缺只是加了几段。
+        src = (feat.get("properties") or {}).get("geomSource") or ""
+        if not (src == "relation" or src.startswith("both-")):
+            skipped_src.append(f"{code}（{src or '没写 geomSource'}）")
+            continue
+        ways = [
+            {"id": -(i + 1), "role": "", "pts": [(float(x), float(y)) for x, y in seg]}
+            for i, seg in enumerate(raw) if len(seg) >= 2
+        ]
+        if not ways:
+            continue
+        props = feat.get("properties") or {}
+        out[code] = (ways, {
+            "id": props.get("osmRelation"),
+            "tags": {"name": props.get("name"), "name:en": props.get("nameEn")},
+        })
+    if skipped_src:
+        # 直接在这里报，别让调用方去猜「为什么复用的条数变少了」
+        print(f"  （跳过 {len(skipped_src)} 个来历不是 OSM 关系的文件："
+              f"{'、'.join(skipped_src)} —— 它们上一轮是从 GPX / 散 way 来的，"
+              "复用了会变成自引用）")
+    return out
+
+
+def uncovered_ways(extra, base_segs, tol_m=25.0, min_keep_m=40.0):
+    """从 `extra` 里挑出「base 上还没有的那部分」，用来补 relation 的缺口。
+
+    ⚠️ **不能直接取并集。** 同一条路在 OSM 里常常既有 relation 成员、又有带名字的 way，
+        两份几何是**同一段路**。直接相加会缝出两条重叠的线，然后被 `_seg_links` 判成
+        「并联段」整段剔掉 —— 实测 01 / 11 就是这样变成 **0 段**的（线整条消失），
+        而且报表上只会写「并联段已剔除」，看不出是这里出的错。
+
+    做法：逐点判断 extra 里的点离 base 有多远（≤tol_m 算「已有」），
+    把每条 way 头部/尾部已经有的点剪掉，只留中间那段真的缺的。
+    剪完不足 `min_keep_m` 的整条丢掉。**只剪首尾、不动中间**，行为可预期。
+    """
+    if not extra or not base_segs:
+        return list(extra)
+    base_pts = [p for seg in base_segs for p in seg]
+    if not base_pts:
+        return list(extra)
+    # 0.001 度 ≈ 100m 的桶，避免 每点 × 每基点 的全量比对
+    cell = 0.001
+    grid = {}
+    for p in base_pts:
+        grid.setdefault((round(p[0] / cell), round(p[1] / cell)), []).append(p)
+    tol2 = (tol_m / 111320.0) ** 2
+
+    def covered(p):
+        cx, cy = round(p[0] / cell), round(p[1] / cell)
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                for q in grid.get((cx + dx, cy + dy), ()):
+                    if (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2 <= tol2:
+                        return True
+        return False
+
+    out = []
+    for w in extra:
+        pts = w.get("pts") or []
+        flags = [not covered(p) for p in pts]
+        if not any(flags):
+            continue                      # 整条都已在 base 上 → 是重复的，扔掉
+        first, last = flags.index(True), len(flags) - 1 - flags[::-1].index(True)
+        keep = pts[first:last + 1]
+        if len(keep) < 2 or path_len_m(keep) < min_keep_m:
+            continue
+        out.append({"id": w.get("id"), "role": w.get("role", ""), "pts": keep})
+    return out
+
+
+def read_course_gpx(path):
+    """读「按课程分段」的 GPX（每段一个 `<trk>`，名字就是编号）→ {code: [ways]}。
+
+    段名形如 `KML Merge_Jeju Olle 12` / `… 7-1` / `… 10.1` / `… 3A`，统一归成
+    `12` / `07-1` / `10-1` / `03-A`。
+
+    ⚠️ GPX 的 `<trkpt lat=".." lon="..">` 是 **lat 在前**，读进来必须摆成 (lng, lat)；
+        摆反了不会报错，只会让所有里程变成垃圾数（实测踩过）。
+    """
+    with open(path, encoding="utf-8") as f:
+        raw = f.read()
+    out = {}
+    for t in re.findall(r"<trk>(.*?)</trk>", raw, re.S):
+        nm = re.search(r"<name>([^<]*)</name>", t)
+        code = code_from_gpx_name(nm.group(1) if nm else "")
+        if not code:
+            continue
+        pts = [
+            (float(m.group(2)), float(m.group(1)))          # (lon, lat)
+            for m in re.finditer(r'<trkpt[^>]*lat="([-\d.]+)"[^>]*lon="([-\d.]+)"', t)
+        ]
+        if len(pts) >= 2:
+            out.setdefault(code, []).append({"id": f"gpx:{code}", "role": "", "pts": pts})
+    return out
+
+
+def code_from_gpx_name(name):
+    """`KML Merge_Jeju Olle 12` → '12'；`… 7-1` → '07-1'；`… 10.1` → '10-1'；`… 3A` → '03-A'"""
+    s = (name or "").replace("KML Merge_Jeju Olle", "").replace("KML Merge_ Jeju Olle", "").strip()
+    m = re.match(r"^(\d{1,2})(?:[.\-]\s*(\d{1,2}))?\s*([A-Za-z])?$", s)
+    if not m:
+        return None
+    code = f"{int(m.group(1)):02d}"
+    if m.group(2):
+        code += f"-{int(m.group(2))}"
+    if m.group(3):
+        code += f"-{m.group(3).upper()}"
+    return code
+
+
+# 只要偏差超过这个距离，就说明「这条轨迹的端点根本不在官方那个点上」
+ENDPOINT_TOL_M = 2000.0
+
+
+def load_official_endpoints(seed_path):
+    """从 `src/lib/seed.ts` 读出**带「官方 GPS」标记**的地点坐标，以及各课程的起终点用的哪个地点。
+
+    为什么要这一步：里程对得上 ≠ 走向对得上。实测 GPX 里的 07 段里程 12.75km，
+    跟官方 12.9km 只差 1%，看着完美 —— 但它走的是**旧走向**（一路到月坪），
+    终点离官方现行终点西归浦巴士总站差 4.8km。光靠里程永远发现不了，只能拿官方端点坐标卡。
+
+    返回 (places, ends)：places = {地点名: (lng, lat)}；
+    ends = {课程编号: (起点地点名|None, 终点地点名|None)}，只含能确定的。
+    """
+    if not seed_path or not os.path.exists(seed_path):
+        return {}, {}
+    with open(seed_path, encoding="utf-8") as f:
+        src = f.read()
+    places = {}
+    for m in re.finditer(
+            r"(\w+):\s*\{[^}]*lng:\s*([-\d.]+),\s*lat:\s*([-\d.]+)[^}]*\}\s*,"
+            r"\s*//\s*官方 GPS", src):
+        places[m.group(1)] = (float(m.group(2)), float(m.group(3)))
+    ends = {}
+    for m in re.finditer(
+            r"\{\s*code:\s*'([\d-]+)',\s*start:\s*'(\w+)',\s*end:\s*'(\w+)'", src):
+        ends[m.group(1)] = (m.group(2), m.group(3))
+    return places, ends
+
+
+def endpoint_verdict(segments, want, places, tol_m=ENDPOINT_TOL_M):
+    """拿**官方 GPS 端点**卡轨迹的两端。want = (起点地点, 终点地点)。
+
+    返回 (ok, why)。任一端没有官方坐标就跳过那一端（不硬判，别拿近似坐标当闸门 —— 
+    `seed.ts` 里绝大多数地点是城镇级近似值，偏差可达 10km）。
+    允许整条反向：两侧各试一次取偏差小的那种配法。
+    """
+    have = [(name, places[name]) for name in (want or ()) if name in places]
+    if not have or not segments:
+        return True, ""
+    pts = [p for seg in segments for p in seg]
+    if not pts:
+        return True, ""
+    cand = {                     # 地点 → 轨迹上离它最近的那个端点
+        name: min((pts[0], pts[-1]), key=lambda q: haversine_m(q, coord))
+        for name, coord in have
+    }
+    worst = max(((name, haversine_m(cand[name], coord)) for name, coord in have),
+                key=lambda x: x[1])
+    if worst[1] > tol_m:
+        return False, (f"端点对不上：离官方「{worst[0]}」{worst[1] / 1000:.1f}km "
+                       f"（上限 {tol_m / 1000:.0f}km）—— 多半是这条线走的是**旧走向**")
+    return True, ""
 
 
 def ways_of(rel, rel_index=None, _seen=None):
@@ -547,7 +883,7 @@ def _grow(seg, pool, forward, join_tol, stats):
         seg = _splice(seg, w2, hit, step, forward, pool, stats)
 
 
-def join_ways(ways, join_tol=JOIN_TOL_M, keep_parallel=False):
+def join_ways(ways, join_tol=JOIN_TOL_M, keep_parallel=False, bridge_m=0.0):
     """把无序的 way 集合缝成尽量连续的分段折线（算法说明见模块 docstring）。
 
     返回 (segments, gaps, stats)：
@@ -559,18 +895,32 @@ def join_ways(ways, join_tol=JOIN_TOL_M, keep_parallel=False):
     keep_parallel=False（默认）会把**并联段**（两端都接回主线的替代支线）剔除，
     因为它们的长度是重复的，算进去会让实走里程比官方还长。
     要保留原样看，传 True。
+
+    bridge_m > 0 时，把「最近端点相距不超过 bridge_m」的两段用**一条直线**接起来
+    （`--bridge` CLI 开关，默认关闭）。见下面桥接那段的注释：只对几十~几百米的
+    小断口有意义，别拿它去填几公里的真空洞。
     """
-    pool = [
-        {"id": w.get("id"), "role": w.get("role", ""), "pts": list(w["pts"]), "spur": False}
-        for w in ways
-        if len(w.get("pts") or []) >= 2
-    ]
+    # ⚠️ 按 way id 去重是必需的：「relation 成员 + 名字命中的散 way」合并时，
+    #    同一条 way 会从两个来源各进来一次；缝两遍 = 里程凭空翻倍 + 段内折返。
+    seen_ids, pool = set(), []
+    for w in ways:
+        pts = w.get("pts") or []
+        if len(pts) < 2:
+            continue
+        wid = w.get("id")
+        if wid is not None:
+            if wid in seen_ids:
+                continue
+            seen_ids.add(wid)
+        pool.append({"id": wid, "role": w.get("role", ""),
+                     "pts": list(pts), "spur": False})
     if not pool:
         return [], [], {"ways": 0, "segments": 0, "junction": 0, "split": 0,
                         "backtrack": 0, "bypass": 0, "near": 0, "nearM": 0.0,
                         "spurDropped": 0.0, "segInfo": [], "parallelM": 0.0,
                         "parallelN": 0, "parallelDropped": False,
-                        "loopN": 0, "loopM": 0.0}
+                        "loopN": 0, "loopM": 0.0,
+                        "bridgedN": 0, "bridgedM": 0.0}
 
     stats = {"ways": len(pool), "junction": 0, "split": 0, "backtrack": 0,
              "bypass": 0, "near": 0, "nearM": 0.0, "spurDropped": 0.0}
@@ -629,7 +979,49 @@ def join_ways(ways, join_tol=JOIN_TOL_M, keep_parallel=False):
     else:
         stats["parallelDropped"] = False
 
+    # ---- 小断口直线桥接（--bridge，默认关）----
+    # 断口分两种，处理方式完全不同：
+    #   · 几十~几百米：OSM 就是把中间那一小截 way 漏了（路口、村里一段没画），
+    #     真实走向在这么短的距离上几乎就是直线 —— 接上比留个豁口更接近实际；
+    #   · 公里级：那是真没有数据（或关系只画了一半），拿直线连过去等于**凭空造一段
+    #     不存在的路**，必须留着缺口。所以桥接阈值只该给到几百米，别图省事开大。
+    # ⚠️ 桥接出来的那一段是**直线**，不是实测轨迹。米数如实记在 stats 里
+    #    （bridgedN / bridgedM），报表与 GeoJSON 都要写明，不能当成实测数据。
+    stats["bridgedN"], stats["bridgedM"] = 0, 0.0
+    if bridge_m and bridge_m > 0 and len(segments) > 1:
+        while len(segments) > 1:
+            best = None
+            for i in range(len(segments)):
+                for j in range(i + 1, len(segments)):
+                    ends = (
+                        (0, segments[i][0]), (1, segments[i][-1]),
+                        (2, segments[j][0]), (3, segments[j][-1]),
+                    )
+                    for ta, pa in ends[:2]:
+                        for tb, pb in ends[2:]:
+                            d = haversine_m(pa, pb)
+                            if d <= bridge_m and (best is None or d < best[0]):
+                                best = (d, i, j, ta, tb)
+            if best is None:
+                break
+            d, i, j, ta, tb = best
+            a, b = list(segments[i]), list(segments[j])
+            # ta/tb 是「接合端在段内的位置」：0 = 首、1 = 尾（b 的取 2/3，2 = 首、3 = 尾）。
+            # 目标：a 的接合端落到**尾部**、b 的接合端落到**首部**，否则拼出来会掉头往回走，
+            # 里程凭空多出一段（实测就是这么发现的一个 sign 错误）。
+            if ta == 0:          # a 的接合端在首 → 翻转，让它到尾部
+                a.reverse()
+            if tb == 3:          # b 的接合端在尾 → 翻转，让它到首部
+                b.reverse()
+            stats["bridgedN"] += 1
+            stats["bridgedM"] += d
+            segments = [s for k, s in enumerate(segments) if k not in (i, j)]
+            segments.insert(i, a + b)
+
     stats["segments"] = len(segments)
+    if stats["bridgedN"]:
+        # 合并后段数变了，明细得重算，否则报表里的「每段多长」还是桥接前的
+        stats["segInfo"] = _seg_links(segments)
     # 段内折返/绕环：同一个节点在一段里被走了两次 → 中间那段路是白走的。
     # 这是解释「实走比官方长」最直接的证据，和并联段是两码事：
     #   并联段 = 拆成了独立的一段，两端都挂回主线（会被剔除）；
@@ -656,7 +1048,16 @@ def join_ways(ways, join_tol=JOIN_TOL_M, keep_parallel=False):
     return segments, gaps, stats
 
 
-def geojson_for(code, rel, segments, gaps, km):
+def geojson_for(code, rel, segments, gaps, km, src="relation", nways=None, bridged=(0, 0.0)):
+    """导出单条线的 GeoJSON。
+
+    ⚠️ `rel` 可能为 None —— 12 / 13 / 14 / 15 这些是**只有散 way、没有关系**的线，
+       属性里如实写 `osmRelation: null`，别硬塞一个 id 让人以为有出处。
+    ⚠️ `bridged` 是「小断口直线桥接」的 (处数, 米数)：桥出来的那几段是**直线，不是实测**，
+       必须写进属性，别让下游把它当成真轨迹。
+    """
+    rel = rel or {}
+    tags = rel.get("tags") or {}
     gap_m = sum(g["m"] for g in gaps)
     official = OFFICIAL_KM.get(code)
     coords = [[[round(x, 7), round(y, 7)] for x, y in seg] for seg in segments]
@@ -673,12 +1074,16 @@ def geojson_for(code, rel, segments, gaps, km):
                 "properties": {
                     "code": code,
                     "osmRelation": rel.get("id"),
-                    "name": (rel.get("tags") or {}).get("name"),
-                    "nameEn": (rel.get("tags") or {}).get("name:en"),
+                    "geomSource": src,
+                    "osmWays": nways,
+                    "name": tags.get("name"),
+                    "nameEn": tags.get("name:en"),
                     "source": "OpenStreetMap (ODbL)",
                     "segments": len(coords),
                     "gaps": len(gaps),
                     "gapM": round(gap_m, 1),
+                    "bridgedN": bridged[0],
+                    "bridgedM": round(bridged[1], 1),
                     "km": round(km, 2),
                     "officialKm": official,
                     "coverage": round(km / official, 3) if official else None,
@@ -748,38 +1153,76 @@ def main():
     ap.add_argument("--keep-parallel", action="store_true",
                     help="保留并联段（两端接回主线的替代支线）。默认剔除，"
                          "否则实走里程会比官方还长")
+    ap.add_argument("--bridge", type=float, default=0.0, metavar="M",
+                    help="把最近端点相距 ≤M 米的两段用直线接起来（默认 0 = 不接）。"
+                         "只对几十~几百米的小断口有意义（那种多半是 OSM 漏画了路口一小截）；"
+                         "公里级的断口是真没数据，别拿直线去填。接出来的那段是直线，"
+                         "会在报表与 GeoJSON 里写明米数")
     ap.add_argument("--dump-raw", help="把 Overpass 原始响应存到这个文件（离线排查用）")
+    ap.add_argument("--cache-dir", default=None,
+                    help="把每次 Overpass 响应按查询哈希缓存到该目录，重跑直接读盘。"
+                         "Overpass 公共实例经常 504/429，调参时不用每轮都赌一次网络")
+    ap.add_argument("--offline", action="store_true",
+                    help="只读 --cache-dir，绝不联网。缓存缺哪条就报哪条")
+    ap.add_argument("--reuse-dir", default=None,
+                    help="relation 侧几何从该目录下已有的 olle-<编号>.geojson 读，"
+                         "**跳过 relations 查询**（散 way 照常查）。续跑 / Overpass 挂掉时用，"
+                         "典型值 tracks/osm。注意它复用的是上次那份快照，不是 OSM 最新")
     ap.add_argument("--broad", action="store_true",
                     help="额外列出框里所有 hiking 关系（含名字没匹配上的），"
                          "用来确认「还差的编号」是 OSM 真没有还是没匹配上")
+    ap.add_argument("--gpx", default=None, metavar="FILE",
+                    help="额外的第三数据源：一个**按课程分段**的 GPX（每段 <trk> 的名字就是编号，"
+                         "如 `KML Merge_Jeju Olle 12`）。OSM 里 12/13/14/15/17/21 这些没编关系的线"
+                         "就靠它。仍然和 OSM 逐条比选，谁更可信用谁")
     ap.add_argument("--dry", action="store_true", help="只报告，不写文件")
     args = ap.parse_args()
 
-    alias = dict(a.split("=", 1) for a in args.alias if "=" in a)
+    # 变体编号 → 主线编号的**默认**映射（--alias 可在其后覆盖/追加）。
+    # OSM 与 GPX 把 3 线拆成 3-A / 3-B 两种走法，而官方只列一条「03」：
+    #   3-A 是主线走向（GPX 22.34km / 107%，与 OSM 关系的 22.71km / 109% 同一走法、0 断口）；
+    #   3-B 是缩短走法（14.84km / 71%），不并进来 —— 并进来只会多一个必然落选的候选。
+    alias = dict(DEFAULT_ALIAS)
+    alias.update(a.split("=", 1) for a in args.alias if "=" in a)
+    reused = load_reused(args.reuse_dir) if args.reuse_dir else {}
+    places, spec_ends = load_official_endpoints(
+        os.path.join(ROOT, "src", "lib", "seed.ts"))
+    if places:
+        print(f"官方 GPS 端点：{'、'.join(f'{k}' for k in sorted(places))} "
+              f"（用来卡「走向对不上」——里程对了不代表走的对）\n")
 
-    print(f"查询 Overpass：{args.endpoint}")
-    print(f"范围 {BBOX}，匹配 name/ref/network 含「올레」或「Olle」的 route 关系\n")
-    try:
-        data = overpass(args.endpoint, build_query(with_children=True))
-    except QueryRejected as err:
-        # 降级：这个 endpoint 不认 `rel(br.r)`。**不能就此认命** ——
-        # 子关系里那些名字没含「올레/Olle」的会静默消失（里程偏短 + 断口巨大）。
-        # 先跑不带子关系的查询，再从结果里读出「被引用但没取回」的子关系 id，精确补一次。
-        print(f"⚠️ 该 endpoint 不支持 rel(br.r)（{err}），改用「先取父、再按 id 补子关系」。")
-        data = overpass(args.endpoint, build_query(with_children=False))
+    def fetch(query, retries_hint=""):
+        return cached_overpass(args.endpoint, query, args.cache_dir, args.offline)
+
+    if args.reuse_dir:
+        print(f"--reuse-dir {args.reuse_dir}：复用本地已有的 {len(reused)} 条几何 "
+              f"（{'、'.join(sorted(reused)) or '（空）'}）")
+        print("  → **跳过 relations 查询**。想按 OSM 最新重抓就别传这个参数。\n")
+        data = {"elements": [], "remark": None}
+    else:
+        print(f"查询 Overpass：{args.endpoint}")
+        print(f"范围 {BBOX}，匹配 name/ref/network 含「올레」或「Olle」的 route 关系\n")
+        try:
+            data = fetch(build_query(with_children=True))
+        except QueryRejected as err:
+            # 降级：这个 endpoint 不认 `rel(br.r)`。**不能就此认命** ——
+            # 子关系里那些名字没含「올레/Olle」的会静默消失（里程偏短 + 断口巨大）。
+            # 先跑不带子关系的查询，再从结果里读出「被引用但没取回」的子关系 id，精确补一次。
+            print(f"⚠️ 该 endpoint 不支持 rel(br.r)（{err}），改用「先取父、再按 id 补子关系」。")
+            data = fetch(build_query(with_children=False))
     if args.dump_raw:
         with open(args.dump_raw, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False)
         print(f"原始响应已存：{args.dump_raw}")
 
     elements = dedupe_elements(data.get("elements", []))
-    want = missing_child_ids(elements)
+    want = missing_child_ids(elements) if elements else []
     if want:
         print(f"补取子关系 {len(want)} 个（父关系引用了它们，但几何还没到手）……")
         for i in range(0, len(want), 40):
             chunk = want[i:i + 40]
             try:
-                more = overpass(args.endpoint, build_children_query(chunk))
+                more = fetch(build_children_query(chunk))
             except QueryRejected as err:
                 print(f"  ⚠️ 这批被拒（{err}），这 {len(chunk)} 个子关系会缺几何：{chunk}")
                 continue
@@ -814,13 +1257,13 @@ def main():
         "子关系已并入父关系，不单独算一条）\n"
     )
 
-    if args.broad:
+    if args.broad and not args.reuse_dir:
         # 只回答一个问题：还差的那些编号，OSM 里**到底有没有**关系。
         # 正常查询靠 name/ref/network 命中，名字写法不同就漏；不带过滤再跑一遍，
         # 把「OSM 真没建」和「建了但名字没匹配上」彻底分开，省得靠猜。
         print("--broad：不带名字过滤再查一遍框内的 hiking 关系……")
         try:
-            broad = overpass(args.endpoint, build_broad_query())
+            broad = fetch(build_broad_query())
             seen = {r["id"] for r in rels}
             others = []
             for e in broad.get("elements", []):
@@ -855,37 +1298,227 @@ def main():
         code = alias.get(raw, raw)
         parsed.append((rel, tags, raw, code))
 
+    # ---- 第二个数据源：名字里带编号的散 way ----
+    # ⚠️ 这一步不能省，也**不能**用 --broad 的结论替代它。--broad 只回答「框里有没有
+    #    别的 hiking **关系**」，答案是「没有」就以为 OSM 真没建这条线 —— 实测错得很远：
+    #    12 / 13 / 14 / 15 / 14-1 在 OSM 里没有 relation，却有一堆带了名字的 way
+    #    （`올레길 12`、`올레길 13`、`올레길 14 (Ollegil 14)`、`올레길15-A`…）。
+    #    只查 relation 的后果就是：前端拿 seed.ts 的城镇级近似坐标连成一根斜穿岛内的
+    #    直线 —— 地图上最刺眼的那处错误，而报表却写着「OSM 没建」。
+    print("再查一次：名字里带「올레 / Olle」的道路 way（没有 relation 的线在这里）……")
+    try:
+        wdata = fetch(build_ways_query())
+    except QueryRejected as err:
+        print(f"  ⚠️ 被拒（{err}），本次只按 relation 处理。")
+        wdata = {"elements": []}
+    way_elements = wdata.get("elements", [])
+    named_raw = named_ways(way_elements)
+    if named_raw:
+        print(f"  {len(way_elements)} 条 way →")
+        for code in sorted({c for c, _ in named_raw}):
+            byst = named_by_style(named_raw, code)
+            print(f"     {code:<6} " + "、".join(
+                f"{st}×{len(ws)}" for st, ws in sorted(byst.items())))
+    else:
+        print("  一条都没取回（换 --endpoint 镜像再试）。")
+    print()
+
+    # ---- 候选比选：同一个编号可能有四种来源 ----
+    #   relation  — route relation 的成员 way（或 --reuse-dir 里那份上次的结果）
+    #   ways-en   — 英文名 `Ollegil N` 的散 way（12/13/14/15 全靠它，通常最完整）
+    #   ways-ko   — 韩文名 `올레길 N` 的散 way（覆盖零散，但别的编号可能靠它）
+    #   both-xx   — relation **补上** 某一套散 way 里它缺的那几段（只补缺，不是取并集）
+    # ⚠️ en / ko **绝不能合成一个候选**：两批 way 覆盖同一段路，合池就等于同段喂两遍。
+    cands = {}   # code -> [(raw, src, label, ways, rel)]
+    unmatched = []
+
+    def add_cand(code, raw, src, label, ways, rel=None):
+        if code and ways:
+            cands.setdefault(code, []).append((raw, src, label, ways, rel))
+
+    merge_skipped = []
+
+    def add_merge(code, raw, src, label, ways, rel, base_km):
+        """加一个「base + 补缺」候选，但**先验一条不变量：合并结果不能比 base 短**。
+
+        ⚠️ 这条不变量是必须的：把补缺片段和 base 一起重缝时，缝合器可能反过来把
+        base 的一部分也判成「并联段」剔掉 —— 表现就是「补缺之后反而少了几公里」。
+        实测 04：relation 19.01km ✅ → both-gpx 只剩 16.89km，而它因为「断口更少」
+        还赢了比选。补缺可以少断口，**绝不能少路**。
+        """
+        segs, _, _ = join_ways(ways, args.join_tol, args.keep_parallel)
+        merged_km = sum(path_len_m(s) for s in segs) / 1000
+        if merged_km < base_km - 0.05:
+            merge_skipped.append(
+                f"{code}: 放弃 {src} 补缺 —— 合并后只剩 {merged_km:.2f}km，"
+                f"比原来的 {base_km:.2f}km 还短（补缺片段把原几何挤掉了一部分）")
+            return
+        add_cand(code, raw, src, label, ways, rel)
+
+    for rel, tags, raw, code in parsed:
+        nm = tags.get("name") or tags.get("name:en") or f"relation {rel['id']}"
+        if not code:
+            unmatched.append(nm)
+            continue
+        add_cand(code, raw, "relation", nm, ways_of(rel, rel_index), rel)
+
+    # --reuse-dir：relation 侧直接用手上那份几何，省一次大查询
+    for code in sorted(reused):
+        ways, rel_like = reused[code]
+        add_cand(code, code, "relation", f"复用的 olle-{code}.geojson（{len(ways)} 段）",
+                 ways, rel_like)
+
+    # 编号 → [(原名编号, 命名习惯)]：--alias 把 OSM 编号映射到你的编号时，
+    # 分组必须按**原名**取，否则 alias 之后就查不到了。
+    by_mapped = {}
+    for (orig, st) in named_raw:
+        by_mapped.setdefault(alias.get(orig, orig), []).append((orig, st))
+
+    # ---- 第三数据源：按课程分段的 GPX（--gpx）----
+    gpx_courses = {}
+    gpx_by_mapped = {}
+    if args.gpx:
+        gpx_courses = read_course_gpx(args.gpx)
+        print(f"--gpx {args.gpx}：{len(gpx_courses)} 条课程轨迹 → "
+              + "、".join(sorted(gpx_courses)))
+        missing_gpx = [c for c in ROUTE_CODES if c not in gpx_courses]
+        if missing_gpx:
+            print(f"  （这个 GPX 里没有：{'、'.join(missing_gpx)} —— 多半是离岛航线）")
+        print()
+        # ⚠️ 每个 GPX 段**各算一个候选**，不要按 alias 合并成一个池子：
+        #    `3A` / `3B` 是同一条线的两种走法，合成一个池子缝就是在缝两条路。
+        #    用 --alias 03-A=03 只影响「归到哪个编号」，比选交给打分。
+        for orig, ws in gpx_courses.items():
+            gpx_by_mapped.setdefault(alias.get(orig, orig), []).append((orig, ws))
+        # ⚠️ 下面一律用 gpx_by_mapped（已过 alias），**不要**再碰 gpx_courses ——
+        #    之前在这里查 gpx_courses，只要 alias 改过名字（03-A→03）就永远查不到，
+        #    GPX 候选会凭空消失，报表上还看不出是这儿丢的。
+        mapped_gpx = set(gpx_by_mapped)
+        still = [c for c in ROUTE_CODES if c not in mapped_gpx]
+        if still:
+            print(f"  （映射后仍没有的编号：{'、'.join(still)} —— 多半是离岛航线）")
+
+    for code in sorted(set(by_mapped) | set(gpx_by_mapped)):
+        byst = {}
+        for orig, st in by_mapped.get(code, ()):
+            if st == "?":
+                add_cand(code, code, "ways-?",
+                         f"名字认得出编号但认不出语言：{len(named_raw[(orig, st)])} 条",
+                         named_raw[(orig, st)])
+                continue
+            byst.setdefault(st, []).extend(named_raw[(orig, st)])
+        for st, ws in sorted(byst.items()):
+            add_cand(code, code, f"ways-{st}", f"{st} 名 {len(ws)} 条 way", ws)
+
+        gpx_items = gpx_by_mapped.get(code, ())
+        for orig, ws in sorted(gpx_items):
+            if len(ws) == 1:
+                add_cand(code, code, "gpx", f"GPX 里的「{orig}」段（1 段）", ws)
+            else:
+                for k, one in enumerate(ws):
+                    add_cand(code, code, f"gpx:{orig}",
+                             f"GPX 里的「{orig}」第 {k+1} 段", [one])
+
+        # 补缺候选：relation + 「它没有的那几段」。**逐套分别做，不混池** ——
+        # 同一段路在两套命名 / GPX 里各有一份，混起来缝就会重复。
+        rel_items = [c for c in cands.get(code, []) if c[1] == "relation"]
+        if not rel_items:
+            continue
+        rel_ways = [w for c in rel_items for w in c[3]]
+        rel_obj = rel_items[0][4]
+        base_segs, _, _ = join_ways(rel_ways, args.join_tol, args.keep_parallel)
+        base_km = sum(path_len_m(s) for s in base_segs) / 1000
+        for st, ws in sorted(byst.items()):
+            extra = uncovered_ways(ws, base_segs)
+            if extra:
+                add_merge(code, code, f"both-{st}",
+                          f"relation {len(rel_ways)} 段 + 补缺 {st} 名 {len(extra)} 条",
+                          rel_ways + extra, rel_obj, base_km)
+        for orig, ws in sorted(gpx_items):
+            for one in ws:
+                extra = uncovered_ways([one], base_segs)
+                if extra:
+                    add_merge(code, code, f"both-gpx:{orig}",
+                              f"relation {len(rel_ways)} 段 + 补缺 GPX「{orig}」{len(extra)} 段",
+                              rel_ways + extra, rel_obj, base_km)
+
     if args.only:
         want_codes = set(args.only)
-        parsed = [p for p in parsed if p[2] in want_codes or p[3] in want_codes]
+        cands = {c: v for c, v in cands.items() if c in want_codes}
 
-    print(f"{'OSM编号':<8} {'归到':<6} {'way':>4} {'点':>5} {'段':>3} "
+    print(f"{'来源编号':<9} {'归到':<6} {'来源':<10} {'way':>4} {'点':>5} {'段':>3} "
           f"{'实走km':>7} {'覆盖':>6} {'断口':>9} {'判定':<4} 名称")
-    print("-" * 112)
-    out, unmatched, notes, skipped, winners = {}, [], [], [], {}
-    for rel, tags, raw, code in sorted(parsed, key=lambda p: (p[3] or "zz", p[2] or "")):
-        name = tags.get("name") or tags.get("name:en") or f"relation {rel['id']}"
-        kinds, role_txt = members_summary(rel, rel_index)
-        way_list = ways_of(rel, rel_index)
-        segments, gaps, stats = join_ways(way_list, args.join_tol, args.keep_parallel)
-        walk_m = sum(path_len_m(s) for s in segments)
-        gap_m = sum(g["m"] for g in gaps)
-        km = walk_m / 1000
-        off = OFFICIAL_KM.get(code) if code else None
-        cov = (km / off) if off else None
-        if code and code in ROUTE_CODES:
-            mark, why = verdict_of(km, gap_m, off, args.min_coverage,
-                                   args.max_gap_frac, args.max_coverage)
+    print("-" * 122)
+
+    out, notes, skipped = {}, [], []
+
+    # 判定档位越靠前越优先；同为可用时**断口总长**小的赢（地图上最直观、也是这次的痛点），
+    # 再平手才比「覆盖更接近官方」。⚠️ 千万不要只比里程长短 —— 更长的那个很可能
+    # 只是混进了替代支线或邻线延伸，那正是 07 被判 ⛔ 的原因。
+    RANK = {"✅": 0, "⚠️": 1, "⛔": 2, "—": 3}
+
+    for code in sorted(cands):
+        rows = []
+        for raw, src, label, ways, rel in cands[code]:
+            segments, gaps, stats = join_ways(ways, args.join_tol, args.keep_parallel,
+                                              args.bridge)
+            km = sum(path_len_m(s) for s in segments) / 1000
+            gap_m = sum(g["m"] for g in gaps)
+            off = OFFICIAL_KM.get(code)
+            cov = (km / off) if off else None
+            if code in ROUTE_CODES:
+                mark, why = verdict_of(km, gap_m, off, args.min_coverage,
+                                       args.max_gap_frac, args.max_coverage)
+                # 里程过关 ≠ 走向过关：再拿官方 GPS 端点卡一次（见 endpoint_verdict）
+                if mark != "⛔":
+                    ok, ewhy = endpoint_verdict(segments, spec_ends.get(code), places)
+                    if not ok:
+                        mark = "⛔"
+                        why = (why + "；" if why else "") + ewhy
+            else:
+                # 编号不在这 27 条里 → 不判定，别显示出「✅ 可用」却又进不了产物
+                mark, why = "—", ""
+            rows.append({
+                "raw": raw, "src": src, "label": label, "rel": rel, "ways": ways,
+                "segments": segments, "gaps": gaps, "stats": stats,
+                "km": km, "gap_m": gap_m, "cov": cov, "mark": mark, "why": why,
+                "npts": sum(len(s) for s in segments),
+            })
+
+        def _rank(r):
+            return (RANK.get(r["mark"], 3), round(r["gap_m"], 1),
+                    abs((r["cov"] or 1.0) - 1.0))
+
+        best = min(rows, key=_rank)
+        multi = len(rows) > 1
+        for r in sorted(rows, key=_rank):
+            cov_txt = f"{r['cov'] * 100:.0f}%" if r["cov"] else "—"
+            gap_col = f"{len(r['gaps'])}/{r['gap_m'] / 1000:.1f}km" if r["gaps"] else "—"
+            src_col = ("*" if (multi and r is best) else " ") + r["src"]
+            print(
+                f"{r['raw'] or '—':<9} {code or '—':<6} {src_col:<10} {len(r['ways']):>4} "
+                f"{r['npts']:>5} {len(r['segments']):>3} {r['km']:>7.2f} "
+                f"{cov_txt:>6} {gap_col:>9} {r['mark']:<4} {r['label']}"
+            )
+
+        if multi:
+            notes.append(
+                f"{code}: 有 {len(rows)} 个来源，**选了 {best['src']}**"
+                f"（{best['km']:.2f}km、断口 {best['gap_m'] / 1000:.2f}km、{best['mark']}）；"
+                "落选的是 "
+                + "；".join(
+                    f"{r['src']} {r['km']:.2f}km/断口 {r['gap_m'] / 1000:.2f}km/{r['mark']}"
+                    for r in sorted(rows, key=_rank) if r is not best
+                )
+            )
+
+        raw, rel = best["raw"], best["rel"]
+        segments, gaps, stats = best["segments"], best["gaps"], best["stats"]
+        km, gap_m, mark, why = best["km"], best["gap_m"], best["mark"], best["why"]
+        if rel is not None:
+            kinds, role_txt = members_summary(rel, rel_index)
         else:
-            # 编号不在这 27 条里 → 不判定，避免显示出「✅ 可用」却又进不了产物
-            mark, why = "—", ""
-        n_pts = sum(len(s) for s in segments)
-        gap_col = f"{len(gaps)}/{gap_m / 1000:.1f}km" if gaps else "—"
-        print(
-            f"{raw or '—':<8} {code or '—':<6} {len(way_list):>4} {n_pts:>5} "
-            f"{len(segments):>3} {km:>7.2f} {(f'{cov * 100:.0f}%' if cov else '—'):>6} "
-            f"{gap_col:>9} {mark:<4} {name}"
-        )
+            kinds, role_txt = {"way": len(best["ways"]), "rel": 0, "node": 0}, ""
         # 成员构成里藏着关键线索：子关系没展开 → 里程会明显偏短
         detail = []
         if kinds["rel"]:
@@ -907,6 +1540,11 @@ def main():
             extra.append(f"就近接上 {stats['near']} 处/共 {stats['nearM']:.0f}m")
         if stats["spurDropped"]:
             extra.append(f"丢弃支线 {stats['spurDropped'] / 1000:.2f}km")
+        if stats.get("bridgedN"):
+            extra.append(
+                f"小断口直线桥接 {stats['bridgedN']} 处/共 {stats['bridgedM']:.0f}m"
+                "（这几段是直线，不是实测轨迹，GeoJSON 里已注明）"
+            )
         if detail or extra:
             notes.append(f"{raw or '—'}: " + "，".join(detail + extra))
         if len(gaps) > 1:
@@ -939,35 +1577,34 @@ def main():
                 "要么缝合在岔路口走岔了又走回来 —— 对着地图看一眼就能分清。"
             )
 
-        if not code:
-            unmatched.append(name)
-            continue
         if code not in ROUTE_CODES:
-            unmatched.append(f"{name}（推出 {raw}，不在 27 条里；要用就 --alias {raw}={ROUTE_CODES[0]} 之类显式指定）")
+            unmatched.append(
+                f"{best['label']}（推出 {raw}，不在 27 条里；"
+                f"要用就 --alias {raw}={ROUTE_CODES[0]} 之类显式指定）"
+            )
             continue
 
-        # 同一编号有多个关系：**留覆盖最好的那条**，不是留最长的
-        # （变体/拆段时最长的那条往往缺口也最多）
-        cand = (km, -gap_m, rel, segments, gaps)
-        if code in winners:
-            prev = winners[code]
-            # ⚠️ 比的是「离官方里程多近」，**不是谁更长** ——
-            #    更长的那个很可能只是混进了替代支线（见 _seg_links）
-            prev_cov = -abs(min(prev[0] / off, 1.5) - 1.0) if off else 0
-            this_cov = -abs(min(km / off, 1.5) - 1.0) if off else 0
-            if (this_cov, -gap_m) <= (prev_cov, prev[1]):
-                notes.append(f"{code}: {raw} 与已有关系同名，留覆盖更好的那条")
-                continue
-            notes.append(f"{code}: {raw} 覆盖更好（{km:.1f}km），替换掉之前那条")
-            skipped[:] = [s for s in skipped if not s.startswith(f"{code} ")]
-        winners[code] = cand
-
+        if code in SKIP and not args.keep_bad:
+            skipped.append(
+                f"{code} （{SKIP[code]}）—— 选中的是 {best['src']}，不导出，"
+                "这条线保持原来的近似坐标（宁可缺、不可假）"
+            )
+            continue
         if mark == "⛔" and not args.keep_bad:
-            skipped.append(f"{code} （{why}）—— 不导出，这条线保持原来的近似坐标")
+            skipped.append(
+                f"{code} （{why}）—— 选中的是 {best['src']}，不导出，"
+                "这条线保持原来的近似坐标（宁可缺、不可假）"
+            )
             continue
-        out[code] = geojson_for(code, rel, segments, gaps, km)
+        out[code] = geojson_for(code, rel, segments, gaps, km,
+                                best["src"], len(best["ways"]),
+                                (stats.get("bridgedN", 0), stats.get("bridgedM", 0.0)))
         if mark == "⚠️":
             notes.append(f"{code} 已导出但请留意：{why}")
+
+    if merge_skipped:
+        notes.append("放弃的「补缺」候选（合并后反而更短，说明补缺片段把原几何挤掉了一段）：")
+        notes.extend(f"  {m}" for m in merge_skipped)
 
     print()
     got = [c for c in ROUTE_CODES if c in out]

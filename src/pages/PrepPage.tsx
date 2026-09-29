@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useData } from '../store/DataContext'
 import { useConfirm, useToast } from '../components/Feedback'
 import { BUDGET_HINTS, GUIDE_SECTIONS, PREP_GROUPS, PREP_PRESETS, normItemText, type PrepGroup, type PrepItem, type PrepPreset } from '../lib/prep'
@@ -111,7 +111,7 @@ export function PrepPage() {
     const items = [{ id: 'prep-progress', label: '总进度' }]
     groups.forEach((g) => items.push({ id: `prep-g-${g.id}`, label: g.title }))
     items.push({ id: 'prep-custom', label: '我的条目' })
-    PREP_PRESETS.forEach((p) => items.push({ id: `prep-p-${p.id}`, label: p.short }))
+    items.push({ id: 'prep-presets', label: '备选清单' })
     if (skippedCount > 0) items.push({ id: 'prep-skipped', label: '已放弃' })
     GUIDE_SECTIONS.forEach((s) => items.push({ id: `prep-s-${s.id}`, label: s.title }))
     items.push({ id: 'prep-budget', label: '预算' })
@@ -119,22 +119,73 @@ export function PrepPage() {
   }, [groups, skippedCount])
 
   const [activeId, setActiveId] = useState('prep-progress')
+  const tocNavigationRef = useRef(false)
+  const tocSettleTimerRef = useRef<number | undefined>(undefined)
+  const scrollFrameRef = useRef<number | undefined>(undefined)
+  const finishTocNavigationRef = useRef<() => void>(() => {})
+
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
-        if (visible.length > 0) setActiveId(visible[0].target.id)
-      },
-      // 顶部边距覆盖吸顶区(顶栏+目录)，使高亮在模块真正露出吸顶区下方时触发
-      { rootMargin: '-140px 0px -55% 0px', threshold: 0 },
-    )
-    toc.forEach((t) => {
-      const el = document.getElementById(t.id)
-      if (el) observer.observe(el)
-    })
-    return () => observer.disconnect()
+    const sections = toc
+      .map((item) => document.getElementById(item.id))
+      .filter((el): el is HTMLElement => el instanceof HTMLElement)
+    const updateActiveSection = () => {
+      scrollFrameRef.current = undefined
+      if (tocNavigationRef.current || sections.length === 0) return
+
+      // 与 scroll-margin-top 使用同一参考线，点击跳转到哪一节，停稳后就高亮哪一节。
+      const configuredOffset = Number.parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue('--anchor-offset'),
+      )
+      const activationLine = Math.min(
+        Number.isFinite(configuredOffset) ? configuredOffset : 110,
+        window.innerHeight * 0.45,
+      )
+
+      let current = sections[0].id
+      if (window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2) {
+        current = sections[sections.length - 1].id
+      } else {
+        for (const section of sections) {
+          if (section.getBoundingClientRect().top <= activationLine + 4) current = section.id
+          else break
+        }
+      }
+      setActiveId(current)
+    }
+
+    const scheduleActiveUpdate = () => {
+      if (scrollFrameRef.current === undefined) {
+        scrollFrameRef.current = window.requestAnimationFrame(updateActiveSection)
+      }
+    }
+    const finishTocNavigation = () => {
+      if (tocSettleTimerRef.current !== undefined) {
+        window.clearTimeout(tocSettleTimerRef.current)
+        tocSettleTimerRef.current = undefined
+      }
+      tocNavigationRef.current = false
+      updateActiveSection()
+    }
+    finishTocNavigationRef.current = finishTocNavigation
+
+    const onScroll = () => {
+      if (tocNavigationRef.current) {
+        // 平滑滚动期间保持用户刚点的项；滚动停顿后再交还给位置计算。
+        if (tocSettleTimerRef.current !== undefined) window.clearTimeout(tocSettleTimerRef.current)
+        tocSettleTimerRef.current = window.setTimeout(finishTocNavigation, 180)
+      } else {
+        scheduleActiveUpdate()
+      }
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true })
+    updateActiveSection()
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      if (tocSettleTimerRef.current !== undefined) window.clearTimeout(tocSettleTimerRef.current)
+      if (scrollFrameRef.current !== undefined) window.cancelAnimationFrame(scrollFrameRef.current)
+      tocNavigationRef.current = false
+    }
   }, [toc])
 
   return (
@@ -153,6 +204,14 @@ export function PrepPage() {
             type="button"
             className={`toc-link${activeId === t.id ? ' is-active' : ''}`}
             onClick={() => {
+              tocNavigationRef.current = true
+              if (tocSettleTimerRef.current !== undefined) window.clearTimeout(tocSettleTimerRef.current)
+              // 无滚动（例如再次点击当前项）时也能释放导航锁。
+              tocSettleTimerRef.current = window.setTimeout(
+                () => finishTocNavigationRef.current(),
+                1200,
+              )
+              setActiveId(t.id)
               const el = document.getElementById(t.id)
               if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
             }}

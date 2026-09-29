@@ -103,6 +103,8 @@ export interface Route {
   elevationSegments?: ElevSample[][]
   /** 地形数据来源；缺省视为未知 */
   elevationBasis?: ElevBasis
+  /** Optional attribution for an imported route track. */
+  trackSource?: { name: string; url: string }
   surface?: string
   bestSeason?: string
   tags: string[]

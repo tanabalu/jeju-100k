@@ -168,9 +168,17 @@ export function RouteDetailPage() {
               : '坐标与轨迹均为实测数据（轨迹导入），可直接用于导航与爬升判断。'
             : '坐标为城镇级近似值，用于排序 / 看分布；导航前请用「地图选点」校正，或导入真实轨迹一键替换。'}
         </p>
+        {route.trackSource && (
+          <p className="muted" style={{ marginTop: 4, fontSize: 12 }}>
+            轨迹来源：<a href={route.trackSource.url} target="_blank" rel="noopener noreferrer">{route.trackSource.name}</a>
+          </p>
+        )}
         <RouteMap
           points={route.points}
           lines={trackLines(route)}
+          // 没有实测轨迹时，图上那根线只是「把两个近似坐标连起来」——
+          // 走虚线，别让它看起来像真走过的路
+          approxLines={route.elevationBasis === 'track' ? undefined : [true]}
           hotels={route.hotels}
           sights={route.sights}
           height={440}

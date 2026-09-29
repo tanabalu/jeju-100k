@@ -160,6 +160,15 @@ interface RouteMapProps {
    */
   lines?: ElevSample[][]
   /**
+   * 与 `lines` 一一对应的「这段是不是示意线」。
+   *
+   * 示意图连线（`approx: true`）画**虚线 + 灰绿**，并且不加白色描边 ——
+   * 和真实轨迹的实线在视觉上必须能一眼分开，否则「把近似坐标连起来的斜线」
+   * 会被当成真实走法（西海岸那根斜穿岛内的直线就是这么来的）。
+   * 长度不足时按 `false` 处理（当作真实轨迹），所以只想标注个别段才传它。
+   */
+  approxLines?: boolean[]
+  /**
    * 编号徽标：给了就用它**替代**「起/终/途经」标记（多条线同屏时看编号比看起终直观）。
    * 徽标画在每条线的中点附近，避开相邻线路共享的端点。
    */
@@ -238,6 +247,7 @@ export function RouteMap({
   points = [],
   trails,
   lines,
+  approxLines,
   badges,
   hotels = [],
   sights = [],
@@ -267,14 +277,23 @@ export function RouteMap({
   /**
    * 折线几何：优先用真实轨迹（lines），没有才把途经点直线连起来。
    * 这样「起终点位置」和「线形」可以各自独立来源 —— 轨迹对不上时也不影响出图。
+   *
+   * `approx` 与段一一对应：true = 这段是「把近似坐标连起来」的示意线（不是实测轨迹），
+   * 画虚线。见下面画线那段的注释。
    */
-  const drawSegs = useMemo<GeoPoint[][]>(() => {
-    const fromLines = (lines ?? []).map(finiteSegs).filter((seg) => seg.length > 0)
-    if (fromLines.length) return fromLines
-    return normalizeSegments(trails, points).map((seg) =>
+  const draw = useMemo<{ segs: GeoPoint[][]; approx: boolean[] }>(() => {
+    const fromLines = (lines ?? [])
+      .map((seg, i) => ({ seg: finiteSegs(seg), approx: !!approxLines?.[i] }))
+      .filter((s) => s.seg.length > 0)
+    if (fromLines.length) {
+      return { segs: fromLines.map((s) => s.seg), approx: fromLines.map((s) => s.approx) }
+    }
+    const segs = normalizeSegments(trails, points).map((seg) =>
       finitePts(seg).map((p) => ({ lng: p.lng, lat: p.lat })),
     )
-  }, [lines, trails, points])
+    return { segs, approx: segs.map(() => approxLines?.[0] ?? false) }
+  }, [lines, approxLines, trails, points])
+  const drawSegs = draw.segs
 
   /**
    * 标记：给了 badges 就用编号徽标替代「起/终/途经」——
@@ -360,9 +379,22 @@ export function RouteMap({
     layer.clearLayers()
 
     // 折线：真实轨迹优先（形状真实），否则连途经点
-    drawSegs.forEach((seg) => {
+    drawSegs.forEach((seg, i) => {
       if (seg.length < 2) return
       const latlngs = seg.map((p) => [p.lat, p.lng] as [number, number])
+      // ⚠️ 示意线（不是实测轨迹）画法必须与真实轨迹**明显不同**：
+      //    虚线 + 灰绿、且不描白边。拿近似坐标（seed.ts 里偏差可达 10km 的城镇坐标）
+      //    连出来的直线如果照样实线+白边，整张图上就跟真走过的路一模一样。
+      if (draw.approx[i]) {
+        L.polyline(latlngs, {
+          color: '#7d8a83',
+          weight: 3,
+          opacity: 0.9,
+          dashArray: '7 7',
+          lineCap: 'round',
+        }).addTo(layer)
+        return
+      }
       // 白色描边 + 绿色主线，保证在任何底图上都清晰
       L.polyline(latlngs, {
         color: '#ffffff',
@@ -417,7 +449,7 @@ export function RouteMap({
     } else {
       map.fitBounds(L.latLngBounds(coords), { padding: [60, 60], maxZoom: 15 })
     }
-  }, [status, points, trails, lines, drawSegs, markers, hotels, sights, fixedZoom])
+  }, [status, points, trails, lines, draw, drawSegs, markers, hotels, sights, fixedZoom])
 
   const fallbackBox = useMemo(
     () => project(drawSegs, markers, hotels, sights),

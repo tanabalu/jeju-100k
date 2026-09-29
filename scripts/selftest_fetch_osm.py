@@ -135,5 +135,72 @@ check("去重生效", len(F.dedupe_elements(els + [{"type": "relation", "id": 10
 check("broad 查询不带名字过滤", "name" in F.build_broad_query(), False)
 
 print("\n" + "=" * 78)
+print("⑪ 散 way 按 (编号, 命名习惯) 归组 —— 12/13/14/15 这类没有 relation 的线靠它")
+way_els = [
+    {"type": "way", "id": 1, "tags": {"name": "올레길 12코스"},
+     "geometry": [{"lon": 126.30, "lat": 33.30}, {"lon": 126.31, "lat": 33.30}]},
+    {"type": "way", "id": 2, "tags": {"name": "올레길12"},
+     "geometry": [{"lon": 126.31, "lat": 33.30}, {"lon": 126.32, "lat": 33.30}]},
+    {"type": "way", "id": 3, "tags": {"name": "올레길 14-1"},
+     "geometry": [{"lon": 126.30, "lat": 33.36}, {"lon": 126.31, "lat": 33.36}]},
+    # ⚠️ 同一个编号的**英文名**是另一批 way，覆盖同一段路，必须单独一组
+    {"type": "way", "id": 5, "tags": {"name": "Ollegil 12"},
+     "geometry": [{"lon": 126.30, "lat": 33.30}, {"lon": 126.32, "lat": 33.30}]},
+    {"type": "way", "id": 6, "tags": {"name": "ollegil 12"},
+     "geometry": [{"lon": 126.32, "lat": 33.30}, {"lon": 126.33, "lat": 33.30}]},
+    # 同一条 way 被两条 name 规则各命中一次 —— 不去重会缝两遍
+    {"type": "way", "id": 1, "tags": {"name": "Ollegil 12"},
+     "geometry": [{"lon": 126.30, "lat": 33.30}, {"lon": 126.31, "lat": 33.30}]},
+    # 同名 POI（露营地）没有 highway，靠 build_ways_query 的过滤挡在门外；这里模拟万一漏进来
+    {"type": "way", "id": 4, "tags": {"name": "바다올레길 카라반 캠핑장"},
+     "geometry": [{"lon": 126.40, "lat": 33.40}, {"lon": 126.41, "lat": 33.41}]},
+]
+named = F.named_ways(way_els)
+check("按 (编号, 命名习惯) 分组", sorted(named), [("12", "en"), ("12", "ko"), ("14-1", "ko")])
+check("韩文 12 有 2 条", len(F.named_by_style(named, "12")["ko"]), 2)
+check("英文 12 有 2 条（去重后，不是 3）", len(F.named_by_style(named, "12")["en"]), 2)
+check("认不出编号的不进池子", any("캠핑" in str(v) for v in named.values()), False)
+check("散 way 查询限定 highway", "highway" in F.build_ways_query(), True)
+check("命名习惯判别", (F.style_of("Ollegil 12"), F.style_of("올레길6 (Ollegil 6)")), ("en", "ko"))
+
+print("\n" + "=" * 78)
+print("⑫ 只补缺、不取并集（uncovered_ways）—— 直接并集会被当成并联段整条剔掉")
+base = [line((126.300, 33.300), (126.330, 33.300))]          # base 覆盖 300..330
+dup = [W(7, line((126.300, 33.300), (126.330, 33.300)))]      # 与 base 完全重叠
+tail = [W(8, line((126.330, 33.300), (126.350, 33.300)))]     # 前一半在 base 上，后半段是新的
+check("完全重叠的被整条丢掉", len(F.uncovered_ways(dup, base)), 0)
+kept = F.uncovered_ways(tail, base)
+check("只留 base 上没有的那一段", len(kept), 1)
+check("被 base 覆盖的首点已剪掉", len(kept[0]["pts"]), len(tail[0]["pts"]) - 1)
+# 剪掉的是「落在 base 上的那一段前缀」，剩下的应当**原封不动**是尾巴本身
+# （不是重新采样出来的近似几何）。line(n=12) 的采样间距约 168m，
+# 用「距 base 端点 <150m」去卡会被采样间距卡住，所以这里直接比整个点列。
+check("留下的那一段 = 原尾巴剪掉前缀（其余点原样保留）",
+      kept[0]["pts"], tail[0]["pts"][1:])
+
+print("\n" + "=" * 78)
+print("⑬ 小断口直线桥接（--bridge）—— 默认不接；只接 ≤阈值 的小口子")
+A = W(1, line((126.300, 33.300), (126.320, 33.300)))
+B = W(2, line((126.340, 33.300), (126.322, 33.300)))   # 反向给的，近端在 [126.322]
+s0, g0, st0, km0 = run("默认（不桥接）", [A, B])
+check("默认仍是 2 段", len(s0), 2)
+check("默认 1 断口", len(g0), 1)
+check("默认没桥接", st0["bridgedN"], 0)
+
+s1, g1, st1, km1 = run("--bridge 250", [A, B], bridge_m=250)
+check("桥接后 1 段", len(s1), 1)
+check("桥接后无断口", len(g1), 0)
+check("桥接记 1 处", st1["bridgedN"], 1)
+# ⚠️ 这条是防「接合端拼反了」的：拼反时这条线会掉头往回走，里程凭空多一整段。
+#    实测就是这么发现 tb 判断写错了一个数（拼出来的线一路往东又折回西边）。
+backtracks = sum(1 for p, q in zip(s1[0], s1[0][1:]) if q[0] < p[0])
+check("桥接后不回头（经度单调不降）", backtracks, 0)
+check("里程 = 两段 + 桥接那一段", round(km1 - km0, 3), round(st1["bridgedM"] / 1000, 3))
+
+s2, g2, st2, km2 = run("--bridge 100（口子约 186m，接不上）", [A, B], bridge_m=100)
+check("超阈值不接，仍 2 段", len(s2), 2)
+check("超阈值没桥接", st2["bridgedN"], 0)
+
+print("\n" + "=" * 78)
 print(f"{sum(OK)}/{len(OK)} 断言通过" + ("  ✅ 全绿" if all(OK) else "  ❌ 有失败"))
 sys.exit(0 if all(OK) else 1)

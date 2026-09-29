@@ -233,9 +233,40 @@ export function trackLines(route: Route): ElevSample[][] | undefined {
  * 所以这里逐条兜底：有轨迹走轨迹（可能多段），没轨迹就把途经点连起来。
  */
 export function mapLines(routes: Route[]): ElevSample[][] {
+  return mapLineSet(routes).map((l) => l.seg)
+}
+
+/** 图上的一段线 + 它是不是「示意连线」 */
+export interface MapLine {
+  seg: ElevSample[]
+  /**
+   * true = 这条线**不是实测轨迹**，只是把 `points`（起终点/途经点，`seed.ts` 里是**城镇级
+   * 近似坐标**，偏差可达 10km）连起来的示意线。
+   *
+   * ⚠️ 为什么必须把它单独标出来：OSM 里 17 / 21 / 18-1 / 18-2 等**没有轨迹**，图上只能
+   * 连直线。如果和真实轨迹一样画成实线，"西海岸一根斜穿岛内的直线"就会被当成真的路线走法。
+   * 调用方据此改虚线 + 灰绿色，一眼就能看出「这段是示意，不是实测」。
+   */
+  approx: boolean
+}
+
+/**
+ * 和 `mapLines` 同一个顺序、同一份几何，但带上了「是不是示意线」。
+ * 想在图上把两条来源区分开就取它，只关心几何就取 `mapLines`。
+ */
+export function mapLineSet(routes: Route[]): MapLine[] {
   return routes
-    .flatMap((r) => trackLines(r) ?? [(r.points ?? []).map((p) => [p.lng, p.lat] as ElevSample)])
-    .filter((seg) => seg.length > 0)
+    .flatMap((r) => {
+      const tracked = trackLines(r)
+      if (tracked) return tracked.map((seg) => ({ seg, approx: false }))
+      return [
+        {
+          seg: (r.points ?? []).map((p) => [p.lng, p.lat] as ElevSample),
+          approx: true,
+        },
+      ]
+    })
+    .filter((l) => l.seg.length > 0)
 }
 
 /**

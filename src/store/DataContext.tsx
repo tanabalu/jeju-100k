@@ -43,6 +43,8 @@ export interface TrackEntry {
   gainM?: number | null
   /** 轨迹文件原名，便于回溯 */
   source?: string
+  sourceUrl?: string
+  sourceNote?: string
 }
 
 export type TrackManifest = Record<string, TrackEntry>
@@ -177,6 +179,9 @@ function mergeTrack(
     elevationProfile: samples,
     ...(segs.length > 1 ? { elevationSegments: segs } : {}),
     elevationBasis: 'track',
+    ...(entry?.sourceUrl && entry.sourceNote
+      ? { trackSource: { name: entry.sourceNote, url: entry.sourceUrl } }
+      : {}),
   }
 }
 

@@ -12,7 +12,7 @@
   --radius: 12px;
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px rgba(16, 24, 40, 0.06);
   /* 吸顶偏移：顶栏高度（目录吸顶时 top 用）+ 锚点哨兵高度（跳转余量，含顶栏+目录+间距）。
-     移动端顶栏会换行变高、目录也可能换行，故在断点里同步放大。纯 CSS 静态值，不依赖 JS 测量。 */
+     窄屏顶栏单行显示，行前准备目录仍可换行，故在断点里同步调整。 */
   --topbar-h: 56px;
   --anchor-offset: 110px;
 }
@@ -132,6 +132,12 @@ h3 {
   background: var(--brand-soft);
   color: var(--brand-dark);
   font-weight: 600;
+}
+
+.mobile-menu-button,
+.mobile-nav-backdrop,
+.mobile-nav-drawer {
+  display: none;
 }
 
 .content {
@@ -1995,15 +2001,15 @@ textarea.input {
 
 /* ---------- 移动端适配 ---------- */
 @media (max-width: 720px) {
-  /* 顶栏：品牌一行，导航换到第二行并可横向滚动 */
+  /* 窄屏顶栏保持单行，目录由右侧菜单按钮打开 */
   :root {
-    --topbar-h: 76px;
-    --anchor-offset: 184px;
+    --topbar-h: 56px;
+    --anchor-offset: 164px;
   }
   .topbar {
     padding: 8px 14px;
-    flex-wrap: wrap;
-    row-gap: 4px;
+    flex-wrap: nowrap;
+    gap: 8px;
   }
 
   /* 准备页目录：移动端换行而不是横向滚动，避免后面的项被截断看不到 */
@@ -2021,26 +2027,139 @@ textarea.input {
 
   .brand-text {
     font-size: 14px;
+    min-width: 0;
   }
 
   .brand-text em {
     display: none;
   }
 
-  .nav {
-    width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-
-  .nav::-webkit-scrollbar {
+  .topbar > .nav {
     display: none;
   }
 
-  .nav-link {
-    padding: 8px 12px;
-    white-space: nowrap;
+  .mobile-menu-button {
+    display: inline-flex;
+    flex: 0 0 40px;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  .mobile-menu-button:hover {
+    background: var(--line-soft);
+  }
+
+  .menu-icon {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    width: 18px;
+    height: 18px;
+  }
+
+  .menu-icon i {
+    display: block;
+    width: 18px;
+    height: 2px;
+    border-radius: 2px;
+    background: currentColor;
+    transition: transform 0.18s ease, opacity 0.18s ease;
+  }
+
+  .menu-icon.is-open i:first-child {
+    transform: translateY(6px) rotate(45deg);
+  }
+
+  .menu-icon.is-open i:nth-child(2) {
+    opacity: 0;
+  }
+
+  .menu-icon.is-open i:last-child {
+    transform: translateY(-6px) rotate(-45deg);
+  }
+
+  .mobile-nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: rgba(17, 24, 39, 0.38);
+    animation: mobile-nav-fade-in 0.18s ease-out both;
+  }
+
+  .mobile-nav-drawer {
+    display: flex;
+    position: fixed;
+    inset: 0 0 0 auto;
+    z-index: 41;
+    flex-direction: column;
+    width: min(82vw, 340px);
+    height: 100dvh;
+    padding: max(16px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
+    background: var(--card);
+    box-shadow: -12px 0 36px rgba(16, 24, 40, 0.16);
+    animation: mobile-nav-slide-in 0.22s ease-out both;
+  }
+
+  .mobile-nav-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 44px;
+    margin-bottom: 12px;
+    color: var(--text);
+    font-size: 17px;
+  }
+
+  .mobile-nav-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border: 0;
+    border-radius: 9px;
+    background: var(--line-soft);
+    color: var(--text);
+    font: inherit;
+    font-size: 26px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .mobile-nav-links {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .mobile-nav-links .nav-link {
+    padding: 12px 14px;
+    border-radius: 10px;
+    font-size: 15px;
+  }
+
+  @keyframes mobile-nav-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes mobile-nav-slide-in {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
   }
 
   .content {

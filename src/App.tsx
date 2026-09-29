@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { HashRouter, Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { FeedbackProvider } from './components/Feedback'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -61,19 +62,74 @@ function NotFound() {
   )
 }
 export default function App() {
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const mobileMenuButtonRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (!mobileNavOpen) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMobileNavOpen(false)
+        mobileMenuButtonRef.current?.focus()
+        return
+      }
+      if (event.key !== 'Tab') return
+
+      const drawer = document.getElementById('mobile-main-nav')
+      const focusable = drawer?.querySelectorAll<HTMLElement>('a[href], button:not(:disabled)')
+      if (!focusable?.length) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    document.querySelector<HTMLElement>('.mobile-nav-close')?.focus()
+    document.addEventListener('keydown', onKeyDown)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      document.body.style.overflow = ''
+    }
+  }, [mobileNavOpen])
+
+  const closeMobileNav = () => {
+    setMobileNavOpen(false)
+    mobileMenuButtonRef.current?.focus()
+  }
+
   return (
     <HashRouter>
       <FeedbackProvider>
         <DataProvider>
           <div className="app">
             <header className="topbar">
-            <Link to="/" className="brand" title="回到首页">
-              <span className="brand-mark">100K</span>
-              <span className="brand-text">
-                偶来小路 · 百公里攻略
-                <em>济州岛 Jeju Olle Trail · 27 条路线凑里程</em>
-              </span>
-            </Link>
+              <Link to="/" className="brand" title="回到首页" onClick={closeMobileNav}>
+                <span className="brand-mark">100K</span>
+                <span className="brand-text">
+                  偶来小路 · 百公里攻略
+                  <em>济州岛 Jeju Olle Trail · 27 条路线凑里程</em>
+                </span>
+              </Link>
+              <button
+                type="button"
+                className="mobile-menu-button"
+                ref={mobileMenuButtonRef}
+                aria-label={mobileNavOpen ? '关闭目录' : '打开目录'}
+                aria-expanded={mobileNavOpen}
+                aria-controls="mobile-main-nav"
+                onClick={() => setMobileNavOpen((open) => !open)}
+              >
+                <span className={mobileNavOpen ? 'menu-icon is-open' : 'menu-icon'} aria-hidden="true">
+                  <i />
+                  <i />
+                  <i />
+                </span>
+              </button>
               <nav className="nav">
                 {NAV.map((n) => (
                   <NavLink key={n.to} to={n.to} end={n.to === '/'} className={({ isActive }) => (isActive ? 'nav-link is-active' : 'nav-link')}>
@@ -82,6 +138,37 @@ export default function App() {
                 ))}
               </nav>
             </header>
+            {mobileNavOpen && (
+              <>
+                <button
+                  type="button"
+                  className="mobile-nav-backdrop"
+                  aria-label="关闭目录"
+                  onClick={closeMobileNav}
+                />
+                <aside id="mobile-main-nav" className="mobile-nav-drawer" role="dialog" aria-modal="true" aria-label="主目录">
+                  <div className="mobile-nav-heading">
+                    <strong>目录</strong>
+                    <button type="button" className="mobile-nav-close" aria-label="关闭目录" onClick={closeMobileNav}>
+                      <span aria-hidden="true">×</span>
+                    </button>
+                  </div>
+                  <nav className="mobile-nav-links">
+                    {NAV.map((n) => (
+                      <NavLink
+                        key={n.to}
+                        to={n.to}
+                        end={n.to === '/'}
+                        onClick={closeMobileNav}
+                        className={({ isActive }) => (isActive ? 'nav-link is-active' : 'nav-link')}
+                      >
+                        {n.label}
+                      </NavLink>
+                    ))}
+                  </nav>
+                </aside>
+              </>
+            )}
             <main className="content">
               <PageRoutes />
             </main>

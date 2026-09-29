@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useData } from '../store/DataContext'
-import { computeMetrics, formatKm, mapLines, routeBadgeAnchor } from '../lib/geo'
+import { computeMetrics, formatKm, mapLineSet, routeBadgeAnchor } from '../lib/geo'
 import { useActivePlan } from '../hooks/useActivePlan'
 import { useConfirm, useToast } from '../components/Feedback'
 import { Modal } from '../components/Modal'
@@ -52,8 +52,14 @@ export function PlanPage() {
    * 画线几何：每条路线恰好一段 —— 有真实轨迹走轨迹，没有就把途经点连起来。
    * ⚠️ 别只把有轨迹的那几条塞进去：`lines` 一旦非空就整体接管画线，
    * 没轨迹的路线会整条从图上消失（这正是 mapLines 存在的原因）。
+   *
+   * 同时把「这段是不是示意线」一并传下去：OSM 里 17 / 21 / 18-1 / 18-2 等**没有轨迹**，
+   * 图上只能把 seed.ts 的城镇级近似坐标连成直线 —— 不标出来的话，「西海岸一根斜穿
+   * 岛内的直线」看起来就跟真走过的路一样。虚线 + 灰绿一眼可辨。
    */
-  const planLines = useMemo(() => mapLines(rows.map((r) => r.route)), [rows])
+  const planLineSet = useMemo(() => mapLineSet(rows.map((r) => r.route)), [rows])
+  const planLines = useMemo(() => planLineSet.map((l) => l.seg), [planLineSet])
+  const planApprox = useMemo(() => planLineSet.map((l) => l.approx), [planLineSet])
   /**
    * 标记改用路线编号（而不是起 / 终）：几条线同屏时，
    * 两组起终标记根本分不出哪条是几号，编号徽标一眼就能对上列表。
@@ -203,12 +209,15 @@ export function PlanPage() {
               <h2>行程位置</h2>
               <p className="muted">
                 已加入行程篮的各段路线在地图上的分布（黑标=路线编号，紫=住宿，橙=看点）。
-                标识落在每段线中间，避开相邻路线共享的端点；有真实轨迹的按轨迹画线，其余连途经点。
+                标识落在每段线中间，避开相邻路线共享的端点；有真实轨迹的按轨迹画线，
+                其余连途经点。<strong>虚线（灰绿）= 这条线还没有实测轨迹</strong>，
+                只是把近似坐标连起来示意，走向不作数。
                 底图加载失败时自动降级为离线示意图，位置信息不受影响。
               </p>
               <RouteMap
                 trails={planTrails}
                 lines={planLines}
+                approxLines={planApprox}
                 badges={planBadges}
                 hotels={planHotels}
                 sights={planSights}
