@@ -89,6 +89,13 @@ export interface Route {
   difficulty: number
   /** 有序途经点，index 0 为起点，最后一个为终点 */
   points: TrackPoint[]
+  /**
+   * 官方权威起/终点坐标（覆盖 `snapRouteEnds` 吸附到轨迹首末点的行为）。
+   * 仅在「轨迹首末点 ≠ 官方 trailhead」时设置：让起点/终点标记钉在官方命名地点，
+   * 而折线仍走真实轨迹。没有可信轨迹时，路线的 `points` 本身就是官方地点坐标。
+   */
+  startPoint?: TrackPoint
+  endPoint?: TrackPoint
   /** 手填里程（km），填了则以它为准（实际轨迹比直线长） */
   manualDistanceKm?: number
   /** 手填累计爬升（m） */

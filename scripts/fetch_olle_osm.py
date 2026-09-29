@@ -215,7 +215,7 @@ def overpass(endpoint, query, retries=3):
                 "Accept": "application/json",
                 "Content-Type": "application/x-www-form-urlencoded",
                 # Overpass 明确要求带可识别的 UA，否则可能直接 403
-                "User-Agent": "trail-100k/1.0 (jeju olle track fetch; personal project)",
+                "User-Agent": "jeju-100k/1.0 (jeju olle track fetch; personal project)",
             },
             method="POST",
         )
@@ -610,17 +610,39 @@ def endpoint_verdict(segments, want, places, tol_m=ENDPOINT_TOL_M):
     have = [(name, places[name]) for name in (want or ()) if name in places]
     if not have or not segments:
         return True, ""
-    pts = [p for seg in segments for p in seg]
-    if not pts:
+    # MultiLineString 的端点必须按每一段计算；flatten 后的首末点不一定是
+    # 路线两端（中间可能有缺口），而且不能让起终点都独立匹配到同一个端点。
+    endpoints = [p for seg in segments if len(seg) >= 2 for p in (seg[0], seg[-1])]
+    if len(endpoints) < 2:
         return True, ""
-    cand = {                     # 地点 → 轨迹上离它最近的那个端点
-        name: min((pts[0], pts[-1]), key=lambda q: haversine_m(q, coord))
-        for name, coord in have
-    }
-    worst = max(((name, haversine_m(cand[name], coord)) for name, coord in have),
-                key=lambda x: x[1])
-    if worst[1] > tol_m:
-        return False, (f"端点对不上：离官方「{worst[0]}」{worst[1] / 1000:.1f}km "
+    # 允许路线反向，并在多段数据中选一对不同的几何端点。只有一个官方
+    # 坐标时仅检查最近的几何端点；两个都有时要求它们分别匹配两个端点。
+    if len(have) == 1:
+        name, coord = have[0]
+        dist = min(haversine_m(p, coord) for p in endpoints)
+        if dist > tol_m:
+            return False, (f"端点对不上：离官方「{name}」{dist / 1000:.1f}km "
+                           f"（上限 {tol_m / 1000:.0f}km）—— 多半是这条线走的是**旧走向**")
+        return True, ""
+
+    (start_name, start), (end_name, end) = have[:2]
+    options = []
+    for i, a in enumerate(endpoints):
+        for j, b in enumerate(endpoints):
+            if i == j:
+                continue
+            options.append((
+                max(haversine_m(a, start), haversine_m(b, end)),
+                ((start_name, haversine_m(a, start)), (end_name, haversine_m(b, end))),
+            ))
+            options.append((
+                max(haversine_m(a, end), haversine_m(b, start)),
+                ((start_name, haversine_m(a, end)), (end_name, haversine_m(b, start))),
+            ))
+    worst_dist, matched = min(options, key=lambda x: x[0])
+    if worst_dist > tol_m:
+        name, dist = max(matched, key=lambda x: x[1])
+        return False, (f"端点对不上：离官方「{name}」{dist / 1000:.1f}km "
                        f"（上限 {tol_m / 1000:.0f}km）—— 多半是这条线走的是**旧走向**")
     return True, ""
 

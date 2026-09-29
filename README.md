@@ -1,5 +1,7 @@
 # 偶来小路 · 百公里攻略（济州岛 Jeju Olle Trail）
 
+> 🌐 语言 / Language：**[中文](README.md)** · [English](README.en.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
+
 把济州岛 27 条偶来小路（올레길）攒成自己的行程，自动算里程、看有没有凑够百公里，顺带管理起终点、沿途住宿、路边景色和相册。
 
 纯前端，数据保存在本机浏览器（localStorage + IndexedDB），npm 管理依赖，最终用户使用 `npm run build` 产出的静态页面。
@@ -57,6 +59,8 @@ python3 scripts/fetch_elevation.py --force    # 忽略缓存全部重抓
 
 自己新建的路线没有采样数据，在 `/admin` 的「途经点」里给每个点填海拔即可；
 **少于 2 个点有海拔时，爬升显示「—」而不是 0**（0 会让人误以为这条路是平的）。
+
+> ⚠️ **本节（§1.3 起）为「数据采集开发日志」**：记录如何从 OSM / GPX 抓取真实轨迹、三源比选与历史导入结果。四语种翻译文件中此节**保留中文原版**（标注 `dev log, zh only`）。纯使用者 / 部署者可跳过，直接看 §2 起的功能与部署说明。
 
 ### 用真实轨迹替换近似坐标（推荐）
 
@@ -672,14 +676,14 @@ python3 scripts/fetch_photos.py --dry      # 只检索不下载
 ### 构建并本地自测镜像
 
 ```bash
-docker build -t trail-100k .
-docker run --rm -p 8080:80 trail-100k
+docker build -t jeju-100k .
+docker run --rm -p 8080:80 jeju-100k
 # 浏览器打开 http://localhost:8080/jeju/ 验证
 ```
 
 ### 推到 Dokploy
 
-1. Dokploy 新建 **Application**，源码接 GitHub 公开仓 `tanabalu/trail-100k`（main 分支）。
+1. Dokploy 新建 **Application**，源码接 GitHub 公开仓 `tanabalu/jeju-100k`（main 分支）。
 2. 构建方式选 **Dockerfile**（多阶段已写好，无需额外参数）。
 3. 端口：容器暴露 `80`，Dokploy 内网端口填 `80`。
 4. **Traefik 路由规则**（PathPrefix）：`PathPrefix(\`/jeju\`)`，与 nginx 里的 `/jeju/` 对应（Traefik 的 PathPrefix 会自动匹配 `/jeju` 和 `/jeju/...`）。

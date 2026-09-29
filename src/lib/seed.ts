@@ -200,6 +200,12 @@ function buildRoute(spec: OlleSpec): Route {
     code: spec.code,
     name: `偶来 ${spec.code} · ${s.zh} → ${e.zh}`,
     region: `韩国 · 济州岛 · ${spec.region ?? ''}`,
+    // 对有可信线路几何、但采集端点不在官方命名地点的路线，地图标记钉在官方地点。
+    // 07-1 的现有路径以其几何首末点为准：官方中心锚点会把终点标记拉离路径约 1.3km。
+    // 只给 06 / 07 / 14-1 保留官方锚点；其余路线的标记按轨迹首末点吸附。
+    ...(spec.code === '06' || spec.code === '07' || spec.code === '14-1'
+      ? { startPoint: start, endPoint: end }
+      : {}),
     summary: isLoop
       ? `${s.zh}环线，官方里程 ${spec.km} km，官方难度 ${spec.difficulty}。`
       : `${s.zh}（${s.ko}）到 ${e.zh}（${e.ko}），官方里程 ${spec.km} km，官方难度 ${spec.difficulty}。`,

@@ -116,6 +116,11 @@ function isUntouchedSeed(route: Route, seedPts: Map<string, { lng: number; lat: 
  * 所以只换折线不换途经点的话，起点/终点标记还会留在错的位置上。
  * 轨迹首末点就是这条线真实的起终点，直接用它。
  *
+ * ⚠️ 例外：route.startPoint / route.endPoint 设置了官方权威坐标时，优先钉到官方命名地点
+ *   （目前只有 06 / 07 / 14-1）。07-1 的官方终点锚点离现有路线末点约 1.3km，
+ *   因此保留其轨迹端点作为地图标记，避免标记脱离用户确认正确的线路。
+ *   折线仍走真实轨迹，只把起终点标记挪回官方位置。
+ *
  * ⚠️ 只在途经点「仍是预置值」时吸附 —— 你在后台手动校正过的坐标不会被覆盖。
  */
 function snapRouteEnds(
@@ -128,7 +133,15 @@ function snapRouteEnds(
   const first = track[0]
   const last = track[track.length - 1]
   const eleOf = (p: [number, number, number | null]) => (typeof p[2] === 'number' ? p[2] : undefined)
+  // 官方权威起/终点优先：06 / 07 / 14-1 的轨迹首末点偏离官方 trailhead，
+  // 钉到官方命名地点才能让标记落到正确位置，折线仍走真实轨迹。
+  const sAnchor = route.startPoint
+  const eAnchor = route.endPoint
   return pts.map((p, i) => {
+    if (i === 0 && sAnchor)
+      return { ...p, lng: sAnchor.lng, lat: sAnchor.lat, ele: sAnchor.ele ?? eleOf(first) ?? p.ele }
+    if (i === pts.length - 1 && eAnchor)
+      return { ...p, lng: eAnchor.lng, lat: eAnchor.lat, ele: eAnchor.ele ?? eleOf(last) ?? p.ele }
     if (i === 0) return { ...p, lng: first[0], lat: first[1], ele: eleOf(first) ?? p.ele }
     if (i === pts.length - 1) return { ...p, lng: last[0], lat: last[1], ele: eleOf(last) ?? p.ele }
     return p
