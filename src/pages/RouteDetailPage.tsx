@@ -6,8 +6,10 @@ import { ElevationChart } from '../components/ElevationChart'
 import { Thumb } from '../components/Thumb'
 import { Modal } from '../components/Modal'
 import { computeMetrics, formatGain, formatKm, projectToRoute, trackLines } from '../lib/geo'
+import { TRIP_PLANS, TRIP_PLAN_DISCLAIMER } from '../lib/tripPlans'
 import { resolveImageSrc } from '../lib/imageStore'
-import { useActivePlan, routeKindLabel } from '../hooks/useActivePlan'
+import { useActivePlan } from '../hooks/useActivePlan'
+import { routeKindLabel } from '../lib/routeKind'
 import type { AlbumItem, RouteMetrics } from '../types'
 
 /** 爬升数字的口径说明，避免把「估算」和「实测」混为一谈 */
@@ -70,6 +72,8 @@ export function RouteDetailPage() {
   const start = m?.startPoint
   const end = m?.endPoint
   const added = has(route.id)
+  // 行程建议：按路线编号查表（27 条全量，见 src/lib/tripPlans.ts）
+  const plan = route.code ? TRIP_PLANS[route.code] : undefined
 
   return (
     <div className="page">
@@ -138,6 +142,46 @@ export function RouteDetailPage() {
         <Stat label="途经点" value={`${route.points.length} 个`} hint={`${route.hotels.length} 住宿 / ${route.sights.length} 看点`} />
       </div>
 
+      {/* 行程建议：27 条线全量（数据口径见 src/lib/tripPlans.ts 头注释） */}
+      {route.code && plan && (
+        <section className="section">
+          <h2>行程建议</h2>
+          <div className="trip-card">
+            <div className="trip-head">
+              <b>
+                {route.code}号线 · {start?.name ?? '—'} → {end?.name ?? '—'}
+              </b>
+              <span className="trip-head-meta">
+                {formatKm(m?.distanceKm ?? 0)} · 难度 {'★'.repeat(Math.max(1, Math.min(5, route.difficulty)))}
+              </span>
+            </div>
+            <div className="trip-rows">
+              <TripRow icon="🏨" label="前夜住宿" value={plan.stay} />
+              <TripRow icon="⏰" label="建议起床" value={plan.wake} />
+              <TripRow icon="🚌" label="去程交通" value={plan.access} />
+              <TripRow icon="🚶" label="分段步行">
+                <div className="trip-chips">
+                  {plan.stages.map((s, i) => (
+                    <span key={i} className="trip-chip">
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              </TripRow>
+              <TripRow icon="🍚" label="午餐补给" value={plan.lunch} />
+              <TripRow icon="🔙" label="回程交通" value={plan.back} />
+              <TripRow icon="🛏️" label="回程住宿" value={plan.stayReturn} />
+            </div>
+            {plan.notes?.map((n, i) => (
+              <p key={i} className={`trip-note ${n.startsWith('⚠️') ? 'is-warn' : ''}`}>
+                <span className="trip-note-icon">{n.startsWith('⚠️') ? '⚠️' : 'ℹ️'}</span> {n.replace(/^⚠️\s*/, '')}
+              </p>
+            ))}
+            <p className="trip-disclaimer">{TRIP_PLAN_DISCLAIMER}</p>
+          </div>
+        </section>
+      )}
+
       <section className="section">
         <h2>起终点与轨迹</h2>
         <div className="start-end">
@@ -168,6 +212,11 @@ export function RouteDetailPage() {
               : '坐标与轨迹均为实测数据（轨迹导入），可直接用于导航与爬升判断。'
             : '坐标为城镇级近似值，用于排序 / 看分布；导航前请用「地图选点」校正，或导入真实轨迹一键替换。'}
         </p>
+        {route.legacyWaypoints && (
+          <p className="muted" style={{ marginTop: 4, fontSize: 12, color: '#b45309' }}>
+            ⚠️ 旧走向 · 待核：途经点整理自 2017 官方线路图，这条线路此后改过线，途经点位置可能与现行路径不符。
+          </p>
+        )}
         {route.trackSource && (
           <p className="muted" style={{ marginTop: 4, fontSize: 12 }}>
             轨迹来源：<a href={route.trackSource.url} target="_blank" rel="noopener noreferrer">{route.trackSource.name}</a>
@@ -299,6 +348,28 @@ export function RouteDetailPage() {
       </section>
 
       {lightbox && <Lightbox item={lightbox} onClose={() => setLightbox(null)} />}
+    </div>
+  )
+}
+
+/** 行程建议卡的一行：图标 + 标签 + 内容（内容可以是文本，也可以是 chips） */
+function TripRow({
+  icon,
+  label,
+  value,
+  children,
+}: {
+  icon: string
+  label: string
+  value?: string
+  children?: React.ReactNode
+}) {
+  return (
+    <div className="trip-row">
+      <span className="trip-row-label">
+        <span aria-hidden>{icon}</span> {label}
+      </span>
+      <div className="trip-row-value">{children ?? value}</div>
     </div>
   )
 }

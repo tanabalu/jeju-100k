@@ -1,0 +1,176 @@
+#!/usr/bin/env python3
+"""
+Snap official waypoints (name + along-route distance, from the 2017 Jeju Olle route map
+PDF) onto the real GPX tracks in public/tracks.json, and emit a TypeScript data module
+that seed.ts can import directly.
+
+Why pre-snap instead of doing it at runtime: the map draws the route line from
+tracks.json, but waypoint *markers* come from route.points.  So the markers must already
+sit on the line.  We interpolate each waypoint's lng/lat at its official along-route
+distance along the real track (haversine cumulative distance), which is exact.
+
+Direction handling: for non-loop routes we compare the track's two ends against the
+route's known start/end coordinates (parsed from src/lib/seed.ts PLACES/SPECS) and pick
+the orientation whose endpoints are closer to the official trailheads.  Loop routes are
+used as-is (the circuit distance is the same either way).
+
+Excluded: 14-1 (already corrected by codex with a real 2024 GPX; iron rule — do not add
+approximate/fabricated waypoints to it).  Its waypoints would be distance-snapped onto a
+correct track, but the user explicitly asked not to touch that line's data, so we skip it.
+
+Output: src/lib/waypointsData.ts
+  export interface WaypointDef { name: string; lng: number; lat: number; type: WaypointType }
+  export const ROUTE_WAYPOINTS: Record<string, WaypointDef[]> = { ... }
+"""
+
+from __future__ import annotations
+
+import json
+import math
+import re
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+TRACKS_PATH = ROOT / "public" / "tracks.json"
+WP_PATH = ROOT / "scripts" / "data" / "olle-waypoints.json"
+SEED_PATH = ROOT / "src" / "lib" / "seed.ts"
+OUT_PATH = ROOT / "src" / "lib" / "waypointsData.ts"
+
+# Routes whose geometry was re-aligned after the 2017 map (or which we keep untouched).
+# 14-1 is excluded entirely (iron rule); 07/07-1/16/17 get waypoints but flagged legacy.
+EXCLUDED = {"14-1"}
+LEGACY = {"07", "07-1", "16", "17"}
+
+R_EARTH = 6371.0088  # km
+
+
+def haversine(a, b) -> float:
+    lng1, lat1 = a
+    lng2, lat2 = b
+    p1, p2 = lat1 * 0.017453292519943295, lat2 * 0.017453292519943295
+    dp = (lat2 - lat1) * 0.017453292519943295
+    dl = (lng2 - lng1) * 0.017453292519943295
+    s = 2 * (math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2) ** 0.5
+    return 2 * R_EARTH * math.asin(min(1.0, s / 2))
+
+
+def cumulative(track) -> list[float]:
+    cum = [0.0]
+    for i in range(1, len(track)):
+        cum.append(cum[-1] + haversine(track[i - 1][:2], track[i][:2]))
+    return cum
+
+
+def snap(track, cum, target_km):
+    if target_km <= 0:
+        return track[0][:2]
+    if target_km >= cum[-1]:
+        return track[-1][:2]
+    # binary-ish search
+    lo, hi = 0, len(cum) - 1
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if cum[mid] < target_km:
+            lo = mid + 1
+        else:
+            hi = mid
+    i = max(1, lo)
+    seg_len = cum[i] - cum[i - 1]
+    t = 0.0 if seg_len == 0 else (target_km - cum[i - 1]) / seg_len
+    a, b = track[i - 1][:2], track[i][:2]
+    return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
+
+
+def main() -> int:
+    tracks = json.loads(TRACKS_PATH.read_text(encoding="utf-8"))
+    wps = json.loads(WP_PATH.read_text(encoding="utf-8"))
+
+    result: dict[str, list[dict]] = {}
+    reports: list[str] = []
+
+    for code, waypoints in wps.items():
+        if code in EXCLUDED:
+            reports.append(f"SKIP {code} (excluded by iron rule)")
+            continue
+        entry = tracks.get(code)
+        if not entry or not isinstance(entry.get("points"), list) or len(entry["points"]) < 2:
+            reports.append(f"SKIP {code} (no track in tracks.json)")
+            continue
+        track = [tuple(p[:2]) for p in entry["points"]]
+        # The map pins each route's start marker at track[0] (see DataContext.snapRouteEnds:
+        # without an official anchor it snaps to the track's first/last point).  So waypoint
+        # distances must be measured from track[0] to stay consistent with the displayed
+        # start — we never flip the track.  (PLACES town-level coords are stale up to ~10km,
+        # so they can't be used to infer direction anyway.)
+        oriented = track
+        cum = cumulative(oriented)
+        total = cum[-1]
+        snapped = []
+        max_d = max((w["distance"] for w in waypoints), default=0)
+        dropped = 0
+        for w in waypoints:
+            # Waypoint distance beyond the real track length means the 2017 PDF label is
+            # unreliable for this route (or distances are off-scale).  Dropping avoids a
+            # cluster of markers piled onto the finish point.
+            if w["distance"] > total + 0.05:
+                dropped += 1
+                continue
+            pt = snap(oriented, cum, w["distance"])
+            snapped.append({
+                "name": w["name"],
+                "lng": round(pt[0], 6),
+                "lat": round(pt[1], 6),
+                "type": w["type"],
+            })
+        result[code] = snapped
+        flag = " [LEGACY/待核]" if code in LEGACY else ""
+        reports.append(
+            f"{code}: {len(snapped)} waypoints | track {total:.2f}km vs last wp {max_d:.1f}km"
+            + (f" | {dropped} dropped(beyond track)" if dropped else "")
+            + flag
+        )
+
+    # Emit TypeScript module
+    lines = [
+        "// AUTO-GENERATED by scripts/build_waypoints_data.py — do not edit by hand.",
+        "// Waypoints extracted from the official 2017 Jeju Olle route map PDF and snapped",
+        "// onto public/tracks.json by along-route distance.  Regenerate after editing the PDF",
+        "// extraction or the tracks.",
+        "import type { WaypointType } from '../types'",
+        "",
+        "export interface WaypointDef {",
+        "  name: string",
+        "  lng: number",
+        "  lat: number",
+        "  type: WaypointType",
+        "}",
+        "",
+        "export const ROUTE_WAYPOINTS: Record<string, WaypointDef[]> = {",
+    ]
+    for code in sorted(result.keys()):
+        lines.append(f"  '{code}': [")
+        for w in result[code]:
+            lines.append(
+                f"    {{ name: {json.dumps(w['name'], ensure_ascii=False)}, "
+                f"lng: {w['lng']}, lat: {w['lat']}, type: {json.dumps(w['type'])} }},"
+            )
+        lines.append("  ],")
+    lines.append("}")
+    lines.append("")
+    lines.append("/** 途经点来自 2017 旧走向、而线路此后已改线的路线（详情页提示「旧走向 · 待核」）。 */")
+    legacy = sorted(LEGACY & set(result.keys()))
+    lines.append(
+        "export const LEGACY_WAYPOINT_ROUTES: ReadonlySet<string> = new Set("
+        + json.dumps(legacy)
+        + ")"
+    )
+    lines.append("")
+    OUT_PATH.write_text("\n".join(lines), encoding="utf-8")
+
+    print("\n".join(reports))
+    print(f"\nWrote {OUT_PATH} ({len(result)} routes)")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useData } from '../store/DataContext'
-import { emptyRoute, exportBackup, importBackup } from '../lib/storage'
+import { exportBackup, importBackup } from '../lib/storage'
 import { computeMetrics, formatKm } from '../lib/geo'
-import { useConfirm, useToast } from '../components/Feedback'
+import { useToast } from '../components/Feedback'
 import type { Route } from '../types'
 import { BasicForm } from './admin/BasicForm'
 import { PointsEditor } from './admin/PointsEditor'
@@ -22,10 +22,9 @@ const TABS: { key: Tab; label: string }[] = [
 ]
 
 export function AdminPage() {
-  const { routes, upsertRoute, removeRoute, reload } = useData()
+  const { routes, upsertRoute, reload } = useData()
   const [params, setParams] = useSearchParams()
   const toast = useToast()
-  const confirm = useConfirm()
   const fileRef = useRef<HTMLInputElement>(null)
 
   const routeId = params.get('route') ?? ''
@@ -76,7 +75,7 @@ export function AdminPage() {
       <div className="admin-head">
         <div>
           <h1 className="detail-title">素材管理后台</h1>
-          <p className="muted">在这里新增/编辑路线，维护起终点、住宿、看点、相册。所有数据保存在本机浏览器。</p>
+          <p className="muted">在这里查看 / 编辑已有路线的素材（起终点、住宿、看点、相册）。所有数据保存在本机浏览器。</p>
         </div>
         <div className="admin-head-actions">
           <select
@@ -91,32 +90,6 @@ export function AdminPage() {
               </option>
             ))}
           </select>
-          <button
-            className="btn btn-primary"
-            onClick={() => {
-              const r = emptyRoute({ name: `新路线 ${routes.length + 1}` })
-              upsertRoute(r)
-              setParams({ route: r.id })
-              setTab('basic')
-              toast('已创建路线', 'success')
-            }}
-          >
-            新建路线
-          </button>
-          {route && (
-            <button
-              className="btn btn-danger"
-              onClick={async () => {
-                if (await confirm({ title: '删除路线', message: `删除「${route.name}」及其全部素材？不可恢复。`, confirmText: '删除', danger: true })) {
-                  removeRoute(route.id)
-                  setParams({}, { replace: true })
-                  toast('已删除', 'success')
-                }
-              }}
-            >
-              删除路线
-            </button>
-          )}
         </div>
       </div>
 
@@ -143,7 +116,7 @@ export function AdminPage() {
 
       {!route ? (
         <div className="empty">
-          <p>还没有路线，先新建一条。</p>
+          <p>没有可选路线。</p>
         </div>
       ) : (
         <>
@@ -176,7 +149,7 @@ export function AdminPage() {
           </div>
 
           <div className="tab-panel">
-            {tab === 'basic' && <BasicForm route={route} onPatch={patch} />}
+            {tab === 'basic' && <BasicForm route={route} />}
             {tab === 'points' && <PointsEditor route={route} onPatch={patch} />}
             {tab === 'hotels' && <HotelsEditor route={route} onPatch={patch} />}
             {tab === 'sights' && <SightsEditor route={route} onPatch={patch} />}

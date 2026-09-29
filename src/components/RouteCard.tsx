@@ -2,14 +2,22 @@ import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import type { Route } from '../types'
 import { computeMetrics, formatKm } from '../lib/geo'
+import { useData } from '../store/DataContext'
 import { Thumb } from './Thumb'
-import { routeKindLabel, useActivePlan } from '../hooks/useActivePlan'
+import { routeKindLabel } from '../lib/routeKind'
+import { useActivePlan } from '../hooks/useActivePlan'
 
 export function RouteCard({ route }: { route: Route }) {
   const m = useMemo(() => computeMetrics(route), [route])
+  const { plans } = useData()
   const { addRoute, has } = useActivePlan()
   const added = has(route.id)
   const is100 = m.distanceKm >= 100
+  // 「已完成」= 这条线在**任意一个**行程篮里被勾过「走完」；不影响再加入其他行程篮
+  const donePlan = useMemo(
+    () => plans.find((p) => p.items.some((i) => i.routeId === route.id && i.done)),
+    [plans, route.id],
+  )
 
   return (
     <div className="card route-card">
@@ -23,6 +31,15 @@ export function RouteCard({ route }: { route: Route }) {
           </div>
         )}
         {route.code && <span className="code-badge">{route.code}</span>}
+        {donePlan && (
+          <span
+            className="done-badge"
+            title={`已在「${donePlan.name}」行程篮中标记走完`}
+            aria-label="已完成"
+          >
+            ✓
+          </span>
+        )}
         {is100 && <span className="badge badge-100">百公里</span>}
       </div>
       <div className="route-body">

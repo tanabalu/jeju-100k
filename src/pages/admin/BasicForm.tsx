@@ -1,148 +1,61 @@
 import type { Route } from '../../types'
 import { computeMetrics, formatKm } from '../../lib/geo'
+import { routeKindLabel } from '../../lib/routeKind'
 import { ImageField } from '../../components/ImageField'
 
 interface Props {
   route: Route
-  onPatch: (patch: Partial<Route>) => void
 }
 
-export function BasicForm({ route, onPatch }: Props) {
+export function BasicForm({ route }: Props) {
   const m = computeMetrics(route)
-  const tagsText = route.tags.join('、')
+  const stars = '★'.repeat(Math.max(1, Math.min(5, route.difficulty)))
+  const distance =
+    route.manualDistanceKm != null
+      ? `${route.manualDistanceKm} km`
+      : `${formatKm(m.straightKm * 1.2)} km（按直线 ×1.2 估算）`
+  const gain =
+    route.manualGainM != null
+      ? `${route.manualGainM} m`
+      : m.gainM == null
+      ? '无海拔数据'
+      : `${m.gainM} m${m.gainSource === 'profile' ? '（来自地形采样）' : ''}`
+
+  const rows: Array<{ label: string; value: string }> = [
+    { label: '路线编号', value: route.code ?? '—' },
+    { label: '地区', value: route.region || '—' },
+    { label: '类型', value: routeKindLabel(route.kind) },
+    { label: '难度', value: `${route.difficulty} 级（${stars}）` },
+    { label: '路面 / 地形', value: route.surface || '—' },
+    { label: '最佳季节', value: route.bestSeason || '—' },
+    { label: '标签', value: route.tags.length ? route.tags.join('、') : '—' },
+    { label: '实际里程', value: distance },
+    { label: '实际累计爬升', value: gain },
+  ]
 
   return (
-    <div className="form">
-      <label className="field">
-        <span>路线名称</span>
-        <input className="input" value={route.name} onChange={(e) => onPatch({ name: e.target.value })} />
-      </label>
-      <div className="field-row">
-        <label className="field">
-          <span>路线编号</span>
-          <input
-            className="input"
-            placeholder="如：07 / 07-1"
-            value={route.code ?? ''}
-            onChange={(e) => onPatch({ code: e.target.value })}
-          />
-        </label>
-        <label className="field">
-          <span>地区</span>
-          <input
-            className="input"
-            placeholder="如：韩国 · 济州岛 · 西归浦"
-            value={route.region}
-            onChange={(e) => onPatch({ region: e.target.value })}
-          />
-        </label>
-        <label className="field">
-          <span>类型</span>
-          <select className="input" value={route.kind} onChange={(e) => onPatch({ kind: e.target.value as Route['kind'] })}>
-            <option value="hike">徒步</option>
-            <option value="trailrun">越野跑</option>
-            <option value="fastpack">轻装快穿</option>
-          </select>
-        </label>
-        <label className="field">
-          <span>难度（1-5）</span>
-          <select
-            className="input"
-            value={route.difficulty}
-            onChange={(e) => onPatch({ difficulty: Number(e.target.value) })}
-          >
-            {[1, 2, 3, 4, 5].map((n) => (
-              <option key={n} value={n}>
-                {n} ★
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      <label className="field">
-        <span>简介</span>
-        <textarea
-          className="input"
-          rows={3}
-          value={route.summary}
-          onChange={(e) => onPatch({ summary: e.target.value })}
-        />
-      </label>
-
-      <div className="field-row">
-        <label className="field">
-          <span>路面 / 地形</span>
-          <input
-            className="input"
-            placeholder="如：山径 / 草甸 / 台阶"
-            value={route.surface ?? ''}
-            onChange={(e) => onPatch({ surface: e.target.value })}
-          />
-        </label>
-        <label className="field">
-          <span>最佳季节</span>
-          <input
-            className="input"
-            placeholder="如：4-6 月、9-11 月"
-            value={route.bestSeason ?? ''}
-            onChange={(e) => onPatch({ bestSeason: e.target.value })}
-          />
-        </label>
-      </div>
-
-      <label className="field">
-        <span>标签（用、或逗号分隔）</span>
-        <input
-          className="input"
-          value={tagsText}
-          onChange={(e) =>
-            onPatch({
-              tags: e.target.value
-                .split(/[、,，\s]+/)
-                .map((t) => t.trim())
-                .filter(Boolean),
-            })
-          }
-        />
-      </label>
-
-      <div className="field-row">
-        <label className="field">
-          <span>
-            实际里程（km）<em className="hint">留空则按途经点直线里程 × 1.2 估算，当前估算 {formatKm(m.straightKm * 1.2)} km</em>
-          </span>
-          <input
-            className="input"
-            type="number"
-            step="0.1"
-            placeholder={formatKm(m.straightKm * 1.2)}
-            value={route.manualDistanceKm ?? ''}
-            onChange={(e) => onPatch({ manualDistanceKm: e.target.value === '' ? undefined : Number(e.target.value) })}
-          />
-        </label>
-        <label className="field">
-          <span>
-            实际累计爬升（m）
-            <em className="hint">
-              留空则用当前估算值（{m.gainM == null ? '无海拔数据' : `${m.gainM} m`}
-              {m.gainSource === 'profile' ? '，来自地形采样' : ''}）。填了就以你填的为准
-            </em>
-          </span>
-          <input
-            className="input"
-            type="number"
-            step="10"
-            value={route.manualGainM ?? ''}
-            onChange={(e) => onPatch({ manualGainM: e.target.value === '' ? undefined : Number(e.target.value) })}
-          />
-        </label>
-      </div>
-
-      <div className="field">
-        <span>封面图</span>
-        <ImageField value={route.cover} onChange={(cover) => onPatch({ cover })} height={140} />
-      </div>
+    <div className="info-view">
+      <h3 className="info-title">{route.name}</h3>
+      <dl className="info-list">
+        {rows.map((r) => (
+          <div className="info-row" key={r.label}>
+            <dt className="info-label">{r.label}</dt>
+            <dd className="info-value">{r.value}</dd>
+          </div>
+        ))}
+      </dl>
+      {route.summary && (
+        <div className="info-block">
+          <div className="info-label">简介</div>
+          <p className="info-value">{route.summary}</p>
+        </div>
+      )}
+      {route.cover && (
+        <div className="info-block">
+          <div className="info-label">封面图</div>
+          <ImageField value={route.cover} onChange={() => {}} readOnly />
+        </div>
+      )}
     </div>
   )
 }

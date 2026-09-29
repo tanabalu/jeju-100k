@@ -429,10 +429,10 @@ textarea.input {
 
 .route-cover {
   position: relative;
-  /* 封面是风景照（横构图，多数 3:2），按 3:2 留位；object-fit: cover 只会裁掉上下极少一点。
+  /* 封面是风景照（横构图，多数 3:2），按 16:9 留位；object-fit: cover 只会裁掉上下极少一点。
      官方路线图（842×596 ≈ 1.41:1）只是「照片缺失」时的兜底，落到这个比例会上下各裁约 3%，
      地图本体不受影响（四周本来就只有约 3% 留白，路线完整）。换图源要同步改这里。 */
-  aspect-ratio: 3 / 2;
+  aspect-ratio: 16 / 9;
   background: var(--line-soft);
 }
 
@@ -488,6 +488,88 @@ textarea.input {
   background: var(--brand);
   color: #fff;
   font-weight: 600;
+}
+
+/* 「已完成」角标：绿色 ✓ 圆章，钉在封面右上角。
+   只做小面积高识别标记，不改整卡背景 —— 首页是「选线下一步」的决策场景，
+   完成状态是辅助信息，不能压过未完成线路的视觉优先级。 */
+.done-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #16a34a;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+  cursor: default;
+}
+
+/* 完成章与「百公里」都在右上角：两者同时出现时把百公里徽章挪到章的下方，避免叠住 */
+.route-cover:has(.done-badge) .badge-100 {
+  top: 44px;
+}
+
+/* ===== 详情页「行程建议」Day 卡（视觉参考用户提供截图：米色卡 + 浅橙时间片） ===== */
+.day-card {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border: 1px solid #f5d9b8;
+  border-radius: 12px;
+  background: #fffaf3;
+}
+
+.day-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.day-head b {
+  font-size: 15px;
+}
+
+.day-route {
+  color: var(--text-soft, #6b7280);
+  font-size: 13px;
+}
+
+.day-meta {
+  margin: 6px 0 10px;
+  color: var(--text-soft, #6b7280);
+  font-size: 13px;
+}
+
+.day-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.day-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #fdeeda;
+  color: #7c4a12;
+  font-size: 12.5px;
+}
+
+.day-chip b {
+  margin-right: 2px;
+}
+
+.day-note {
+  margin: 10px 0 0;
+  color: #92610f;
+  font-size: 12.5px;
+  line-height: 1.6;
 }
 
 .code-inline {
@@ -1121,6 +1203,26 @@ textarea.input {
   color: var(--muted);
   font-weight: 500;
   background: #fafbfc;
+}
+
+/* 途经点列表：起/终点锁定行（禁止编辑） */
+.table tbody tr.is-locked td {
+  background: #f7f8fa;
+}
+
+.table tbody tr.is-locked input.input-xs {
+  color: var(--muted);
+  background: #eef0f3;
+}
+
+.locked-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #e7ebf0;
+  color: #5b6573;
+  font-size: 12.5px;
+  font-weight: 600;
 }
 
 .table tfoot td {
@@ -2532,4 +2634,161 @@ textarea.input {
 .check-item.is-done .src-tag,
 .check-item.is-skipped .src-tag {
   text-decoration: none;
+}
+
+/* ===== 详情页「行程建议」卡（米色卡 + 结构化行：住宿 / 起床 / 去程 / 分段 / 午餐 / 回程） ===== */
+.trip-card {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border: 1px solid #f5d9b8;
+  border-radius: 12px;
+  background: #fffaf3;
+}
+
+.trip-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.trip-head b {
+  font-size: 15px;
+}
+
+.trip-head-meta {
+  color: var(--text-soft, #6b7280);
+  font-size: 13px;
+}
+
+.trip-rows {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.trip-row {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 10px;
+  align-items: start;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.trip-row-label {
+  color: #7c4a12;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.trip-row-value {
+  color: #4b5563;
+}
+
+.trip-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.trip-chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #fdeeda;
+  color: #7c4a12;
+  font-size: 12.5px;
+}
+
+.trip-note {
+  margin: 10px 0 0;
+  color: #92610f;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.trip-note.is-warn {
+  color: #9a3412;
+}
+
+.trip-note-icon {
+  margin-right: 2px;
+}
+
+.trip-disclaimer {
+  margin: 10px 0 0;
+  padding-top: 8px;
+  border-top: 1px dashed #f0d5b4;
+  color: #a1722c;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+@media (max-width: 520px) {
+  .trip-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+
+/* ===== 素材管理「基本信息」tab：纯文本呈现（非表单，禁止编辑） ===== */
+.info-view {
+  padding: 2px 0;
+}
+
+.info-title {
+  margin: 0 0 14px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.info-list {
+  margin: 0;
+  display: grid;
+  gap: 0;
+  border: 1px solid #eee;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.info-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 12px;
+  padding: 9px 14px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.info-label {
+  color: var(--muted, #6b7280);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.info-value {
+  margin: 0;
+  color: #1f2937;
+  font-size: 13.5px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.info-block {
+  margin-top: 16px;
+}
+
+.info-block .info-label {
+  margin-bottom: 6px;
+}
+
+@media (max-width: 520px) {
+  .info-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
 }

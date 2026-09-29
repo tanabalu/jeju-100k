@@ -1,0 +1,1259 @@
+{
+  "01": [
+    {
+      "name": "Jeju Olle Information Center",
+      "distance": 1.0,
+      "type": "info"
+    },
+    {
+      "name": "Malmi Oreum",
+      "distance": 1.8,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Top of Al Oreum",
+      "distance": 2.9,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Jongdal-ri Three-way Junction",
+      "distance": 4.3,
+      "type": "normal"
+    },
+    {
+      "name": "Jongdal 1-ri Crossroad",
+      "distance": 5.9,
+      "type": "normal"
+    },
+    {
+      "name": "Jongdal-ri Village Office",
+      "distance": 6.4,
+      "type": "normal"
+    },
+    {
+      "name": "Jongdal-ri Old Salt Flat",
+      "distance": 6.5,
+      "type": "normal"
+    },
+    {
+      "name": "Mokhwa Rest Area",
+      "distance": 8.1,
+      "type": "restArea"
+    },
+    {
+      "name": "Siheung Haenyeo House (congee restaurant)",
+      "distance": 8.9,
+      "type": "normal"
+    },
+    {
+      "name": "Osopo Beacon Fire Station",
+      "distance": 10.1,
+      "type": "normal"
+    },
+    {
+      "name": "Ojo Haenyeo House (congee restaurant)",
+      "distance": 10.9,
+      "type": "normal"
+    },
+    {
+      "name": "Seongsanpo-hang(harbor)",
+      "distance": 12.1,
+      "type": "transport"
+    },
+    {
+      "name": "Seongsan Ilchul-bong(peak)",
+      "distance": 13.3,
+      "type": "viewpoint"
+    }
+  ],
+  "01-1": [
+    {
+      "name": "Hongjodangoe Haebin White Coral Sand Beach",
+      "distance": 2.1,
+      "type": "normal"
+    },
+    {
+      "name": "Doksaengi Koji(cape)",
+      "distance": 2.6,
+      "type": "normal"
+    },
+    {
+      "name": "Sanmultong Entrance",
+      "distance": 4.4,
+      "type": "normal"
+    },
+    {
+      "name": "Bangsa-tap(tower)",
+      "distance": 5.9,
+      "type": "normal"
+    },
+    {
+      "name": "Hagosudong Beach",
+      "distance": 6.3,
+      "type": "normal"
+    },
+    {
+      "name": "Joil-ri Five-way Intersection",
+      "distance": 7.0,
+      "type": "normal"
+    },
+    {
+      "name": "Yeonjama (milstone)",
+      "distance": 7.8,
+      "type": "normal"
+    }
+  ],
+  "02": [
+    {
+      "name": "Gwangchigi Beach (Start Point of Detour at high tide)",
+      "distance": 0.1,
+      "type": "normal"
+    },
+    {
+      "name": "Siksan-bong(peak)",
+      "distance": 2.2,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Seongsan Sewage Disposal Plant (Finish Point of Detour at high tide) Dongnam Elementary School",
+      "distance": 5.0,
+      "type": "normal"
+    },
+    {
+      "name": "Hong Mart in Seongsan Seongsan Crossroad",
+      "distance": 5.6,
+      "type": "normal"
+    },
+    {
+      "name": "Goseong-ri Senior Citizens Hall",
+      "distance": 6.2,
+      "type": "normal"
+    },
+    {
+      "name": "Top of Daesusan-bong(peak)",
+      "distance": 7.8,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Hoorse Rangeland",
+      "distance": 11.1,
+      "type": "normal"
+    }
+  ],
+  "03": [
+    {
+      "name": "Ddeodolee Sikgaek Forked Road of Route A and B",
+      "distance": 0.5,
+      "type": "normal"
+    },
+    {
+      "name": "Sinsan-pogu(port)",
+      "distance": 4.8,
+      "type": "transport"
+    },
+    {
+      "name": "Nansan-ri Go, Jeong-hwa Grandma's Homestay",
+      "distance": 5.5,
+      "type": "normal"
+    },
+    {
+      "name": "Sinsan-ri Village Cafe",
+      "distance": 5.7,
+      "type": "normal"
+    },
+    {
+      "name": "Nong-gye",
+      "distance": 6.2,
+      "type": "normal"
+    },
+    {
+      "name": "Jueodong-pogu(port)",
+      "distance": 6.5,
+      "type": "transport"
+    },
+    {
+      "name": "Entrance to Tong Oreum",
+      "distance": 6.8,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Top of Tong Oreum",
+      "distance": 7.3,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Exit from Tong Oreum",
+      "distance": 7.7,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Sinpung-pogu(port) Regathering Place of Route A and B A 14.4km / B 8km Sinpung Sincheon Bada Mokjang (livestock farm) A 14.8km / B",
+      "distance": 7.7,
+      "type": "transport"
+    },
+    {
+      "name": "Dokja-bong(peak)",
+      "distance": 8.1,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Exit from Dokja-bong(peak)",
+      "distance": 9.1,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Gallery of Kim, Young-gap",
+      "distance": 11.7,
+      "type": "normal"
+    }
+  ],
+  "04": [
+    {
+      "name": "Pyoseon Haenyeo House",
+      "distance": 4.9,
+      "type": "normal"
+    },
+    {
+      "name": "Song-cheon (stream)",
+      "distance": 10.8,
+      "type": "normal"
+    },
+    {
+      "name": "Sinheung-ri Pogu(port)",
+      "distance": 12.4,
+      "type": "transport"
+    },
+    {
+      "name": "Dukdol-pogu(port) Dongbu Sewage Disposal Plant",
+      "distance": 13.5,
+      "type": "transport"
+    },
+    {
+      "name": "Taeheung-ri Pogu(port)",
+      "distance": 14.2,
+      "type": "transport"
+    },
+    {
+      "name": "Taeheung 2-ri Sports Park",
+      "distance": 15.0,
+      "type": "transport"
+    },
+    {
+      "name": "Bulpo Yeondae",
+      "distance": 16.4,
+      "type": "normal"
+    },
+    {
+      "name": "Namwon-pogu(port) (Jeju Olle Information Center)",
+      "distance": 19.0,
+      "type": "info"
+    }
+  ],
+  "05": [
+    {
+      "name": "Entrance Keun-ung(hill)",
+      "distance": 1.2,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Seongwang-sa (temple)",
+      "distance": 2.3,
+      "type": "normal"
+    },
+    {
+      "name": "National Fisheries Research & Development Institute",
+      "distance": 4.2,
+      "type": "normal"
+    },
+    {
+      "name": "Camellia Habitat in Wimi-ri",
+      "distance": 4.9,
+      "type": "normal"
+    },
+    {
+      "name": "Jobae Meodeul Koji (cape)",
+      "distance": 6.6,
+      "type": "normal"
+    },
+    {
+      "name": "Wimi 1-ri Welfare Center",
+      "distance": 8.0,
+      "type": "normal"
+    },
+    {
+      "name": "Sinrye 2-ri Welfare Center",
+      "distance": 10.7,
+      "type": "normal"
+    },
+    {
+      "name": "Yechonmang",
+      "distance": 12.2,
+      "type": "normal"
+    },
+    {
+      "name": "Soesokkak-dari (bridge) Soesokkak",
+      "distance": 13.4,
+      "type": "normal"
+    }
+  ],
+  "06": [
+    {
+      "name": "Sengyidol",
+      "distance": 1.9,
+      "type": "normal"
+    },
+    {
+      "name": "Entrance to Jejigi",
+      "distance": 2.8,
+      "type": "normal"
+    },
+    {
+      "name": "Top of Jejigi Oreum",
+      "distance": 3.4,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Bomok-pogu(port)",
+      "distance": 4.0,
+      "type": "transport"
+    },
+    {
+      "name": "Finish Point of Wheelchair Accessible Area",
+      "distance": 4.1,
+      "type": "normal"
+    },
+    {
+      "name": "Gudumi-pogu(port)",
+      "distance": 5.3,
+      "type": "transport"
+    },
+    {
+      "name": "Bomok Sewage Disposal Plant",
+      "distance": 6.2,
+      "type": "normal"
+    },
+    {
+      "name": "Sojeongbang-pokpo (waterfall)",
+      "distance": 8.8,
+      "type": "normal"
+    },
+    {
+      "name": "Information Center of Jeongbang-pokpo (waterfall)",
+      "distance": 9.2,
+      "type": "info"
+    },
+    {
+      "name": "Soam Memorial Center",
+      "distance": 9.8,
+      "type": "normal"
+    },
+    {
+      "name": "Lee, Jung-seop Street",
+      "distance": 10.7,
+      "type": "normal"
+    },
+    {
+      "name": "Entrance to Seogwipo Maeil Olle Market",
+      "distance": 11.1,
+      "type": "normal"
+    },
+    {
+      "name": "Jeju Olle Tourist Center",
+      "distance": 11.6,
+      "type": "normal"
+    }
+  ],
+  "07": [
+    {
+      "name": "Seogwipo Chilsimni Sammae-bong(peak) Octagonal Pavillion",
+      "distance": 2.6,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Oedolgae Observatory",
+      "distance": 3.7,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Dombenang-gil (pathway)",
+      "distance": 5.5,
+      "type": "normal"
+    },
+    {
+      "name": "Sokgol",
+      "distance": 7.0,
+      "type": "normal"
+    },
+    {
+      "name": "Beophwan-pogu(port)",
+      "distance": 8.5,
+      "type": "transport"
+    },
+    {
+      "name": "Seogeon-do(island)",
+      "distance": 10.7,
+      "type": "normal"
+    },
+    {
+      "name": "Gangjeong-cheon Seaside Post Office of Kensington Resort",
+      "distance": 12.1,
+      "type": "normal"
+    },
+    {
+      "name": "(stream)",
+      "distance": 12.5,
+      "type": "normal"
+    }
+  ],
+  "07-1": [
+    {
+      "name": "Daeshin Middle School",
+      "distance": 1.3,
+      "type": "normal"
+    },
+    {
+      "name": "Entrance to Ungtto-pokpo (waterfall)",
+      "distance": 3.9,
+      "type": "normal"
+    },
+    {
+      "name": "Ungtto-pokpo(waterfall)",
+      "distance": 4.2,
+      "type": "normal"
+    },
+    {
+      "name": "Gogeun-san(mountain) Walkway",
+      "distance": 6.5,
+      "type": "normal"
+    },
+    {
+      "name": "Top of Gogeun-san (mountain)",
+      "distance": 6.8,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Seoho Village Gateball Court",
+      "distance": 8.4,
+      "type": "normal"
+    },
+    {
+      "name": "Jenam Child Welfare Center",
+      "distance": 9.3,
+      "type": "normal"
+    },
+    {
+      "name": "Seoho Elementary School",
+      "distance": 10.8,
+      "type": "normal"
+    },
+    {
+      "name": "Bongrim-sa(temple)",
+      "distance": 12.4,
+      "type": "normal"
+    },
+    {
+      "name": "Hanon Craters",
+      "distance": 12.6,
+      "type": "viewpoint"
+    }
+  ],
+  "08": [
+    {
+      "name": "Yakcheon-sa(temple)",
+      "distance": 1.5,
+      "type": "normal"
+    },
+    {
+      "name": "Daepo-pogu(port) Jungmun Complex Soccer Field",
+      "distance": 3.5,
+      "type": "transport"
+    },
+    {
+      "name": "Gwangmyeong-sa(temple)",
+      "distance": 7.7,
+      "type": "normal"
+    },
+    {
+      "name": "Pacific Land",
+      "distance": 9.1,
+      "type": "normal"
+    },
+    {
+      "name": "Jungmun Sekdal Beach",
+      "distance": 9.5,
+      "type": "normal"
+    },
+    {
+      "name": "Hayatt Hotel",
+      "distance": 10.3,
+      "type": "normal"
+    },
+    {
+      "name": "Jungmun Tourism Complex Information Center",
+      "distance": 11.8,
+      "type": "info"
+    },
+    {
+      "name": "Yerae Eco Park",
+      "distance": 13.9,
+      "type": "normal"
+    },
+    {
+      "name": "Nonjinmul",
+      "distance": 16.2,
+      "type": "normal"
+    },
+    {
+      "name": "Haye-pogu(port)",
+      "distance": 17.8,
+      "type": "transport"
+    },
+    {
+      "name": "Daepyeong-pogu (port)",
+      "distance": 19.8,
+      "type": "transport"
+    }
+  ],
+  "09": [
+    {
+      "name": "Baksu-gijeong (pathway on the cliffs)",
+      "distance": 1.3,
+      "type": "normal"
+    },
+    {
+      "name": "Weolla-bong(peak)",
+      "distance": 3.1,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Jinji Cave",
+      "distance": 3.4,
+      "type": "normal"
+    },
+    {
+      "name": "Weolla-bong(peak) Observatory and Rest Area",
+      "distance": 3.5,
+      "type": "restArea"
+    },
+    {
+      "name": "Jinmoru Dongsan(mound)",
+      "distance": 5.2,
+      "type": "normal"
+    },
+    {
+      "name": "Coastal Police Station",
+      "distance": 7.2,
+      "type": "normal"
+    },
+    {
+      "name": "Hwasun Golden Sand Beach 7km (Jeju Olle Information Center)",
+      "distance": 7.6,
+      "type": "info"
+    }
+  ],
+  "10": [
+    {
+      "name": "Bodeok-sa(temple)",
+      "distance": 2.3,
+      "type": "normal"
+    },
+    {
+      "name": "The Mumum Resort",
+      "distance": 4.2,
+      "type": "normal"
+    },
+    {
+      "name": "Sagye-pogu(port)",
+      "distance": 5.9,
+      "type": "transport"
+    },
+    {
+      "name": "Sagye Fossil Site",
+      "distance": 8.0,
+      "type": "normal"
+    },
+    {
+      "name": "Songak-san(mountain) Parking Lot",
+      "distance": 8.8,
+      "type": "transport"
+    },
+    {
+      "name": "Sut-al Oreum(small extinct volcano) April 3 Victims Memorials",
+      "distance": 13.0,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Hamo Beach",
+      "distance": 15.7,
+      "type": "normal"
+    },
+    {
+      "name": "Hamo Sports Park (Jeju Olle Information Center)",
+      "distance": 17.5,
+      "type": "info"
+    }
+  ],
+  "10-1": [
+    {
+      "name": "Gazebo",
+      "distance": 0.7,
+      "type": "normal"
+    },
+    {
+      "name": "Gapa Elementary School",
+      "distance": 2.0,
+      "type": "normal"
+    },
+    {
+      "name": "Gaeumjoori Koji(cape)",
+      "distance": 2.9,
+      "type": "normal"
+    },
+    {
+      "name": "Gapa Village Altar",
+      "distance": 3.7,
+      "type": "normal"
+    },
+    {
+      "name": "Gapa Community Security Center",
+      "distance": 4.1,
+      "type": "normal"
+    }
+  ],
+  "11": [
+    {
+      "name": "Top of Moseul-bong(peak)",
+      "distance": 5.5,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Exit from Moseul-bong(peak)",
+      "distance": 6.7,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Churchyard",
+      "distance": 8.1,
+      "type": "normal"
+    },
+    {
+      "name": "Sinpyeong Crossroads",
+      "distance": 11.2,
+      "type": "normal"
+    },
+    {
+      "name": "Jeonggaewat Plaza",
+      "distance": 14.1,
+      "type": "normal"
+    },
+    {
+      "name": "Inhyang-dong Village Community Center",
+      "distance": 16.1,
+      "type": "normal"
+    },
+    {
+      "name": "Murung Farm",
+      "distance": 17.3,
+      "type": "normal"
+    }
+  ],
+  "12": [
+    {
+      "name": "Seogwipo-Jeju City Border",
+      "distance": 10.9,
+      "type": "normal"
+    },
+    {
+      "name": "Suweol-bong(peak) Hexagonal Pavillion",
+      "distance": 12.7,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Jagunae-pogu(port)",
+      "distance": 14.4,
+      "type": "transport"
+    },
+    {
+      "name": "Sengyi Gijeong-gil (pathway on the cliff)",
+      "distance": 16.1,
+      "type": "normal"
+    },
+    {
+      "name": "Yongsu-pogu(port)",
+      "distance": 17.5,
+      "type": "transport"
+    }
+  ],
+  "13": [
+    {
+      "name": "Jugu-dongsan(mound)",
+      "distance": 0.6,
+      "type": "normal"
+    },
+    {
+      "name": "1.8km Church",
+      "distance": 2.1,
+      "type": "normal"
+    },
+    {
+      "name": "Yongsu Reservoir",
+      "distance": 2.7,
+      "type": "normal"
+    },
+    {
+      "name": "Special Forces 7km Forest Trail",
+      "distance": 4.4,
+      "type": "normal"
+    },
+    {
+      "name": "Gomok(old tree) Forest Path",
+      "distance": 6.1,
+      "type": "normal"
+    },
+    {
+      "name": "Nakcheon-ri Village Chair Park",
+      "distance": 8.2,
+      "type": "normal"
+    },
+    {
+      "name": "Nakcheon Stonewall Pathway",
+      "distance": 8.7,
+      "type": "normal"
+    },
+    {
+      "name": "Back Hill Arirang-gil(pathway)",
+      "distance": 11.0,
+      "type": "normal"
+    },
+    {
+      "name": "Jeoji",
+      "distance": 13.5,
+      "type": "normal"
+    },
+    {
+      "name": "Entrance to Jeoji Oreum 12.1km Top End of Jeoji Oreum Byroad",
+      "distance": 13.7,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Exit from Jeoji",
+      "distance": 14.6,
+      "type": "normal"
+    }
+  ],
+  "14": [
+    {
+      "name": "Saemot-gyo(bridge)",
+      "distance": 8.6,
+      "type": "normal"
+    },
+    {
+      "name": "Entrance to Wolryeong-ri Cactus Habitat",
+      "distance": 10.3,
+      "type": "normal"
+    },
+    {
+      "name": "Wolryeong-pogu(port)",
+      "distance": 10.7,
+      "type": "transport"
+    },
+    {
+      "name": "Haenyeo Bean Habitat",
+      "distance": 11.7,
+      "type": "normal"
+    },
+    {
+      "name": "Geumneung-pogu(port)",
+      "distance": 13.1,
+      "type": "transport"
+    },
+    {
+      "name": "Geumneung Beach",
+      "distance": 14.1,
+      "type": "normal"
+    },
+    {
+      "name": "Ongpo-pogu(port)",
+      "distance": 16.7,
+      "type": "transport"
+    },
+    {
+      "name": "Yongsu-sa(temple)",
+      "distance": 17.3,
+      "type": "normal"
+    },
+    {
+      "name": "Hallim-hang(harbor), Biyang-do(island) Ferry waiting room Cafe Bien",
+      "distance": 19.2,
+      "type": "transport"
+    }
+  ],
+  "14-1": [
+    {
+      "name": "Al-mot(pond)",
+      "distance": 1.1,
+      "type": "normal"
+    },
+    {
+      "name": "Gangjeong Dongsan(mound)",
+      "distance": 2.7,
+      "type": "normal"
+    },
+    {
+      "name": "Jeoji Gotjawal (dense forest)",
+      "distance": 4.0,
+      "type": "normal"
+    },
+    {
+      "name": "Entrance to Mundoji Oreum",
+      "distance": 4.8,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Top of Mundoji Oreum",
+      "distance": 5.1,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Jeoji Drinking Water Resource",
+      "distance": 8.7,
+      "type": "normal"
+    },
+    {
+      "name": "O'Sulloc Green Tea Fields",
+      "distance": 9.2,
+      "type": "normal"
+    }
+  ],
+  "15": [
+    {
+      "name": "Kensington Resort in Hallim",
+      "distance": 2.8,
+      "type": "normal"
+    },
+    {
+      "name": "Gwideok Crossroad Yeongsaesaengmul (pond)",
+      "distance": 3.9,
+      "type": "normal"
+    },
+    {
+      "name": "Geumseong-cheon(stream) Gwideok 1-ri Fishing Village Co-op Welfare Center",
+      "distance": 5.6,
+      "type": "normal"
+    },
+    {
+      "name": "Geumseong-gyo(bridge)",
+      "distance": 6.8,
+      "type": "normal"
+    },
+    {
+      "name": "Gazebo at",
+      "distance": 7.2,
+      "type": "normal"
+    },
+    {
+      "name": "Gwakji Beach Yongmun-sa(temple)",
+      "distance": 7.4,
+      "type": "normal"
+    },
+    {
+      "name": "Gwakji Beach",
+      "distance": 7.8,
+      "type": "normal"
+    },
+    {
+      "name": "Handam Seaside Walkway",
+      "distance": 8.3,
+      "type": "normal"
+    },
+    {
+      "name": "Napeup Elementary",
+      "distance": 11.1,
+      "type": "normal"
+    },
+    {
+      "name": "Toilet in front of Napeup Elementary School",
+      "distance": 11.2,
+      "type": "normal"
+    },
+    {
+      "name": "Napeup-ri Village",
+      "distance": 11.6,
+      "type": "normal"
+    },
+    {
+      "name": "Gonae-pogu(port)",
+      "distance": 13.0,
+      "type": "transport"
+    },
+    {
+      "name": "Entrance",
+      "distance": 15.1,
+      "type": "normal"
+    }
+  ],
+  "16": [
+    {
+      "name": "Darak Rest Area",
+      "distance": 0.4,
+      "type": "restArea"
+    },
+    {
+      "name": "Sineom-pogu(port) CU Convenient Store - Jeju Gonae Olle Gonae-pogu(port)",
+      "distance": 1.5,
+      "type": "transport"
+    },
+    {
+      "name": "Namdoo Yeondae (signal smoke tower)",
+      "distance": 2.8,
+      "type": "normal"
+    },
+    {
+      "name": "Jungeomsaemul",
+      "distance": 3.8,
+      "type": "normal"
+    },
+    {
+      "name": "Rocky Salt Field in Gueom-ri",
+      "distance": 4.6,
+      "type": "normal"
+    },
+    {
+      "name": "Gueom Fishing Village",
+      "distance": 4.8,
+      "type": "normal"
+    },
+    {
+      "name": "Gueom-ri Village",
+      "distance": 5.4,
+      "type": "normal"
+    },
+    {
+      "name": "Top of Susan-bong(peak)",
+      "distance": 6.6,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Susan Resevoir (Start Point of Detour at high tide)",
+      "distance": 7.1,
+      "type": "normal"
+    },
+    {
+      "name": "Susan-gyo(bridge) (End Point of Detour at high tide)",
+      "distance": 7.4,
+      "type": "normal"
+    },
+    {
+      "name": "Yewon-dong Welfare Center",
+      "distance": 9.7,
+      "type": "normal"
+    },
+    {
+      "name": "Gazebo at Hangpaduri",
+      "distance": 11.7,
+      "type": "normal"
+    },
+    {
+      "name": "Gwangnyeong Elementary",
+      "distance": 15.5,
+      "type": "normal"
+    }
+  ],
+  "17": [
+    {
+      "name": "Meokdolsaegi Three-say Junction",
+      "distance": 1.1,
+      "type": "normal"
+    },
+    {
+      "name": "Airport Hill",
+      "distance": 3.4,
+      "type": "transport"
+    },
+    {
+      "name": "Oedo-pogu(port)",
+      "distance": 6.9,
+      "type": "transport"
+    },
+    {
+      "name": "Aljakji(pebbles) Seaside",
+      "distance": 7.1,
+      "type": "normal"
+    },
+    {
+      "name": "Iho Tewoo Beach",
+      "distance": 8.5,
+      "type": "normal"
+    },
+    {
+      "name": "Entrance to Dodu-bong(peak) Walkway",
+      "distance": 10.8,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Top of Dodu-bong(peak) Street fo Memories in Dodu-dong",
+      "distance": 11.1,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Sasu-dong Mineral Spring",
+      "distance": 12.3,
+      "type": "normal"
+    },
+    {
+      "name": "Eoyeongso Park",
+      "distance": 13.8,
+      "type": "normal"
+    },
+    {
+      "name": "Yongduam (rock)",
+      "distance": 16.2,
+      "type": "normal"
+    },
+    {
+      "name": "Yongyeon-dari (bridge)",
+      "distance": 16.6,
+      "type": "normal"
+    },
+    {
+      "name": "Gwandeok-jeong(pavillion)",
+      "distance": 18.0,
+      "type": "normal"
+    },
+    {
+      "name": "Ganse Lounge",
+      "distance": 18.6,
+      "type": "normal"
+    }
+  ],
+  "18": [
+    {
+      "name": "Goneul-dong April 4 Historical Site",
+      "distance": 5.8,
+      "type": "normal"
+    },
+    {
+      "name": "Hwabuk-pogu(port)",
+      "distance": 7.0,
+      "type": "transport"
+    },
+    {
+      "name": "Gazebo at Samyang Beach",
+      "distance": 10.0,
+      "type": "normal"
+    },
+    {
+      "name": "Entrance to Wondang-bong(peak)",
+      "distance": 11.2,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Bultap-sa(temple)",
+      "distance": 11.6,
+      "type": "normal"
+    },
+    {
+      "name": "Sibi-koji(cape)",
+      "distance": 13.4,
+      "type": "normal"
+    },
+    {
+      "name": "Sinchon-pogu(port)",
+      "distance": 15.0,
+      "type": "transport"
+    },
+    {
+      "name": "Dae-seom(island)",
+      "distance": 16.2,
+      "type": "normal"
+    }
+  ],
+  "18-1": [
+    {
+      "name": "Chuja-myeon Village Office",
+      "distance": 0.2,
+      "type": "normal"
+    },
+    {
+      "name": "Shrine of Feneral Choi, Yeong",
+      "distance": 0.4,
+      "type": "normal"
+    },
+    {
+      "name": "Entrance to Bongeulle-san(mountain)",
+      "distance": 1.2,
+      "type": "normal"
+    },
+    {
+      "name": "Exit from Bongeulle-san(mountain)",
+      "distance": 1.8,
+      "type": "normal"
+    },
+    {
+      "name": "Muk-ri Goget-gil (hilltop pathway)",
+      "distance": 4.2,
+      "type": "normal"
+    },
+    {
+      "name": "Mukri Supermarket",
+      "distance": 5.9,
+      "type": "normal"
+    },
+    {
+      "name": "Sinyang-hang(harbor), CU Convenience Store",
+      "distance": 8.2,
+      "type": "transport"
+    },
+    {
+      "name": "Grave",
+      "distance": 9.3,
+      "type": "normal"
+    },
+    {
+      "name": "Yecho-pogu(port)",
+      "distance": 11.4,
+      "type": "transport"
+    },
+    {
+      "name": "Entrance to Dondae-san(mountain)",
+      "distance": 12.4,
+      "type": "normal"
+    },
+    {
+      "name": "Top of Dondae-san(mountain)",
+      "distance": 13.2,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Chuja-gyo(bridge) 4km,16km",
+      "distance": 15.8,
+      "type": "normal"
+    },
+    {
+      "name": "Yeongheung Rest Area",
+      "distance": 16.7,
+      "type": "restArea"
+    }
+  ],
+  "19": [
+    {
+      "name": "Sinheung-ri White Sand Beach",
+      "distance": 3.4,
+      "type": "normal"
+    },
+    {
+      "name": "Sinheung-ri Village Office Jeju Memorial Hall of Resistance to Japan",
+      "distance": 4.1,
+      "type": "normal"
+    },
+    {
+      "name": "Jeju National University Marine and Nature Istitute",
+      "distance": 4.8,
+      "type": "normal"
+    },
+    {
+      "name": "Hamdeok Beach",
+      "distance": 6.3,
+      "type": "normal"
+    },
+    {
+      "name": "Seowoo-bong(peak) Sunset Spot",
+      "distance": 7.4,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Haedong-pogu(port)",
+      "distance": 8.5,
+      "type": "transport"
+    },
+    {
+      "name": "Seowoo-bong(peak) Neobeunsoongee April 3 Memorial Hall",
+      "distance": 9.1,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Bukchon-pogu(port)",
+      "distance": 10.1,
+      "type": "transport"
+    },
+    {
+      "name": "Church",
+      "distance": 12.6,
+      "type": "normal"
+    },
+    {
+      "name": "Dongbok-ri Village Playground",
+      "distance": 13.5,
+      "type": "normal"
+    }
+  ],
+  "20": [
+    {
+      "name": "Jjokkeullak Cafe",
+      "distance": 1.4,
+      "type": "normal"
+    },
+    {
+      "name": "Gimnyeong Beach",
+      "distance": 1.6,
+      "type": "normal"
+    },
+    {
+      "name": "Wind Power Generation Complex",
+      "distance": 3.4,
+      "type": "normal"
+    },
+    {
+      "name": "Woljeong Beach",
+      "distance": 6.9,
+      "type": "normal"
+    },
+    {
+      "name": "Haengwon-pogu(port), Gwanghaegun Sojourn Monument",
+      "distance": 8.3,
+      "type": "transport"
+    },
+    {
+      "name": "Gujwa Industrial Complex",
+      "distance": 11.2,
+      "type": "normal"
+    },
+    {
+      "name": "Handong Seaside Road",
+      "distance": 12.2,
+      "type": "normal"
+    },
+    {
+      "name": "Gyeryong-dong Village",
+      "distance": 13.5,
+      "type": "normal"
+    }
+  ],
+  "21": [
+    {
+      "name": "Myeonsoo-dong Village Community Center",
+      "distance": 0.8,
+      "type": "normal"
+    },
+    {
+      "name": "Byeolbangjin",
+      "distance": 3.0,
+      "type": "normal"
+    },
+    {
+      "name": "Hado Beach",
+      "distance": 6.7,
+      "type": "normal"
+    },
+    {
+      "name": "Entrance to Jimi-bong(peak)",
+      "distance": 8.3,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Top of Jimi-bong(peak)",
+      "distance": 9.0,
+      "type": "viewpoint"
+    }
+  ]
+}

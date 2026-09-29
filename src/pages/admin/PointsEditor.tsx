@@ -1,18 +1,18 @@
 import { useState } from 'react'
-import type { Route, TrackPoint, TrackPointKind } from '../../types'
+import type { Route, TrackPoint, WaypointType } from '../../types'
 import { uid } from '../../lib/id'
 import { trackLines } from '../../lib/geo'
 import { PointPicker } from '../../components/PointPicker'
-import { RouteMap } from '../../components/RouteMap'
+import { RouteMap, WP_TYPE_STYLE } from '../../components/RouteMap'
 import { useConfirm, useToast } from '../../components/Feedback'
 
-const KIND_LABEL: Record<TrackPointKind, string> = {
-  start: '起点',
-  end: '终点',
-  via: '途经点',
-  aid: '补给点',
-  peak: '山峰',
-}
+/**
+ * 途经点设施类型选项：与地图图例（RouteMap 的 WP_TYPE_STYLE）完全一致，
+ * 不再提供「起点 / 终点」（起终点由位置决定，且禁止编辑）。
+ */
+const WPTYPE_OPTIONS: { value: WaypointType; zh: string }[] = (
+  Object.keys(WP_TYPE_STYLE) as WaypointType[]
+).map((t) => ({ value: t, zh: WP_TYPE_STYLE[t].zh }))
 
 interface Props {
   route: Route
@@ -22,12 +22,12 @@ interface Props {
 export function PointsEditor({ route, onPatch }: Props) {
   const toast = useToast()
   const confirm = useConfirm()
-  const [draft, setDraft] = useState<{ name: string; lng: string; lat: string; ele: string; kind: TrackPointKind }>({
+  const [draft, setDraft] = useState<{ name: string; lng: string; lat: string; ele: string; wpType: WaypointType }>({
     name: '',
     lng: '',
     lat: '',
     ele: '',
-    kind: 'via',
+    wpType: 'normal',
   })
 
   const points = route.points
@@ -52,15 +52,23 @@ export function PointsEditor({ route, onPatch }: Props) {
       lng,
       lat,
       ele: Number.isFinite(ele) ? ele : undefined,
-      kind: draft.kind,
+      kind: 'via',
+      wpType: draft.wpType,
     }
-    setPoints([...points, p])
-    setDraft({ name: '', lng: '', lat: '', ele: '', kind: 'via' })
+    // 新途经点插到「末位终点」之前，保证终点始终固定在列表最下面
+    const insertAt = Math.max(0, points.length - 1)
+    const next = [...points]
+    next.splice(insertAt, 0, p)
+    setPoints(next)
+    setDraft({ name: '', lng: '', lat: '', ele: '', wpType: 'normal' })
   }
 
   const move = (index: number, delta: number) => {
     const target = index + delta
     if (target < 0 || target >= points.length) return
+    // 起终点固定首末位，任何交换都不得涉及它们（也不能把途经点换到首/末）
+    if (index === 0 || index === points.length - 1) return
+    if (target === 0 || target === points.length - 1) return
     const next = [...points]
     ;[next[index], next[target]] = [next[target], next[index]]
     setPoints(next)
@@ -80,6 +88,10 @@ export function PointsEditor({ route, onPatch }: Props) {
         少于 2 个点有海拔时爬升会显示「—」而不是 0。
       </p>
 
+      <p className="muted" style={{ margin: '0 0 8px', fontSize: 12, color: '#9a3412' }}>
+        ⚠️ 起点（列表首行）与终点（末行）已锁定，不可编辑、不可删除；下方可继续为本路线添加途经点。
+      </p>
+
       <div className="add-row">
         <input
           className="input"
@@ -89,12 +101,12 @@ export function PointsEditor({ route, onPatch }: Props) {
         />
         <select
           className="input"
-          value={draft.kind}
-          onChange={(e) => setDraft({ ...draft, kind: e.target.value as TrackPointKind })}
+          value={draft.wpType}
+          onChange={(e) => setDraft({ ...draft, wpType: e.target.value as WaypointType })}
         >
-          {(Object.keys(KIND_LABEL) as TrackPointKind[]).map((k) => (
-            <option key={k} value={k}>
-              {KIND_LABEL[k]}
+          {WPTYPE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.zh}
             </option>
           ))}
         </select>
@@ -142,24 +154,37 @@ export function PointsEditor({ route, onPatch }: Props) {
           </tr>
         </thead>
         <tbody>
-          {points.map((p, i) => (
-            <tr key={p.id}>
+          {points.map((p, i) => {
+            const isStart = i === 0
+            const isEnd = i === points.length - 1
+            const locked = isStart || isEnd
+            return (
+            <tr key={p.id} className={locked ? 'is-locked' : undefined}>
               <td>{i + 1}</td>
               <td>
-                <input className="input input-xs" value={p.name} onChange={(e) => patch(p.id, { name: e.target.value })} />
+                <input
+                  className="input input-xs"
+                  value={p.name}
+                  disabled={locked}
+                  onChange={(e) => patch(p.id, { name: e.target.value })}
+                />
               </td>
               <td>
-                <select
-                  className="input input-xs"
-                  value={p.kind}
-                  onChange={(e) => patch(p.id, { kind: e.target.value as TrackPointKind })}
-                >
-                  {(Object.keys(KIND_LABEL) as TrackPointKind[]).map((k) => (
-                    <option key={k} value={k}>
-                      {KIND_LABEL[k]}
-                    </option>
-                  ))}
-                </select>
+                {locked ? (
+                  <span className="locked-tag">{isStart ? '起点' : '终点'}</span>
+                ) : (
+                  <select
+                    className="input input-xs"
+                    value={p.wpType ?? 'normal'}
+                    onChange={(e) => patch(p.id, { wpType: e.target.value as WaypointType })}
+                  >
+                    {WPTYPE_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.zh}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </td>
               <td>
                 <input
@@ -167,6 +192,7 @@ export function PointsEditor({ route, onPatch }: Props) {
                   type="number"
                   step="0.000001"
                   value={p.lng}
+                  disabled={locked}
                   onChange={(e) => patch(p.id, { lng: Number(e.target.value) })}
                 />
               </td>
@@ -176,6 +202,7 @@ export function PointsEditor({ route, onPatch }: Props) {
                   type="number"
                   step="0.000001"
                   value={p.lat}
+                  disabled={locked}
                   onChange={(e) => patch(p.id, { lat: Number(e.target.value) })}
                 />
               </td>
@@ -184,18 +211,20 @@ export function PointsEditor({ route, onPatch }: Props) {
                   className="input input-xs"
                   type="number"
                   value={p.ele ?? ''}
+                  disabled={locked}
                   onChange={(e) => patch(p.id, { ele: e.target.value === '' ? undefined : Number(e.target.value) })}
                 />
               </td>
               <td className="td-right">
-                <button className="btn btn-xs" onClick={() => move(i, -1)} disabled={i === 0}>
+                <button className="btn btn-xs" onClick={() => move(i, -1)} disabled={locked || i <= 1}>
                   ↑
                 </button>
-                <button className="btn btn-xs" onClick={() => move(i, 1)} disabled={i === points.length - 1}>
+                <button className="btn btn-xs" onClick={() => move(i, 1)} disabled={locked || i >= points.length - 2}>
                   ↓
                 </button>
                 <button
                   className="btn btn-xs btn-danger"
+                  disabled={locked}
                   onClick={async () => {
                     if (await confirm({ title: '删除途经点', message: `删除「${p.name}」？`, confirmText: '删除', danger: true })) {
                       setPoints(points.filter((x) => x.id !== p.id))
@@ -206,7 +235,8 @@ export function PointsEditor({ route, onPatch }: Props) {
                 </button>
               </td>
             </tr>
-          ))}
+            )
+          })}
           {points.length === 0 && (
             <tr>
               <td colSpan={7} className="muted">

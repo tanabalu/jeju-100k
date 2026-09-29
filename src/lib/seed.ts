@@ -1,6 +1,36 @@
 import type { ElevSample, Route, TrackPoint, TrackPointKind } from '../types'
 import { uid } from './id'
 import { OLLE_ELEVATION } from './olleeElevation'
+import { LEGACY_WAYPOINT_ROUTES, ROUTE_WAYPOINTS, type WaypointDef } from './waypointsData'
+import olleEndpointsJson from '../data/olle-endpoints.json'
+
+/**
+ * 27 条线的**权威起终点**（钉死值，不再靠运行时推导）。
+ *
+ * ⚠️ 为什么不再用 `PLACES` 的坐标当起终点：那是「城镇/地点级近似坐标」，
+ *    实测 23/27 偏差 >1km、最大 6.7km；原先靠 `DataContext.snapRouteEnds` 运行时吸附到
+ *    `tracks.json` 首尾来盖住它，一旦吸附判定失效（2026-09-29：加了途经点后点数对不上，
+ *    被误判成"用户手工改过坐标"）就会整体退回陈旧坐标，01 起点偏 5.29km、终点偏 6.35km。
+ *
+ * ⚠️ 为什么按「线」而不是按「地点」存：`daepyeong`（08 终点 vs 09 起点）差 180m、
+ *    `hwasun`（09 终点 vs 10 起点）、`jeoji`（13/14 vs 14-1 支线）同样不一致 ——
+ *    同一个地名在不同线路上的端点并不重合，按地点存坐标必然有损。
+ *
+ * - `source: 'official'` = jejuolle.org 官方 GPS（仅 06/07），钉死；
+ * - `source: 'track'`    = 跟随 `public/tracks.json` 首末点，是已固化下来的快照值。
+ *
+ * 由 `scripts/build_endpoints_data.py` 生成；改完必跑 `scripts/check_endpoints.py` 三向对账。
+ */
+interface EndpointDef {
+  key: string
+  zh: string
+  ko: string
+  lng: number
+  lat: number
+  source: 'official' | 'track'
+  ref?: string
+}
+const ROUTE_ENDPOINTS = olleEndpointsJson as Record<string, { start: EndpointDef; end: EndpointDef }>
 
 /**
  * 济州偶来小路（Jeju Olle Trail）预置数据。
@@ -49,11 +79,11 @@ type PlaceKey =
   | 'chuja'
 
 const PLACES: Record<PlaceKey, { zh: string; ko: string; lng: number; lat: number }> = {
-  siheung: { zh: '始兴', ko: '시흥', lng: 126.7833, lat: 33.4622 },
-  gwangchigi: { zh: '广峙其', ko: '광치기', lng: 126.79, lat: 33.43 },
-  onpyeong: { zh: '温坪', ko: '온평', lng: 126.823, lat: 33.42 },
-  pyoseon: { zh: '表善', ko: '표선', lng: 126.851, lat: 33.324 },
-  namwon: { zh: '南元', ko: '남원', lng: 126.79, lat: 33.283 },
+  siheung: { zh: '始兴', ko: '시흥', lng: 126.895977, lat: 33.477241 },
+  gwangchigi: { zh: '广峙其', ko: '광치기', lng: 126.924201, lat: 33.452006 },
+  onpyeong: { zh: '温坪', ko: '온평', lng: 126.904173, lat: 33.405194 },
+  pyoseon: { zh: '表善', ko: '표선', lng: 126.84249, lat: 33.32553 },
+  namwon: { zh: '南元', ko: '남원', lng: 126.719698, lat: 33.278124 },
   // 与 05 号线真实轨迹终点相同，作为 06 号线的准确起点。
   soesokkak: { zh: '牛沼河口', ko: '쇠소깍', lng: 126.622978, lat: 33.251662 },
 // ⚠️ 除下面标注「官方 GPS」的两条外，其余是**城镇/地点级近似坐标**（偏差可达 10km）。
@@ -79,25 +109,25 @@ const PLACES: Record<PlaceKey, { zh: string; ko: string; lng: number; lat: numbe
 //       Beophwan Elementary School 数字化补线至巴士总站。补绘段不是 GPS 实测，见 tracks.json 来源说明。
   olleCenter: { zh: '偶来旅客中心', ko: '제주올레여행자센터', lng: 126.558717, lat: 33.247461 }, // 官方 GPS
   seogwipoTerminal: { zh: '西归浦巴士总站', ko: '서귀포버스터미널', lng: 126.508588, lat: 33.249104 }, // 官方 GPS
-  wolpyeong: { zh: '月坪', ko: '월평', lng: 126.47, lat: 33.248 },
-  daepyeong: { zh: '大坪', ko: '대평', lng: 126.42, lat: 33.262 },
-  hwasun: { zh: '和顺', ko: '화순', lng: 126.35, lat: 33.262 },
-  moseulpo: { zh: '摹瑟浦', ko: '모슬포', lng: 126.248, lat: 33.216 },
-  mureung: { zh: '武陵', ko: '무릉', lng: 126.28, lat: 33.28 },
-  yongsu: { zh: '龙水', ko: '용수', lng: 126.31, lat: 33.315 },
-  jeoji: { zh: '楮旨', ko: '저지', lng: 126.305, lat: 33.36 },
-  hallim: { zh: '翰林', ko: '한림', lng: 126.27, lat: 33.4 },
-  gonae: { zh: '高内', ko: '고내', lng: 126.352, lat: 33.43 },
-  gwangnyeong: { zh: '广宁', ko: '광령', lng: 126.39, lat: 33.46 },
-  kimmanduk: { zh: '金万德纪念馆', ko: '김만덕기념관', lng: 126.523, lat: 33.5 },
-  jocheon: { zh: '朝天', ko: '조천', lng: 126.62, lat: 33.535 },
-  gimnyeong: { zh: '金宁', ko: '김녕', lng: 126.72, lat: 33.55 },
-  hado: { zh: '下道', ko: '하도', lng: 126.76, lat: 33.53 },
-  jongdal: { zh: '终达', ko: '종달', lng: 126.775, lat: 33.5 },
-  udo: { zh: '牛岛', ko: '우도', lng: 126.95, lat: 33.51 },
-  gapado: { zh: '加波岛', ko: '가파도', lng: 126.26, lat: 33.17 },
-  seogwang: { zh: '西广', ko: '서광', lng: 126.33, lat: 33.37 },
-  chuja: { zh: '楮子岛', ko: '추자도', lng: 126.28, lat: 33.96 },
+  wolpyeong: { zh: '月坪', ko: '월평', lng: 126.457121, lat: 33.243879 },
+  daepyeong: { zh: '大坪', ko: '대평', lng: 126.361624, lat: 33.237279 },
+  hwasun: { zh: '和顺', ko: '화순', lng: 126.335433, lat: 33.240096 },
+  moseulpo: { zh: '摹瑟浦', ko: '모슬포', lng: 126.25279, lat: 33.21915 },
+  mureung: { zh: '武陵', ko: '무릉', lng: 126.236735, lat: 33.274624 },
+  yongsu: { zh: '龙水', ko: '용수', lng: 126.16674, lat: 33.32355 },
+  jeoji: { zh: '楮旨', ko: '저지', lng: 126.25635, lat: 33.33292 },
+  hallim: { zh: '翰林', ko: '한림', lng: 126.26238, lat: 33.41864 },
+  gonae: { zh: '高内', ko: '고내', lng: 126.33809, lat: 33.46689 },
+  gwangnyeong: { zh: '广宁', ko: '광령', lng: 126.438946, lat: 33.460912 },
+  kimmanduk: { zh: '金万德纪念馆', ko: '김만덕기념관', lng: 126.52732, lat: 33.51313 },
+  jocheon: { zh: '朝天', ko: '조천', lng: 126.64183, lat: 33.53974 },
+  gimnyeong: { zh: '金宁', ko: '김녕', lng: 126.74493, lat: 33.55745 },
+  hado: { zh: '下道', ko: '하도', lng: 126.86276, lat: 33.52299 },
+  jongdal: { zh: '终达', ko: '종달', lng: 126.90539, lat: 33.48868 },
+  udo: { zh: '牛岛', ko: '우도', lng: 126.957624, lat: 33.492759 },
+  gapado: { zh: '加波岛', ko: '가파도', lng: 126.271131, lat: 33.174535 },
+  seogwang: { zh: '西广', ko: '서광', lng: 126.287705, lat: 33.306953 },
+  chuja: { zh: '楮子岛', ko: '추자도', lng: 126.296191, lat: 33.963529 },
 }
 
 function tp(place: PlaceKey, kind: TrackPointKind): TrackPoint {
@@ -105,9 +135,9 @@ function tp(place: PlaceKey, kind: TrackPointKind): TrackPoint {
   return { id: uid('pt'), name: `${p.zh}（${p.ko}）`, lng: p.lng, lat: p.lat, kind }
 }
 
-/** 构造一个「途经点」（kind: 'via'）。坐标来自官方路线指南（部分吸附到真实轨迹、部分为近似）。 */
-function viaPt(zh: string, ko: string, lng: number, lat: number): TrackPoint {
-  return { id: uid('pt'), name: `${zh}（${ko}）`, lng, lat, kind: 'via' }
+/** 构造一个「途经点」（kind: 'via'），坐标与类型来自官方线路图（已吸附到真实轨迹）。 */
+function viaFromDef(d: WaypointDef): TrackPoint {
+  return { id: uid('pt'), name: d.name, lng: d.lng, lat: d.lat, kind: 'via', wpType: d.type }
 }
 
 /** 在采样序列里找离给定坐标最近点的海拔（导出给数据回填用） */
@@ -180,46 +210,12 @@ const SPECS: OlleSpec[] = [
 export const OLLE_TOTAL_KM = Math.round(SPECS.reduce((sum, s) => sum + s.km, 0))
 
 /**
- * 各路线的官方命名途经点（kind: 'via'），按官方路线指南（jejuolle.org + Namu Wiki 转写）整理。
- *
- * 放置策略（与「好猜坐标」两害相权）：
- * - **有真实轨迹的线**（如 01）：坐标按官方里程标记吸附到 `public/tracks.json` 的真实轨迹上
- *   （见 scripts/compute_route_via.py 思路），所以标记精准落在线上，且不会随 `mergeTrack`
- *   被冲掉（它只动首尾，中间点原样保留）。
- * - **无轨迹的线**（18-2）：坐标取官方描述里的近似位置，同时把虚线折线也带出形状。
- *   07 已有混合来源轨迹（前段 GPX、末段官方图数字化），途经点吸附到轨迹上。
- *   ⚠️ **14-1 已由 codex 用真实 GPX（`sungbh98.tistory.com/1448` 2024 实走）校正**，在 `tracks.json` 中有真实轨迹，
- *      故不走这里的近似途经点；其起终点标记由真实轨迹端点决定（不挂官方坐标锚点，避免偏离真实线 4~5km）。
- *      不要再给 14-1 在此加近似点，也不要在 buildRoute 里给它挂 startPoint/endPoint。
- *
- * 试点（1 / 7）；全量铺开时按同样结构补齐其余主线。
- * 口径优先级：① jejuolle.org 现行编号表 + 改线公告 ② 官网标注起终点 GPS ③ 官方路线指南散文。
+ * 途经点数据已迁移到 `src/lib/waypointsData.ts`（由 scripts/build_waypoints_data.py 自动生成）：
+ * 源 = 2017 官方英文线路图 PDF（scripts/data/olle-waypoints.json），按沿线距离吸附到
+ * `public/tracks.json` 真实轨迹得到坐标，并带官方图例分类 `WaypointType`。
+ * - 14-1 按铁律完全跳过（已有 codex 校正的真实轨迹与端点，不加任何途经点/锚点）。
+ * - 07 / 07-1 / 16 / 17 的途经点来自 2017 旧走向，标记 legacyWaypoints = true（详情页提示「旧走向 · 待核」）。
  */
-interface ViaDef {
-  zh: string
-  ko: string
-  lng: number
-  lat: number
-}
-const WAYPOINTS: Record<string, ViaDef[]> = {
-  // 01：坐标已按官方里程（1.1/2.8/6.4/6.5/8.1/11.1/13.7km）吸附到真实轨迹，精准。
-  '01': [
-    { zh: '末木岳', ko: '말미오름', lng: 126.88515, lat: 33.47406 },
-    { zh: '卵岳', ko: '알오름', lng: 126.88548, lat: 33.48054 },
-    { zh: '终达里会馆', ko: '종달리회관', lng: 126.89985, lat: 33.4931 },
-    { zh: '终达里旧盐田', ko: '종달리옛소금밭', lng: 126.90039, lat: 33.49255 },
-    { zh: '木花休息站', ko: '목화휴게소', lng: 126.902, lat: 33.48155 },
-    { zh: '城山闸门', ko: '성산갯문', lng: 126.92534, lat: 33.46882 },
-    { zh: '水玛浦海岸', ko: '수마포해안', lng: 126.93325, lat: 33.46067 },
-  ],
-  // 07（现行 12.9km，参考官方 Olle App 线路图及 2022 实走 GPX；后段按官方图数字化补线）。
-  '07': [
-    { zh: '七十里诗公园', ko: '칠십리 시공원', lng: 126.553534, lat: 33.246588 },
-    { zh: 'Solbit Bada Café', ko: '솔빛바다카페', lng: 126.548092, lat: 33.242266 },
-    { zh: '法还浦口', ko: '법환포구', lng: 126.520191, lat: 33.241046 },
-    { zh: '斗马尼莫公园', ko: '두머니물공원', lng: 126.513411, lat: 33.233940 },
-  ],
-}
 
 function buildRoute(spec: OlleSpec): Route {
   const now = Date.now()
@@ -232,6 +228,17 @@ function buildRoute(spec: OlleSpec): Route {
   const samples = elev?.samples ?? []
   const start = tp(spec.start, 'start')
   const end = tp(spec.end, 'end')
+  // 起终点坐标一律换成 `src/data/olle-endpoints.json` 里钉死的权威值。
+  // 不再用 PLACES 的城镇级近似坐标，也不再依赖运行时吸附到轨迹首尾
+  // （那条链路 2026-09-29 失效过一次，01 起终点直接偏了 5~6km，见文件头注释）。
+  const ep = ROUTE_ENDPOINTS[spec.code]
+  if (ep) {
+    start.lng = ep.start.lng
+    start.lat = ep.start.lat
+    end.lng = ep.end.lng
+    end.lat = ep.end.lat
+  }
+  // 海拔要按最终坐标取，所以放在坐标覆盖之后
   if (samples.length > 0) {
     start.ele = nearestEle(samples, start.lng, start.lat)
     end.ele = nearestEle(samples, end.lng, end.lat)
@@ -241,22 +248,24 @@ function buildRoute(spec: OlleSpec): Route {
     code: spec.code,
     name: `偶来 ${spec.code} · ${s.zh} → ${e.zh}`,
     region: `韩国 · 济州岛 · ${spec.region ?? ''}`,
-    // 对有可信线路几何、但采集端点不在官方命名地点的路线，地图标记钉在官方地点。
-    // 07-1 的现有路径以其几何首末点为准：官方中心锚点会把终点标记拉离路径约 1.3km。
-    // 06 起点锚点已校准到 05 号线 GPS 终点；07 混合来源轨迹首尾与官方端点吻合，保留官方端点。
-    // 14-1 已有 codex 校正过的真实 GPX 轨迹（tracks.json 14-1 条目，sungbh98 2024 实走），
-    // 起终点标记直接跟随真实轨迹端点，不再钉到 jeoji/seogwang 近似地点（偏离真实端点 4~5km）。
-    ...(spec.code === '06' || spec.code === '07'
-      ? { startPoint: start, endPoint: end }
-      : {}),
+    // 起终点标记一律钉在固化的权威坐标上：startPoint/endPoint 会让 `snapRouteEnds`
+    // 优先用它们而不是吸附到轨迹首末点。这样 tracks.json 后续被校正时标记不会被带走；
+    // 若轨迹确实变了，`scripts/check_endpoints.py` 会对账报警提醒重新固化。
+    startPoint: start,
+    endPoint: end,
     summary: isLoop
       ? `${s.zh}环线，官方里程 ${spec.km} km，官方难度 ${spec.difficulty}。`
       : `${s.zh}（${s.ko}）到 ${e.zh}（${e.ko}），官方里程 ${spec.km} km，官方难度 ${spec.difficulty}。`,
     kind: 'hike',
     difficulty: DIFF_NUM[spec.difficulty],
-    // 途经点：起点 → 官方命名途经点（kind:'via'）→ 终点。
-    // 有轨迹的线坐标已吸附到真实轨迹；无轨迹的线坐标为近似，同时带出虚线形状。
-    points: [start, ...(WAYPOINTS[spec.code] ?? []).map((v) => viaPt(v.zh, v.ko, v.lng, v.lat)), end],
+    // 途经点：起点 → 官方命名途经点（kind:'via'，带 wpType 设施分类）→ 终点。
+    // 坐标已按官方里程吸附到真实轨迹（见 waypointsData.ts 头注释）；14-1 无途经点。
+    ...(LEGACY_WAYPOINT_ROUTES.has(spec.code) ? { legacyWaypoints: true } : {}),
+    points: [
+      start,
+      ...(ROUTE_WAYPOINTS[spec.code] ?? []).map(viaFromDef),
+      end,
+    ],
     manualDistanceKm: spec.km,
     elevationProfile: samples.length >= 2 ? samples : undefined,
     elevationBasis: elev?.basis,

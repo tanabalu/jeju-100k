@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import * as L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import type { ElevSample, GeoPoint, Hotel, MapStyle, Sight, TrackPoint } from '../types'
+import type { ElevSample, GeoPoint, Hotel, MapStyle, Sight, TrackPoint, WaypointType } from '../types'
 import { useData } from '../store/DataContext'
 
 const W = 800
@@ -63,8 +63,28 @@ const GLYPH: Record<string, string> = {
   sight: '景',
 }
 
+/**
+ * 途经点设施类型 → 标记样式（颜色 / 单字字形 / 中文名）。
+ * 类型词汇来自 2017 官方线路图图例；普通途经点沿用原蓝色圆点，其余按功能着色。
+ */
+export const WP_TYPE_STYLE: Record<WaypointType, { color: string; glyph: string; zh: string }> = {
+  normal: { color: '#2563eb', glyph: '·', zh: '途经点' },
+  restroom: { color: '#0d9488', glyph: '卫', zh: '卫生间' },
+  medical: { color: '#e11d48', glyph: '医', zh: '医疗点' },
+  restArea: { color: '#d97706', glyph: '息', zh: '休息处' },
+  stamp: { color: '#7c3aed', glyph: '章', zh: '盖章站' },
+  info: { color: '#0369a1', glyph: '讯', zh: '信息亭' },
+  viewpoint: { color: '#b45309', glyph: '景', zh: '观景点' },
+  transport: { color: '#4d7c0f', glyph: '行', zh: '交通点' },
+}
+
 function colorOf(kind: string): string {
   return COLORS[kind] ?? COLORS.via
+}
+
+/** 途经点标记的颜色：带 wpType 用分类色，否则回落到普通途经点蓝 */
+function viaColor(wpType?: WaypointType): string {
+  return wpType ? (WP_TYPE_STYLE[wpType] ?? WP_TYPE_STYLE.normal).color : COLORS.via
 }
 
 /**
@@ -119,13 +139,16 @@ const TILES: Record<
 const JEJU_CENTER: [number, number] = [33.38, 126.53]
 const DEFAULT_ZOOM = 10
 
-function makeIcon(kind: string): L.DivIcon {
+function makeIcon(kind: string, wpType?: WaypointType): L.DivIcon {
   const small = kind === 'via'
   const w = small ? 24 : 28
   const h = small ? 31 : 36
+  // 途经点按设施类型着色/换字；起终点、住宿、看点维持原样
+  const color = small ? viaColor(wpType) : colorOf(kind)
+  const glyph = small && wpType ? (WP_TYPE_STYLE[wpType] ?? WP_TYPE_STYLE.normal).glyph : (GLYPH[kind] ?? GLYPH.via)
   return L.divIcon({
     className: 'trail-marker',
-    html: `<img src="${iconDataUri(colorOf(kind), GLYPH[kind] ?? GLYPH.via)}" width="${w}" height="${h}" alt="" draggable="false" />`,
+    html: `<img src="${iconDataUri(color, glyph)}" width="${w}" height="${h}" alt="" draggable="false" />`,
     iconSize: [w, h],
     iconAnchor: [small ? 12 : 14, h],
   })
@@ -226,6 +249,8 @@ interface MarkerItem {
   kind: 'start' | 'end' | 'via' | 'badge'
   /** 仅 kind === 'badge'：徽标上的短文本（路线编号） */
   label?: string
+  /** 仅 kind === 'via'：设施类型（卫生间 / 医疗点…），驱动差异化标记 */
+  wpType?: WaypointType
 }
 
 /**
@@ -243,6 +268,7 @@ function markerList(trails: TrackPoint[][] | undefined, points: TrackPoint[]): M
         lat: p.lat,
         name: p.name,
         kind: i === 0 ? 'start' : i === valid.length - 1 ? 'end' : 'via',
+        ...(i > 0 && i < valid.length - 1 && p.wpType ? { wpType: p.wpType } : {}),
       })
     })
   })
@@ -323,6 +349,15 @@ export function RouteMap({
     }
     return markerList(trails, points)
   }, [badgeMode, badges, trails, points])
+
+  /** 当前图里出现的「非普通」设施类型（图例按需展示，没有设施点就不占地方） */
+  const activeWpTypes = useMemo(() => {
+    const set = new Set<WaypointType>()
+    markers.forEach((m) => {
+      if (m.kind === 'via' && m.wpType && m.wpType !== 'normal') set.add(m.wpType)
+    })
+    return Array.from(set)
+  }, [markers])
 
   // 初始化地图（仅一次）
   useEffect(() => {
@@ -424,9 +459,11 @@ export function RouteMap({
 
     // 标记：按命名途经点画（起/终/途经），或按编号徽标画，与折线来源解耦
     markers.forEach((mk) => {
-      const icon = mk.kind === 'badge' && mk.label ? makeBadgeIcon(mk.label) : makeIcon(mk.kind)
+      const icon = mk.kind === 'badge' && mk.label ? makeBadgeIcon(mk.label) : makeIcon(mk.kind, mk.wpType)
       const marker = L.marker([mk.lat, mk.lng], { icon }).addTo(layer)
-      if (mk.kind === 'badge' && mk.name) marker.bindTooltip(mk.name, { direction: 'top', offset: [0, -32] })
+      // 途经点悬停显示名称（起终点语义已由「起/终」字形表达，不必再悬停）
+      if (mk.name && (mk.kind === 'badge' || mk.kind === 'via'))
+        marker.bindTooltip(mk.name, { direction: 'top', offset: [0, mk.kind === 'badge' ? -32 : -26] })
     })
     const hotelOk = finitePts(hotels)
     const sightOk = finitePts(sights)
@@ -487,7 +524,11 @@ export function RouteMap({
             <>
               <span><i style={{ background: COLORS.start }} />起点</span>
               <span><i style={{ background: COLORS.end }} />终点</span>
-              <span><i style={{ background: COLORS.via }} />途经点</span>
+              <span><i style={{ background: viaColor() }} />途经点</span>
+              {/* 设施途经点：只列出当前图里实际出现的类型，避免图例无限膨胀 */}
+              {activeWpTypes.map((t) => (
+                <span key={t}><i style={{ background: WP_TYPE_STYLE[t].color }} />{WP_TYPE_STYLE[t].zh}</span>
+              ))}
             </>
           )}
           <span><i style={{ background: COLORS.hotel }} />住宿</span>
@@ -499,7 +540,7 @@ export function RouteMap({
 }
 
 interface Projected {
-  items: { x: number; y: number; kind: string; name: string; label?: string }[]
+  items: { x: number; y: number; kind: string; name: string; label?: string; wpType?: WaypointType }[]
   paths: string[]
   hasData: boolean
   lngMin: number
@@ -546,7 +587,9 @@ function project(
   const toY = (lat: number) => pad + (1 - (lat - latMin) / spanLat) * (H - pad * 2)
 
   const items: Projected['items'] = []
-  markers.forEach((m) => items.push({ x: toX(m.lng), y: toY(m.lat), kind: m.kind, name: m.name, label: m.label }))
+  markers.forEach((m) =>
+    items.push({ x: toX(m.lng), y: toY(m.lat), kind: m.kind, name: m.name, label: m.label, wpType: m.wpType }),
+  )
   hotelsOk.forEach((h) => items.push({ x: toX(h.lng), y: toY(h.lat), kind: 'hotel', name: h.name }))
   sightsOk.forEach((s) => items.push({ x: toX(s.lng), y: toY(s.lat), kind: 'sight', name: s.name }))
 
@@ -571,6 +614,14 @@ function FallbackSketch({
   tip: string
 }) {
   const svgRef = useRef<SVGSVGElement>(null)
+  /** 兜底示意图里出现的「非普通」设施类型（图例按需展示） */
+  const sketchWpTypes = Array.from(
+    new Set(
+      box.items
+        .filter((it) => it.kind === 'via' && it.wpType && it.wpType !== 'normal')
+        .map((it) => it.wpType as WaypointType),
+    ),
+  )
   const handleClick = (e: MouseEvent<SVGSVGElement>) => {
     if (!pickable || !onPick || !svgRef.current || !box.hasData) return
     const rect = svgRef.current.getBoundingClientRect()
@@ -629,7 +680,14 @@ function FallbackSketch({
             </g>
           ) : (
             <g key={i}>
-              <circle cx={it.x} cy={it.y} r={it.kind === 'via' ? 6 : 10} fill={colorOf(it.kind)} stroke="#fff" strokeWidth="2" />
+              <circle
+                cx={it.x}
+                cy={it.y}
+                r={it.kind === 'via' ? 6 : 10}
+                fill={it.kind === 'via' ? viaColor(it.wpType) : colorOf(it.kind)}
+                stroke="#fff"
+                strokeWidth="2"
+              />
               <text x={it.x} y={it.y - 16} fontSize="13" textAnchor="middle" fill="#475569">
                 {it.name}
               </text>
@@ -649,7 +707,10 @@ function FallbackSketch({
           <>
             <span><i style={{ background: COLORS.start }} />起点</span>
             <span><i style={{ background: COLORS.end }} />终点</span>
-            <span><i style={{ background: COLORS.via }} />途经点</span>
+            <span><i style={{ background: viaColor() }} />途经点</span>
+            {sketchWpTypes.map((t) => (
+              <span key={t}><i style={{ background: WP_TYPE_STYLE[t].color }} />{WP_TYPE_STYLE[t].zh}</span>
+            ))}
           </>
         )}
         <span><i style={{ background: COLORS.hotel }} />住宿</span>

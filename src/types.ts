@@ -11,10 +11,26 @@ export interface TrackPoint extends GeoPoint {
   id: string
   name: string
   kind: TrackPointKind
+  /** 途经点的设施类型（仅 `kind === 'via'` 时有意义），驱动地图上的差异化标记 */
+  wpType?: WaypointType
   note?: string
 }
 
 export type TrackPointKind = 'start' | 'end' | 'via' | 'aid' | 'peak'
+
+/**
+ * 途经点设施类型（来自官方线路图图例）。普通途经点以外，按功能区分标记：
+ * 卫生间 / 医疗点 / 休息处 / 盖章站 / 信息亭 / 观景点 / 交通点。
+ */
+export type WaypointType =
+  | 'normal' // 普通途经点
+  | 'restroom' // 卫生间
+  | 'medical' // 医疗点（急救包）
+  | 'restArea' // 休息处
+  | 'stamp' // 盖章站
+  | 'info' // 信息亭 / 信息中心
+  | 'viewpoint' // 观景点 / 山峰
+  | 'transport' // 交通点（港口 / 码头 / 客运站 / 停车场 / 公交）
 
 /** 图片引用：外链 URL 或 IndexedDB 中的本地 key */
 export interface ImageRef {
@@ -58,7 +74,8 @@ export interface AlbumItem {
   takenAt?: string
 }
 
-export type RouteKind = 'hike' | 'trailrun' | 'fastpack'
+import type { RouteKind } from './lib/routeKind'
+export type { RouteKind }
 
 /**
  * 地形采样点：[lng, lat, ele?]。
@@ -112,6 +129,11 @@ export interface Route {
   elevationBasis?: ElevBasis
   /** Optional attribution for an imported route track. */
   trackSource?: { name: string; url: string }
+  /**
+   * 途经点数据是否来自「旧走向」参考资料（如 2017 官方线路图），而该线路此后已改线。
+   * 为真时详情页提示「旧走向 · 待核」，标记位置可能偏离现行几何。
+   */
+  legacyWaypoints?: boolean
   surface?: string
   bestSeason?: string
   tags: string[]

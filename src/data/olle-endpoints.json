@@ -1,0 +1,492 @@
+{
+  "01": {
+    "start": {
+      "key": "siheung",
+      "zh": "始兴",
+      "ko": "시흥",
+      "lng": 126.895977,
+      "lat": 33.477241,
+      "source": "track"
+    },
+    "end": {
+      "key": "gwangchigi",
+      "zh": "广峙其",
+      "ko": "광치기",
+      "lng": 126.924201,
+      "lat": 33.452006,
+      "source": "track"
+    }
+  },
+  "01-1": {
+    "start": {
+      "key": "udo",
+      "zh": "牛岛",
+      "ko": "우도",
+      "lng": 126.957624,
+      "lat": 33.492759,
+      "source": "track"
+    },
+    "end": {
+      "key": "udo",
+      "zh": "牛岛",
+      "ko": "우도",
+      "lng": 126.960591,
+      "lat": 33.499608,
+      "source": "track"
+    }
+  },
+  "02": {
+    "start": {
+      "key": "gwangchigi",
+      "zh": "广峙其",
+      "ko": "광치기",
+      "lng": 126.924201,
+      "lat": 33.452006,
+      "source": "track"
+    },
+    "end": {
+      "key": "onpyeong",
+      "zh": "温坪",
+      "ko": "온평",
+      "lng": 126.904173,
+      "lat": 33.405194,
+      "source": "track"
+    }
+  },
+  "03": {
+    "start": {
+      "key": "onpyeong",
+      "zh": "温坪",
+      "ko": "온평",
+      "lng": 126.904173,
+      "lat": 33.405194,
+      "source": "track"
+    },
+    "end": {
+      "key": "pyoseon",
+      "zh": "表善",
+      "ko": "표선",
+      "lng": 126.84249,
+      "lat": 33.32553,
+      "source": "track"
+    }
+  },
+  "04": {
+    "start": {
+      "key": "pyoseon",
+      "zh": "表善",
+      "ko": "표선",
+      "lng": 126.84249,
+      "lat": 33.32553,
+      "source": "track"
+    },
+    "end": {
+      "key": "namwon",
+      "zh": "南元",
+      "ko": "남원",
+      "lng": 126.719698,
+      "lat": 33.278124,
+      "source": "track"
+    }
+  },
+  "05": {
+    "start": {
+      "key": "namwon",
+      "zh": "南元",
+      "ko": "남원",
+      "lng": 126.719698,
+      "lat": 33.278124,
+      "source": "track"
+    },
+    "end": {
+      "key": "soesokkak",
+      "zh": "牛沼河口",
+      "ko": "쇠소깍",
+      "lng": 126.622978,
+      "lat": 33.251662,
+      "source": "track"
+    }
+  },
+  "06": {
+    "start": {
+      "key": "soesokkak",
+      "zh": "牛沼河口",
+      "ko": "쇠소깍",
+      "lng": 126.622978,
+      "lat": 33.251662,
+      "source": "official",
+      "ref": "jejuolle.org 官方 GPS（= 05 号线真实轨迹终点）"
+    },
+    "end": {
+      "key": "olleCenter",
+      "zh": "偶来旅客中心",
+      "ko": "제주올레여행자센터",
+      "lng": 126.558717,
+      "lat": 33.247461,
+      "source": "official",
+      "ref": "jejuolle.org 官方 GPS"
+    }
+  },
+  "07": {
+    "start": {
+      "key": "olleCenter",
+      "zh": "偶来旅客中心",
+      "ko": "제주올레여행자센터",
+      "lng": 126.558717,
+      "lat": 33.247461,
+      "source": "official",
+      "ref": "jejuolle.org 官方 GPS"
+    },
+    "end": {
+      "key": "seogwipoTerminal",
+      "zh": "西归浦巴士总站",
+      "ko": "서귀포버스터미널",
+      "lng": 126.508588,
+      "lat": 33.249104,
+      "source": "official",
+      "ref": "jejuolle.org 官方 GPS"
+    }
+  },
+  "07-1": {
+    "start": {
+      "key": "seogwipoTerminal",
+      "zh": "西归浦巴士总站",
+      "ko": "서귀포버스터미널",
+      "lng": 126.509445,
+      "lat": 33.247436,
+      "source": "track"
+    },
+    "end": {
+      "key": "olleCenter",
+      "zh": "偶来旅客中心",
+      "ko": "제주올레여행자센터",
+      "lng": 126.547597,
+      "lat": 33.241056,
+      "source": "track"
+    }
+  },
+  "08": {
+    "start": {
+      "key": "wolpyeong",
+      "zh": "月坪",
+      "ko": "월평",
+      "lng": 126.457121,
+      "lat": 33.243879,
+      "source": "track"
+    },
+    "end": {
+      "key": "daepyeong",
+      "zh": "大坪",
+      "ko": "대평",
+      "lng": 126.361624,
+      "lat": 33.237279,
+      "source": "track"
+    }
+  },
+  "09": {
+    "start": {
+      "key": "daepyeong",
+      "zh": "大坪",
+      "ko": "대평",
+      "lng": 126.359866,
+      "lat": 33.236811,
+      "source": "track"
+    },
+    "end": {
+      "key": "hwasun",
+      "zh": "和顺",
+      "ko": "화순",
+      "lng": 126.335433,
+      "lat": 33.240096,
+      "source": "track"
+    }
+  },
+  "10": {
+    "start": {
+      "key": "hwasun",
+      "zh": "和顺",
+      "ko": "화순",
+      "lng": 126.333918,
+      "lat": 33.240707,
+      "source": "track"
+    },
+    "end": {
+      "key": "moseulpo",
+      "zh": "摹瑟浦",
+      "ko": "모슬포",
+      "lng": 126.25279,
+      "lat": 33.21915,
+      "source": "track"
+    }
+  },
+  "10-1": {
+    "start": {
+      "key": "gapado",
+      "zh": "加波岛",
+      "ko": "가파도",
+      "lng": 126.271131,
+      "lat": 33.174535,
+      "source": "track"
+    },
+    "end": {
+      "key": "gapado",
+      "zh": "加波岛",
+      "ko": "가파도",
+      "lng": 126.273958,
+      "lat": 33.166641,
+      "source": "track"
+    }
+  },
+  "11": {
+    "start": {
+      "key": "moseulpo",
+      "zh": "摹瑟浦",
+      "ko": "모슬포",
+      "lng": 126.25279,
+      "lat": 33.21915,
+      "source": "track"
+    },
+    "end": {
+      "key": "mureung",
+      "zh": "武陵",
+      "ko": "무릉",
+      "lng": 126.236735,
+      "lat": 33.274624,
+      "source": "track"
+    }
+  },
+  "12": {
+    "start": {
+      "key": "mureung",
+      "zh": "武陵",
+      "ko": "무릉",
+      "lng": 126.236735,
+      "lat": 33.274624,
+      "source": "track"
+    },
+    "end": {
+      "key": "yongsu",
+      "zh": "龙水",
+      "ko": "용수",
+      "lng": 126.16674,
+      "lat": 33.32355,
+      "source": "track"
+    }
+  },
+  "13": {
+    "start": {
+      "key": "yongsu",
+      "zh": "龙水",
+      "ko": "용수",
+      "lng": 126.16674,
+      "lat": 33.32355,
+      "source": "track"
+    },
+    "end": {
+      "key": "jeoji",
+      "zh": "楮旨",
+      "ko": "저지",
+      "lng": 126.25635,
+      "lat": 33.33292,
+      "source": "track"
+    }
+  },
+  "14": {
+    "start": {
+      "key": "jeoji",
+      "zh": "楮旨",
+      "ko": "저지",
+      "lng": 126.25635,
+      "lat": 33.33292,
+      "source": "track"
+    },
+    "end": {
+      "key": "hallim",
+      "zh": "翰林",
+      "ko": "한림",
+      "lng": 126.26238,
+      "lat": 33.41864,
+      "source": "track"
+    }
+  },
+  "14-1": {
+    "start": {
+      "key": "jeoji",
+      "zh": "楮旨",
+      "ko": "저지",
+      "lng": 126.256324,
+      "lat": 33.333627,
+      "source": "track"
+    },
+    "end": {
+      "key": "seogwang",
+      "zh": "西广",
+      "ko": "서광",
+      "lng": 126.287705,
+      "lat": 33.306953,
+      "source": "track"
+    }
+  },
+  "15": {
+    "start": {
+      "key": "hallim",
+      "zh": "翰林",
+      "ko": "한림",
+      "lng": 126.26238,
+      "lat": 33.41864,
+      "source": "track"
+    },
+    "end": {
+      "key": "gonae",
+      "zh": "高内",
+      "ko": "고내",
+      "lng": 126.33809,
+      "lat": 33.46689,
+      "source": "track"
+    }
+  },
+  "16": {
+    "start": {
+      "key": "gonae",
+      "zh": "高内",
+      "ko": "고내",
+      "lng": 126.33809,
+      "lat": 33.46689,
+      "source": "track"
+    },
+    "end": {
+      "key": "gwangnyeong",
+      "zh": "广宁",
+      "ko": "광령",
+      "lng": 126.438946,
+      "lat": 33.460912,
+      "source": "track"
+    }
+  },
+  "17": {
+    "start": {
+      "key": "gwangnyeong",
+      "zh": "广宁",
+      "ko": "광령",
+      "lng": 126.438946,
+      "lat": 33.460912,
+      "source": "track"
+    },
+    "end": {
+      "key": "kimmanduk",
+      "zh": "金万德纪念馆",
+      "ko": "김만덕기념관",
+      "lng": 126.52732,
+      "lat": 33.51313,
+      "source": "track"
+    }
+  },
+  "18": {
+    "start": {
+      "key": "kimmanduk",
+      "zh": "金万德纪念馆",
+      "ko": "김만덕기념관",
+      "lng": 126.52732,
+      "lat": 33.51313,
+      "source": "track"
+    },
+    "end": {
+      "key": "jocheon",
+      "zh": "朝天",
+      "ko": "조천",
+      "lng": 126.64183,
+      "lat": 33.53974,
+      "source": "track"
+    }
+  },
+  "18-1": {
+    "start": {
+      "key": "chuja",
+      "zh": "楮子岛",
+      "ko": "추자도",
+      "lng": 126.296191,
+      "lat": 33.963529,
+      "source": "track"
+    },
+    "end": {
+      "key": "chuja",
+      "zh": "楮子岛",
+      "ko": "추자도",
+      "lng": 126.329329,
+      "lat": 33.94465,
+      "source": "track"
+    }
+  },
+  "18-2": {
+    "start": {
+      "key": "chuja",
+      "zh": "楮子岛",
+      "ko": "추자도",
+      "lng": 126.329329,
+      "lat": 33.94465,
+      "source": "track"
+    },
+    "end": {
+      "key": "chuja",
+      "zh": "楮子岛",
+      "ko": "추자도",
+      "lng": 126.296266,
+      "lat": 33.963322,
+      "source": "track"
+    }
+  },
+  "19": {
+    "start": {
+      "key": "jocheon",
+      "zh": "朝天",
+      "ko": "조천",
+      "lng": 126.64183,
+      "lat": 33.53974,
+      "source": "track"
+    },
+    "end": {
+      "key": "gimnyeong",
+      "zh": "金宁",
+      "ko": "김녕",
+      "lng": 126.74493,
+      "lat": 33.55745,
+      "source": "track"
+    }
+  },
+  "20": {
+    "start": {
+      "key": "gimnyeong",
+      "zh": "金宁",
+      "ko": "김녕",
+      "lng": 126.74493,
+      "lat": 33.55745,
+      "source": "track"
+    },
+    "end": {
+      "key": "hado",
+      "zh": "下道",
+      "ko": "하도",
+      "lng": 126.86276,
+      "lat": 33.52299,
+      "source": "track"
+    }
+  },
+  "21": {
+    "start": {
+      "key": "hado",
+      "zh": "下道",
+      "ko": "하도",
+      "lng": 126.86276,
+      "lat": 33.52299,
+      "source": "track"
+    },
+    "end": {
+      "key": "jongdal",
+      "zh": "终达",
+      "ko": "종달",
+      "lng": 126.90539,
+      "lat": 33.48868,
+      "source": "track"
+    }
+  }
+}

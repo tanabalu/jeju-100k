@@ -1,11 +1,21 @@
+import { useEffect, useState } from 'react'
 import { useData } from '../store/DataContext'
 import type { MapStyle } from '../types'
 import { useConfirm, useToast } from '../components/Feedback'
 
 export function SettingsPage() {
-  const { settings, updateSettings, reload, staleSeed, refreshSeedRoutes } = useData()
+  const { settings, updateSettings, reload, loading } = useData()
   const toast = useToast()
   const confirm = useConfirm()
+  /** 「重新加载数据」按下的瞬间置真；等 context 的 loading 回落即视为完成 */
+  const [reloading, setReloading] = useState(false)
+
+  useEffect(() => {
+    if (reloading && !loading) {
+      setReloading(false)
+      toast('已重新加载本机数据', 'success')
+    }
+  }, [reloading, loading, toast])
 
   const setStyle = (mapStyle: MapStyle) => {
     updateSettings({ mapStyle })
@@ -53,21 +63,15 @@ export function SettingsPage() {
           换设备或清理浏览器数据前，请到管理后台导出 JSON 备份。
         </p>
         <div className="btn-row">
-          <button className="btn" onClick={reload}>
-            重新加载数据
-          </button>
           <button
             className="btn"
-            disabled={!staleSeed}
+            disabled={reloading}
             onClick={() => {
-              const res = refreshSeedRoutes()
-              toast(
-                `已更新：新增 ${res.added} 条，补齐地形 ${res.updated} 条，移除旧示例 ${res.removed} 条`,
-                'success',
-              )
+              setReloading(true)
+              reload()
             }}
           >
-            {staleSeed ? '更新素材（补地形与爬升）' : '默认素材已是最新'}
+            {reloading ? '加载中…' : '重新加载数据'}
           </button>
           <button
             className="btn btn-danger"

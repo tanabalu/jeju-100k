@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { Plan, Route } from '../types'
+import type { Plan } from '../types'
 import { useData } from '../store/DataContext'
 import { store } from '../lib/storage'
 
@@ -111,8 +111,4 @@ export function useActivePlan() {
     /** 行程篮里是否包含某路线（每条只算一次，所以是布尔值） */
     has: (routeId: string) => !!plan?.items.some((i) => i.routeId === routeId),
   }
-}
-
-export function routeKindLabel(kind: Route['kind']): string {
-  return kind === 'hike' ? '徒步' : kind === 'trailrun' ? '越野跑' : '轻装快穿'
 }

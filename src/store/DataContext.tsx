@@ -8,9 +8,9 @@ import {
   type ReactNode,
 } from 'react'
 import type { AlbumItem, AppSettings, ElevSample, ImageRef, Plan, Route, TrackPoint } from '../types'
-import { store, LEGACY_SEED_IDS, SEED_VERSION, type ChecklistState } from '../lib/storage'
+import { store, SEED_VERSION, type ChecklistState } from '../lib/storage'
 import { PREP_GROUPS, PREP_PRESETS, normItemText } from '../lib/prep'
-import { buildSeedRoutes, nearestEle } from '../lib/seed'
+import { buildSeedRoutes } from '../lib/seed'
 import { uid } from '../lib/id'
 
 export interface PhotoEntry {
@@ -108,14 +108,22 @@ function mergeAssets(route: Route, photos: PhotoManifest, maps: PhotoManifest): 
 /** 两个坐标是否视为同一点（预置值的比较用，1e-9 度 ≈ 0.1 mm，足够区分有没有被手改过） */
 const SAME_POINT_EPS = 1e-9
 
-/** 途经点是否仍是最初预置的那几个点（= 用户没在后台动过坐标） */
+/**
+ * 起终点是否仍是预置值（= 用户没在后台动过坐标）。
+ *
+ * ⚠️ **只比首尾两点，绝不比途经点数量**：途经点是随素材版本增补的（2026 全量铺开后，
+ *    01 从「起+终」两点变成「起+13 途经+终」），本机旧数据仍是两点。若按 `length` 判定，
+ *    会把「素材升级」误判成「用户手工改过坐标」，于是 `snapRouteEnds` 整个跳过 ——
+ *    起终点就会退回 `PLACES` 的城镇级近似值（01 的 siheung 实测偏真实起点约 10km）。
+ *    这正是 2026-09-29「01 起终点被改错」的根因。
+ */
 function isUntouchedSeed(route: Route, seedPts: Map<string, { lng: number; lat: number }[]>): boolean {
   const seed = seedPts.get(route.id)
   const cur = route.points ?? []
-  if (!seed || cur.length !== seed.length) return false
-  return cur.every(
-    (p, i) => Math.abs(p.lng - seed[i].lng) < SAME_POINT_EPS && Math.abs(p.lat - seed[i].lat) < SAME_POINT_EPS,
-  )
+  if (!seed || seed.length < 2 || cur.length < 2) return false
+  const same = (a: { lng: number; lat: number }, b: { lng: number; lat: number }) =>
+    Math.abs(a.lng - b.lng) < SAME_POINT_EPS && Math.abs(a.lat - b.lat) < SAME_POINT_EPS
+  return same(cur[0], seed[0]) && same(cur[cur.length - 1], seed[seed.length - 1])
 }
 
 /**
@@ -130,7 +138,8 @@ function isUntouchedSeed(route: Route, seedPts: Map<string, { lng: number; lat: 
  *   因此保留其轨迹端点作为地图标记，避免标记脱离用户确认正确的线路。
  *   折线仍走真实轨迹，只把起终点标记挪回官方位置。
  *
- * ⚠️ 只在途经点「仍是预置值」时吸附 —— 你在后台手动校正过的坐标不会被覆盖。
+ * ⚠️ 只在起终点「仍是预置值」时吸附 —— 你在后台手动校正过的坐标不会被覆盖。
+ *   途经点数量变化不影响该判定（见 `isUntouchedSeed`）。
  */
 function snapRouteEnds(
   route: Route,
@@ -224,10 +233,6 @@ interface DataApi {
   createPlan: (name?: string, targetKm?: number) => Plan
   updateSettings: (patch: Partial<AppSettings>) => void
   reload: () => void
-  /** 本机存的是旧版默认素材时给出提示 */
-  staleSeed: boolean
-  /** 把默认素材更新为官方偶来小路（保留自建路线，只补官方条目与地形数据） */
-  refreshSeedRoutes: () => { added: number; removed: number; updated: number }
   /** public/photos/manifest.json 里的配图表 */
   photoManifest: PhotoManifest
   /** 行前 checklist 的勾选状态与自定义条目 */
@@ -262,7 +267,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [rawRoutes, setRawRoutes] = useState<Route[]>([])
   const [plans, setPlans] = useState<Plan[]>([])
   const [settings, setSettings] = useState<AppSettings>({ mapStyle: 'standard' })
-  const [staleSeed, setStaleSeed] = useState(false)
   const [photoManifest, setPhotoManifest] = useState<PhotoManifest>({})
   const [routeMaps, setRouteMaps] = useState<PhotoManifest>({})
   const [trackManifest, setTrackManifest] = useState<TrackManifest>({})
@@ -293,41 +297,33 @@ export function DataProvider({ children }: { children: ReactNode }) {
           store.setRoutes(r)
           store.setSeedVersion(SEED_VERSION)
         } else if (store.getSeedVersion() < SEED_VERSION) {
-          // 06 / 07 / 07-1 / 14-1 的历史端点曾被错误保存到浏览器 localStorage；
-          // 仅修复仍保持默认两点名称的官方路线，用户手工编辑过的点位不动。
+          // v9：起终点改为读 `src/data/olle-endpoints.json` 的**固化权威值**，
+          // 不再靠 snapRouteEnds 运行时吸附到轨迹首尾（那条链路失效过一次，01 偏 5~6km）。
+          // 起终点属「权威声明」而非用户数据，所以官方路线一律换成新值、中间途经点不动；
+          // 用户自建路线（不在 seed 里）不受影响。
+          // ⚠️ 以后 tracks.json 再被校正：先跑 scripts/check_endpoints.py 看偏差，
+          //    确认要跟着变就重跑 build_endpoints_data.py，并把 SEED_VERSION +1 让这里再升一次。
           const seeds = new Map(buildSeedRoutes().map((route) => [route.id, route]))
           let changed = false
           r = r.map((route) => {
-            if (route.code !== '06' && route.code !== '07' && route.code !== '07-1' && route.code !== '14-1') return route
             const seed = seeds.get(route.id)
-            const points = route.points ?? []
-            const seedPoints = seed?.points ?? []
-            const isDefaultPair =
-              points.length === 2 &&
-              seedPoints.length === 2 &&
-              points.every((point, index) => point.name === seedPoints[index].name)
-            if (!isDefaultPair) return route
+            const pts = route.points ?? []
+            if (!seed?.startPoint || !seed?.endPoint || pts.length < 2) return route
             changed = true
-            const corrected = {
-              ...route,
-              points: points.map((point, index) => ({
-                ...point,
-                lng: seedPoints[index].lng,
-                lat: seedPoints[index].lat,
-              })),
+            const next = [...pts]
+            next[0] = { ...next[0], lng: seed.startPoint.lng, lat: seed.startPoint.lat }
+            next[next.length - 1] = {
+              ...next[next.length - 1],
+              lng: seed.endPoint.lng,
+              lat: seed.endPoint.lat,
             }
-            // 14-1 改为以真实 GPX 首末点为准，清掉旧版错误的近似地点锚点。
-            if (route.code === '14-1') {
-              const { startPoint: _startPoint, endPoint: _endPoint, ...withoutAnchors } = corrected
-              return withoutAnchors
-            }
-            return corrected
+            return { ...route, points: next, startPoint: seed.startPoint, endPoint: seed.endPoint }
           })
           if (changed) store.setRoutes(r)
           store.setSeedVersion(SEED_VERSION)
         }
-        const hasLegacy = r.some((x) => LEGACY_SEED_IDS.includes(x.id))
-        setStaleSeed(hasLegacy || store.getSeedVersion() < SEED_VERSION)
+        // ℹ️ 开发期不做历史版本迁移（用户拍板 2026-09-29）：数据结构变更时开发者自己清一次
+        // 浏览器数据即可。SEED_VERSION 保留，等正式上线后再决定要不要写兼容迁移。
         setRawRoutes(r)
         setPlans(store.getPlans())
         setSettings(store.getSettings())
@@ -438,50 +434,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const getRoute = useCallback((id: string) => routes.find((r) => r.id === id), [routes])
-
-/**
- * 给已存在的官方条目补地形数据：只写 elevationProfile / elevationBasis / 途经点海拔，
- * 坐标、名称、住宿、看点、相册这些用户可能改过的字段一律不动。
- */
-function backfillElevation(route: Route, seed: Route): Route {
-  const samples = seed.elevationProfile
-  if (!samples || samples.length < 2) return route
-  const points = route.points.map((p) =>
-    p.ele == null ? { ...p, ele: nearestEle(samples, p.lng, p.lat) } : p,
-  )
-  return {
-    ...route,
-    points,
-    elevationProfile: route.elevationProfile ?? samples,
-    elevationBasis: route.elevationBasis ?? seed.elevationBasis,
-  }
-}
-
-/**
- * 更新默认素材：清掉上一版的示例路线，补进官方 27 条偶来小路，
- * 并给已有条目回填地形/爬升数据。用户自建路线不会被删。
- */
-const refreshSeedRoutes = useCallback(() => {
-  const current = store.getRoutes()
-  const removed = current.filter((r) => LEGACY_SEED_IDS.includes(r.id)).length
-  const kept = current.filter((r) => !LEGACY_SEED_IDS.includes(r.id))
-  const seeds = buildSeedRoutes()
-  const seedById = new Map(seeds.map((s) => [s.id, s]))
-  const existingIds = new Set(kept.map((r) => r.id))
-
-  // 已有的官方条目：回填地形数据；不在 seed 里的：原样保留
-  const updated = kept.map((r) => {
-    const seed = seedById.get(r.id)
-    return seed ? backfillElevation(r, seed) : r
-  })
-  const fresh = seeds.filter((r) => !existingIds.has(r.id))
-  const next = [...updated, ...fresh]
-  store.setRoutes(next)
-  store.setSeedVersion(SEED_VERSION)
-  setRawRoutes(next)
-  setStaleSeed(false)
-  return { added: fresh.length, removed, updated: updated.length }
-}, [])
 
   const toggleCheck = useCallback(
     (id: string) => {
@@ -616,8 +568,6 @@ const refreshSeedRoutes = useCallback(() => {
       createPlan,
       updateSettings,
       reload,
-      staleSeed,
-      refreshSeedRoutes,
       photoManifest,
       checklist,
       toggleCheck,
@@ -634,7 +584,6 @@ const refreshSeedRoutes = useCallback(() => {
       routes,
       plans,
       settings,
-      staleSeed,
       photoManifest,
       checklist,
       upsertRoute,
@@ -645,7 +594,6 @@ const refreshSeedRoutes = useCallback(() => {
       createPlan,
       updateSettings,
       reload,
-      refreshSeedRoutes,
       toggleCheck,
       toggleSkip,
       resetChecklist,

@@ -9,10 +9,12 @@ interface Props {
   onChange: (v?: ImageRef) => void
   /** 预览框高度 */
   height?: number
+  /** 只读预览：不显示上传 / 清除 / 外链编辑控件 */
+  readOnly?: boolean
 }
 
 /** 图片字段：支持本地上传（压缩后进 IndexedDB）或填外链 */
-export function ImageField({ value, onChange, height = 120 }: Props) {
+export function ImageField({ value, onChange, height = 120, readOnly = false }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [url, setUrl] = useState(value?.kind === 'url' ? value.value : '')
@@ -35,6 +37,16 @@ export function ImageField({ value, onChange, height = 120 }: Props) {
       setUploading(false)
       if (inputRef.current) inputRef.current.value = ''
     }
+  }
+
+  if (readOnly) {
+    return (
+      <div className="image-field">
+        <div className="image-preview" style={{ height }}>
+          <Thumb image={value} />
+        </div>
+      </div>
+    )
   }
 
   return (

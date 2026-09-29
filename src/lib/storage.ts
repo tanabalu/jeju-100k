@@ -38,11 +38,10 @@ export interface ChecklistState {
 
 const EMPTY_CHECKLIST: ChecklistState = { checked: [], skipped: [], custom: [], extras: [] }
 
-/** 默认素材版本：5=清理错误端点缓存；6=14-1 跟随真实 GPX 端点；7=06 起点对齐 05 号线真实终点 */
-export const SEED_VERSION = 7
-
-/** 上一版（国内徒步 3 条）的示例路线 id，用于识别旧素材 */
-export const LEGACY_SEED_IDS = ['route_wugong_demo', 'route_xihu_demo', 'route_shenzhen_demo']
+/** 默认素材版本：9=起终点改为读 src/data/olle-endpoints.json 的固化权威值（不再运行时吸附）。
+ *  ⚠️ 起终点是「权威声明」不是用户数据，所以这个版本号会触发一次起终点升级迁移
+ *    （见 DataContext.tsx）；其余结构变更开发期仍不写兼容，开发者自行清一次浏览器数据。 */
+export const SEED_VERSION = 9
 
 function read<T>(key: string, fallback: T): T {
   try {
