@@ -39,6 +39,11 @@ const FRIEND_LINKS = [
  */
 function PageRoutes() {
   const location = useLocation()
+  // 路由切换（含从列表点卡片进详情页）不自动滚回顶部，
+  // 新页面会停留在上一页的滚动位置 —— 这里统一在换路由时滚到顶部。
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [location.pathname])
   return (
     <ErrorBoundary key={location.pathname} scope="page">
       <Routes>

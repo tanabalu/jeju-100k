@@ -117,7 +117,7 @@ function isUntouchedSeed(route: Route, seedPts: Map<string, { lng: number; lat: 
  * 轨迹首末点就是这条线真实的起终点，直接用它。
  *
  * ⚠️ 例外：route.startPoint / route.endPoint 设置了官方权威坐标时，优先钉到官方命名地点
- *   （目前只有 06 / 07 / 14-1）。07-1 的官方终点锚点离现有路线末点约 1.3km，
+ *   （目前只有缺少可靠轨迹的 06 / 07）。07-1 的官方终点锚点离现有路线末点约 1.3km，
  *   因此保留其轨迹端点作为地图标记，避免标记脱离用户确认正确的线路。
  *   折线仍走真实轨迹，只把起终点标记挪回官方位置。
  *
@@ -133,7 +133,7 @@ function snapRouteEnds(
   const first = track[0]
   const last = track[track.length - 1]
   const eleOf = (p: [number, number, number | null]) => (typeof p[2] === 'number' ? p[2] : undefined)
-  // 官方权威起/终点优先：06 / 07 / 14-1 的轨迹首末点偏离官方 trailhead，
+  // 官方权威起/终点优先：06 / 07 的轨迹首末点可能偏离官方 trailhead，
   // 钉到官方命名地点才能让标记落到正确位置，折线仍走真实轨迹。
   const sAnchor = route.startPoint
   const eAnchor = route.endPoint
@@ -281,12 +281,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
           store.setRoutes(r)
           store.setSeedVersion(SEED_VERSION)
         } else if (store.getSeedVersion() < SEED_VERSION) {
-          // 07 / 07-1 的历史端点曾被错误保存到浏览器 localStorage；
+          // 07 / 07-1 / 14-1 的历史端点曾被错误保存到浏览器 localStorage；
           // 仅修复仍保持默认两点名称的官方路线，用户手工编辑过的点位不动。
           const seeds = new Map(buildSeedRoutes().map((route) => [route.id, route]))
           let changed = false
           r = r.map((route) => {
-            if (route.code !== '07' && route.code !== '07-1') return route
+            if (route.code !== '07' && route.code !== '07-1' && route.code !== '14-1') return route
             const seed = seeds.get(route.id)
             const points = route.points ?? []
             const seedPoints = seed?.points ?? []
@@ -296,7 +296,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
               points.every((point, index) => point.name === seedPoints[index].name)
             if (!isDefaultPair) return route
             changed = true
-            return {
+            const corrected = {
               ...route,
               points: points.map((point, index) => ({
                 ...point,
@@ -304,6 +304,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 lat: seedPoints[index].lat,
               })),
             }
+            // 14-1 改为以真实 GPX 首末点为准，清掉旧版错误的近似地点锚点。
+            if (route.code === '14-1') {
+              const { startPoint: _startPoint, endPoint: _endPoint, ...withoutAnchors } = corrected
+              return withoutAnchors
+            }
+            return corrected
           })
           if (changed) store.setRoutes(r)
           store.setSeedVersion(SEED_VERSION)

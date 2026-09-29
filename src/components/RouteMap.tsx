@@ -177,8 +177,14 @@ interface RouteMapProps {
   sights?: Sight[]
   height?: number
   /**
+   * 强制中心（[lng, lat]，WGS-84）。仅在 `fixedZoom` 生效时用于**替代**「路线包围盒中心」——
+   * 让地图默认框定在某个地标（如汉拿山）而不是当前路线的几何中心。
+   * 自适应模式（无 fixedZoom）下无效，因为 fitBounds 会按几何收紧视野。
+   */
+  center?: { lng: number; lat: number }
+  /**
    * 固定缩放级别（比例尺）：给了就**不做几何自适应**，视图始终停在这一级，
-   * 只把中心挪到路线包围盒中心。行程篮用 10。
+   * 只把中心挪到路线包围盒中心（或 `center` 指定的坐标）。行程篮用 10。
    *
    * 为什么是「固定」而不是「自适应」：底部比例尺 `L.control.scale`（maxWidth 120px）
    * 的读数**完全由缩放级别决定**，120px 在 10 级正好显示「10 km」，掉一级到 9 级
@@ -253,6 +259,7 @@ export function RouteMap({
   sights = [],
   height = 420,
   fixedZoom,
+  center,
   pickable = false,
   onPick,
 }: RouteMapProps) {
@@ -270,6 +277,9 @@ export function RouteMap({
   /** 固定比例尺（不传 = 自适应）；建图时读一次即可 */
   const fixedZoomRef = useRef(fixedZoom)
   fixedZoomRef.current = fixedZoom
+  /** 强制中心（不传 = 用路线包围盒中心）；随渲染更新，避免内联对象触发重复 fit */
+  const centerRef = useRef(center)
+  centerRef.current = center
 
   const [status, setStatus] = useState<Status>('ready')
   const [tip, setTip] = useState('')
@@ -442,8 +452,12 @@ export function RouteMap({
     fitKeyRef.current = key
     const fixed = fixedZoomRef.current
     if (fixed != null) {
-      // 固定比例尺：只把中心挪到路线中间，缩放级别不动（建图时已设成 fixed）
-      map.setView(L.latLngBounds(coords).getCenter(), fixed, { animate: false })
+      // 固定比例尺：中心优先用显式指定的地标（如汉拿山），否则退回路线包围盒中心；
+      // 缩放级别不动（建图时已设成 fixed）。
+      const c = centerRef.current
+        ? L.latLng(centerRef.current.lat, centerRef.current.lng)
+        : L.latLngBounds(coords).getCenter()
+      map.setView(c, fixed, { animate: false })
     } else if (coords.length === 1) {
       map.setView(coords[0], 14, { animate: false })
     } else {

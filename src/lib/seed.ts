@@ -111,6 +111,11 @@ function tp(place: PlaceKey, kind: TrackPointKind): TrackPoint {
   return { id: uid('pt'), name: `${p.zh}（${p.ko}）`, lng: p.lng, lat: p.lat, kind }
 }
 
+/** 构造一个「途经点」（kind: 'via'）。坐标来自官方路线指南（部分吸附到真实轨迹、部分为近似）。 */
+function viaPt(zh: string, ko: string, lng: number, lat: number): TrackPoint {
+  return { id: uid('pt'), name: `${zh}（${ko}）`, lng, lat, kind: 'via' }
+}
+
 /** 在采样序列里找离给定坐标最近点的海拔（导出给数据回填用） */
 export function nearestEle(samples: ElevSample[], lng: number, lat: number): number | undefined {
   let best: ElevSample | undefined
@@ -180,6 +185,47 @@ const SPECS: OlleSpec[] = [
  */
 export const OLLE_TOTAL_KM = Math.round(SPECS.reduce((sum, s) => sum + s.km, 0))
 
+/**
+ * 各路线的官方命名途经点（kind: 'via'），按官方路线指南（jejuolle.org + Namu Wiki 转写）整理。
+ *
+ * 放置策略（与「好猜坐标」两害相权）：
+ * - **有真实轨迹的线**（如 01）：坐标按官方里程标记吸附到 `public/tracks.json` 的真实轨迹上
+ *   （见 scripts/compute_route_via.py 思路），所以标记精准落在线上，且不会随 `mergeTrack`
+ *   被冲掉（它只动首尾，中间点原样保留）。
+ * - **无轨迹的线**（07 / 18-2）：坐标取官方描述里的近似位置，同时把虚线折线也带出形状。
+ *   这些是近似坐标，编辑后台可再校正。
+ *   ⚠️ **14-1 已由 codex 用真实 GPX（`sungbh98.tistory.com/1448` 2024 实走）校正**，在 `tracks.json` 中有真实轨迹，
+ *      故不走这里的近似途经点；其起终点标记由真实轨迹端点决定（不挂官方坐标锚点，避免偏离真实线 4~5km）。
+ *      不要再给 14-1 在此加近似点，也不要在 buildRoute 里给它挂 startPoint/endPoint。
+ *
+ * 试点（1 / 7）；全量铺开时按同样结构补齐其余主线。
+ * 口径优先级：① jejuolle.org 现行编号表 + 改线公告 ② 官网标注起终点 GPS ③ 官方路线指南散文。
+ */
+interface ViaDef {
+  zh: string
+  ko: string
+  lng: number
+  lat: number
+}
+const WAYPOINTS: Record<string, ViaDef[]> = {
+  // 01：坐标已按官方里程（1.1/2.8/6.4/6.5/8.1/11.1/13.7km）吸附到真实轨迹，精准。
+  '01': [
+    { zh: '末木岳', ko: '말미오름', lng: 126.88515, lat: 33.47406 },
+    { zh: '卵岳', ko: '알오름', lng: 126.88548, lat: 33.48054 },
+    { zh: '终达里会馆', ko: '종달리회관', lng: 126.89985, lat: 33.4931 },
+    { zh: '终达里旧盐田', ko: '종달리옛소금밭', lng: 126.90039, lat: 33.49255 },
+    { zh: '木花休息站', ko: '목화휴게소', lng: 126.902, lat: 33.48155 },
+    { zh: '城山闸门', ko: '성산갯문', lng: 126.92534, lat: 33.46882 },
+    { zh: '水玛浦海岸', ko: '수마포해안', lng: 126.93325, lat: 33.46067 },
+  ],
+  // 07（现行 12.9km，2026-07-01 법환포구 改线后）：近似坐标。
+  '07': [
+    { zh: '外突岩', ko: '외돌개', lng: 126.5635, lat: 33.2476 },
+    { zh: '法还浦口', ko: '법환포구', lng: 126.552, lat: 33.24 },
+    { zh: '斗马尼莫公园', ko: '두머니물공원', lng: 126.5485, lat: 33.2385 },
+  ],
+}
+
 function buildRoute(spec: OlleSpec): Route {
   const now = Date.now()
   const s = PLACES[spec.start]
@@ -202,8 +248,10 @@ function buildRoute(spec: OlleSpec): Route {
     region: `韩国 · 济州岛 · ${spec.region ?? ''}`,
     // 对有可信线路几何、但采集端点不在官方命名地点的路线，地图标记钉在官方地点。
     // 07-1 的现有路径以其几何首末点为准：官方中心锚点会把终点标记拉离路径约 1.3km。
-    // 只给 06 / 07 / 14-1 保留官方锚点；其余路线的标记按轨迹首末点吸附。
-    ...(spec.code === '06' || spec.code === '07' || spec.code === '14-1'
+    // 只给缺少可靠实走轨迹的 06 / 07 保留官方坐标锚点。
+    // 14-1 已有 codex 校正过的真实 GPX 轨迹（tracks.json 14-1 条目，sungbh98 2024 实走），
+    // 起终点标记直接跟随真实轨迹端点，不再钉到 jeoji/seogwang 近似地点（偏离真实端点 4~5km）。
+    ...(spec.code === '06' || spec.code === '07'
       ? { startPoint: start, endPoint: end }
       : {}),
     summary: isLoop
@@ -211,7 +259,9 @@ function buildRoute(spec: OlleSpec): Route {
       : `${s.zh}（${s.ko}）到 ${e.zh}（${e.ko}），官方里程 ${spec.km} km，官方难度 ${spec.difficulty}。`,
     kind: 'hike',
     difficulty: DIFF_NUM[spec.difficulty],
-    points: [start, end],
+    // 途经点：起点 → 官方命名途经点（kind:'via'）→ 终点。
+    // 有轨迹的线坐标已吸附到真实轨迹；无轨迹的线坐标为近似，同时带出虚线形状。
+    points: [start, ...(WAYPOINTS[spec.code] ?? []).map((v) => viaPt(v.zh, v.ko, v.lng, v.lat)), end],
     manualDistanceKm: spec.km,
     elevationProfile: samples.length >= 2 ? samples : undefined,
     elevationBasis: elev?.basis,

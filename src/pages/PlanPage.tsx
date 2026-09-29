@@ -223,6 +223,7 @@ export function PlanPage() {
                 sights={planSights}
                 height={380}
                 fixedZoom={10}
+                center={{ lng: 126.5992, lat: 33.3747 }}
               />
             </section>
           )}

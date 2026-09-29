@@ -180,6 +180,7 @@ def gain_loss(eles):
 # 反了会把上坡读成下坡，起点坐标也会贴到另一端去。
 ORIENT_TOL_M = 80.0          # 端点相距多少米以内算「同一个节点」
 BIG_GAP_M = 300.0            # 断口超过它才算「地图上会明显断开」，以下只在报告里提一句
+AUTO_JOIN_GAP_M = 30.0       # 同一条记录中端点短距离断开时，按 GPS 漏点补一小段
 MAIN_CODE = re.compile(r"\d{2}\Z")
 
 
@@ -189,6 +190,26 @@ def seg_gaps_m(segs):
         min(haversine_m(p, q) for p in (a[0], a[-1]) for q in (b[0], b[-1]))
         for a, b in zip(segs, segs[1:])
     ]
+
+
+def join_tiny_gaps(segs, max_gap=AUTO_JOIN_GAP_M):
+    """把按行进顺序相邻且首尾相距很近的片段接起来。
+
+    只补 <=30m 的 GPS 漏点/路口断点，按两端点短接；较大的缺口仍分段留白，
+    避免把不确定的道路画成虚假的直线。返回合并后的段与每处接缝距离。
+    """
+    if not segs:
+        return [], []
+    out = [list(segs[0])]
+    joined = []
+    for seg in segs[1:]:
+        gap = haversine_m(out[-1][-1], seg[0])
+        if gap <= max_gap:
+            joined.append(round(gap, 1))
+            out[-1].extend(seg[1:] if gap < 0.5 else seg)
+        else:
+            out.append(list(seg))
+    return out, joined
 
 
 def orient_flips(ends, tol=ORIENT_TOL_M):
@@ -687,6 +708,7 @@ def main():
         raw_n = sum(len(s) for s in segs)
 
         segs, tol = simplify_segments(segs, args.tol, args.max_points)
+        segs, joined_gaps = join_tiny_gaps(segs)
         # 只补「整条都没有海拔」的轨迹；GPX 自带的记录海拔优先保留，不覆盖。
         # 放在简化之后：请求数直接少一个数量级。
         filled_ele = False
@@ -736,6 +758,8 @@ def main():
                           else ("track" if has_ele else None),
             "points": [pack(p) for p in flat],
         }
+        if joined_gaps:
+            out[code]["bridgedGapsM"] = joined_gaps
         # 有断口才写 segments：前端按段画，段之间不连线
         if len(segs) > 1:
             out[code]["segments"] = [[pack(p) for p in s] for s in segs]
