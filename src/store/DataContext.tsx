@@ -280,6 +280,33 @@ export function DataProvider({ children }: { children: ReactNode }) {
           r = buildSeedRoutes()
           store.setRoutes(r)
           store.setSeedVersion(SEED_VERSION)
+        } else if (store.getSeedVersion() < SEED_VERSION) {
+          // 07 / 07-1 的历史端点曾被错误保存到浏览器 localStorage；
+          // 仅修复仍保持默认两点名称的官方路线，用户手工编辑过的点位不动。
+          const seeds = new Map(buildSeedRoutes().map((route) => [route.id, route]))
+          let changed = false
+          r = r.map((route) => {
+            if (route.code !== '07' && route.code !== '07-1') return route
+            const seed = seeds.get(route.id)
+            const points = route.points ?? []
+            const seedPoints = seed?.points ?? []
+            const isDefaultPair =
+              points.length === 2 &&
+              seedPoints.length === 2 &&
+              points.every((point, index) => point.name === seedPoints[index].name)
+            if (!isDefaultPair) return route
+            changed = true
+            return {
+              ...route,
+              points: points.map((point, index) => ({
+                ...point,
+                lng: seedPoints[index].lng,
+                lat: seedPoints[index].lat,
+              })),
+            }
+          })
+          if (changed) store.setRoutes(r)
+          store.setSeedVersion(SEED_VERSION)
         }
         const hasLegacy = r.some((x) => LEGACY_SEED_IDS.includes(x.id))
         setStaleSeed(hasLegacy || store.getSeedVersion() < SEED_VERSION)
