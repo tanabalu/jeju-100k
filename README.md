@@ -33,7 +33,7 @@
 | 编号、起终点名称、官方里程、官方难度 | 官方网站，可直接用 | — |
 | 起终点经纬度 | **城镇级近似坐标，非官方实测轨迹** | 用 `scripts/import_tracks.py` 导入真实轨迹一键替换，或在后台用地图选点校正 |
 | 海拔与累计爬升 | **SRTM 30m 地形数据沿近似路径采样估算**，非官方实测 | 导入真实 GPX 后自动改按轨迹逐点累加（更准） |
-| 卡片封面 | **官方 Route Map 路线图整页**（© Jeju Olle Foundation），26 条有图、18-2 无官方页 | 想换自己的照片：`/admin`「基本信息」里传一张 |
+| 卡片封面 | **该路线一带的风景照**（Wikimedia Commons 自由授权，需先跑 `scripts/fetch_photos.py` 下载）；没跑脚本时回落到官方路线图 | 想换自己的照片：`/admin`「基本信息」里传一张 |
 | 住宿、看点、相册 | 预置为空 | 在 `/admin` 录入 |
 
 ### 爬升是怎么算出来的（重要）
@@ -542,9 +542,11 @@ python3 scripts/import_tracks.py --src ~/tracks --strict     # 有未识别文�
 
 ## 6. 路线配图与封面
 
-卡片封面用**官方路线图**（每条线一整页），相册用 **Wikimedia Commons 自由授权照片**。两套素材都放在 `public/photos/`，前端启动时读清单按路线编号自动绑定（**不写进 localStorage**，换图直接替换文件即可）。
+卡片封面用**该路线一带的风景照**（Wikimedia Commons 自由授权），**官方路线图退到详情页相册**——官方图是照着走的示意图，缩到卡片尺寸只剩一片灰白，而风景照一眼就能认出这条线。两套素材都放在 `public/photos/`，前端启动时读清单按路线编号自动绑定（**不写进 localStorage**，换图直接替换文件即可）。
 
-### 6.1 官方路线图 → 卡片封面
+**封面优先级**：后台自己设的 cover > 风景照 > 官方路线图。**相册顺序**：风景照 → 官方路线图 → 自己上传的。
+
+### 6.1 官方路线图 → 详情页相册（卡片封面的兜底）
 
 把 Jeju Olle Foundation 官方《Route Map》PDF 按路线切成图片，每条线一页：
 
@@ -567,36 +569,58 @@ python3 scripts/split_route_map.py --limit 2      # 先切 2 条看效果
 
 几个约定：
 
-- **不要裁切**。官方页是 842×596 的横版，地图铺满整页，裁掉上下 30% 会切到路线本体（01 线南端、10-1 的济州本岛侧都会被切）。封面侧的 `.route-cover` 用 `aspect-ratio: 842 / 596` 按页面比例留位，零裁切。
+- **不要裁切**。官方页是 842×596 的横版，地图铺满整页，裁掉上下 30% 会切到路线本体（01 线南端、10-1 的济州本岛侧都会被切）。卡片封面位 `.route-cover` 现在是 `aspect-ratio: 3 / 2`（按风景照的多数比例留位），官方图作为兜底落进去会上下各裁约 3%，路线本体不受影响。
 - **页码 ↔ 路线号必须核对**。脚本里的 `PAGE_CODES` 是按每页右下角印的粗体路线号整理的（PDF 第 1 页是封面，2~27 页才是路线）。换新版 PDF 一定要重新核对这张表，否则会把路线号配错。
-- 这份 2017.10 版**没有 Route 18-2（下楮子岛）那一页**，所以 18-2 走「暂无配图」占位。
-- 封面优先级：**后台自己设的 cover > 官方路线图 > Commons 照片**。想换成自己的照片，在 `/admin` 的「基本信息」里传一张即可。
+- 这份 2017.10 版**没有 Route 18-2（下楮子岛）那一页**；18-2 的封面由 6.2 的风景照补上，两边都没有才走「暂无配图」占位。
+- 官方图保持 2017.10 版本，未随路线改线更新（详情页仍可看），卡片上已被风景照取代。
 
 > ⚠️ 官方路线图版权归 **© Jeju Olle Foundation**，PDF 内页明确写着「未经许可禁止为商业目的翻印、复制与分发」。本项目是个人自用攻略工具、非商业用途，且相册与灯箱里都显示了署名的 `credit`；**不要拿去商用**。
 
-### 6.2 相册配图（Wikimedia Commons 自由授权）
+### 6.2 卡片封面（风景照，Wikimedia Commons 自由授权）
 
-小红书等站点的图片有版权且禁止抓取，**不要**批量扒下来放进项目。本项目改用 Wikimedia Commons 的自由授权作品（CC0 / CC-BY / 公共领域）。
+小红书等站点的图片有版权且禁止抓取，**不要**批量扒下来放进项目。本项目改用 Wikimedia Commons 的自由授权作品（CC0 / CC-BY / CC-BY-SA / 公共领域）。
 
 ```bash
-# 下载 27 条路线的配图（需要能访问 commons.wikimedia.org 的网络）
-python3 scripts/fetch_photos.py            # 全量
-python3 scripts/fetch_photos.py --limit 2  # 先跑 2 条试试
-python3 scripts/fetch_photos.py --dry      # 只检索不下载
+# 下载 27 条路线的封面（需要能访问 commons.wikimedia.org / upload.wikimedia.org）
+python3 scripts/fetch_photos.py                 # 全量
+python3 scripts/fetch_photos.py --limit 2       # 先跑 2 条试试
+python3 scripts/fetch_photos.py --dry           # 只检索不下载，看会选中哪张
+python3 scripts/fetch_photos.py --codes 18-2    # 只补某几条
+python3 scripts/fetch_photos.py --proxy http://127.0.0.1:7890   # 走本机代理
+python3 scripts/selftest_fetch_photos.py        # 离线自测挑选逻辑（不联网，改脚本前先跑）
 ```
 
-脚本会产出：
+> ⚠️ **Wikimedia 在部分网络环境（含大陆家用宽带）不可达**，脚本会直接超时报错。先探一下：
+> `curl -s -o /dev/null -w '%{http_code}' https://commons.wikimedia.org/w/api.php`
+> 返回 `000` 就是不通，用 `--proxy` 指向你的代理（或换网络环境）再跑。
+
+脚本产出：
 
 | 文件 | 作用 |
 | --- | --- |
-| `public/photos/olle-<编号>.jpg` | 配图（最长边 1600px） |
-| `public/photos/manifest.json` | 编号 → 图片的映射，前端启动时自动读取并绑定到对应路线（**不写进 localStorage**，换图直接替换文件） |
+| `public/photos/scenes/olle-<编号>.webp` | **详情页原图**：1600px 宽，q82，约 120KB/张 |
+| `public/photos/scenes/cover/olle-<编号>.webp` | **卡片封面**：760px 宽，q74，约 25KB/张（27 张共约 0.7MB） |
+| `public/photos/manifest.json` | 编号 → `{ file, cover, caption, credit, source }`，前端启动时读取并绑定（**不写进 localStorage**） |
 | `public/photos/CREDITS.md` | 署名清单（作者 / 许可 / 来源页），满足 CC-BY 的署名要求，请随项目一起分发 |
 
-没跑脚本时相册为空，界面显示「无图」占位，不会报错。
+挑选规则写死在脚本里，避免抓回一堆不能用的图：
 
-> 注意：照片是「该路线所在地点」的示意照片，**不是官方路线的官方摄影**，也**不是实测轨迹**。要拿来做攻略依据，请以官方资料和你自己的实拍为准。
-> 若某张图不合适：删掉 `public/photos/` 下对应文件与 `manifest.json` 里的条目即可。
+- **许可**：只收明确自由许可（CC0 / CC BY / CC BY-SA / Public domain）；许可字段缺失、`Fair use`、`All rights reserved` 一律跳过 —— 宁可这条线暂时没封面。
+- **构图**：宽 ≥ 1200px 且**宽高比 ≥ 1.25**。近方形的图（如 6218×6012）当封面会被裁得几乎没内容。
+- **排除示意图**：标题含 map / logo / sign / **signage** / diagram / chart / panorama / collage 的直接丢弃。注意 `\bsign\b` 匹配不到 `signage`（后面还有字母，没有词边界），`Ganse signage jejuolle-route-16.jpg` 这种标识牌特写就是这么混进来的；韩文的 `안내판` / `표지판` / `간세` 同样排除。
+- **相关性**：标题命中搜索关键词（具体地标，如 `Hyeopjae`）优先于只写「Jeju」的泛图。
+- **必须真的跟济州有关**：标题或描述里要出现 `Jeju / 제주 / Olle / 올레`。Commons 是模糊检索，搜 "Jeju west coast" 会返回「加那利群岛涡旋云」「LNG 码头」「日本航拍」这类图。
+- **路线号要对得上**：标题里若写了别条路线的编号（给 16 线选到 `Jejuolle-route-18(1)`），跳过。`route-18` / `route_18` 这类连字符写法同样识别。
+- **一张图只服务一条线**：已被前面的路线选中的图不再重复选中（候选全被用光就返回空，让这条线回落到官方路线图，而不是列表里出现两张一样的封面）。
+- **末位兜底用官方路线照**：具体地标全落空时，最后会试 `Jeju Olle Route <编号>` / `올레 <编号>코스`——Commons 上有「Jeju Olle Route NN.jpg」这类官方路线照，比纯泛词准得多（16 / 18-1 / 18-2 就是这么命中的）。
+- **限流**：请求间隔默认 1.5s（`--sleep` 调大），遇 429 自动退避重试（5s / 10s / 15s）。27 条全量约 2–4 分钟。
+- **检索结果缓存**：关键词结果存 `scripts/.cache/photos_search.json`（已被 git 忽略），`--dry` 看过再正式跑不会重复打 API；`--no-cache` 可关。
+- **断点续跑**：已经下过的编号自动跳过（`--force` 强制重下）；本次没抓到的条线保留上一轮 `manifest.json` 里的结果，不会因为网络抖一片变灰。分批跑（`--codes`）也安全——已下载的路线会从 manifest 里取回 `title` 参与去重，不会被后面的路线抢走同一张图。
+
+没跑脚本时，卡片封面回落到官方路线图（6.1）；两边都没有才显示「暂无配图」占位，不会报错。
+
+> 注意：照片是「该路线所在地点」的风景照，**不是官方路线的官方摄影**，也**不是实测轨迹**。要拿来做攻略依据，请以官方资料和你自己的实拍为准。
+> 若某张图不合适：删掉 `public/photos/scenes/` 下对应文件与 `manifest.json` 里的条目即可（会自动回落到官方路线图）。
 
 ## 7. 行前准备页的数据边界
 
@@ -707,9 +731,10 @@ src/
   components/            RouteMap / ElevationChart / Modal / Feedback / Skeleton / ErrorBoundary ...
   pages/                 Routes / RouteDetail / Plan / Prep / Admin / Settings
   pages/admin/           基本信息 / 途经点 / 住宿 / 看点 / 相册 五个编辑器
-public/photos/           官方路线图（maps/ + maps/cover/ + maps.json）与相册配图、署名清单
+public/photos/           封面风景照（scenes/ + scenes/cover/ + manifest.json + CREDITS.md）与官方路线图（maps/ + maps/cover/ + maps.json）
 public/tracks.json       真实轨迹（import_tracks.py 生成，运行时 fetch 读取）
-scripts/fetch_photos.py  Commons 自由授权图片抓取脚本
+scripts/fetch_photos.py  Commons 自由授权图片抓取（卡片封面 + 详情页原图两份）
+scripts/selftest_fetch_photos.py  fetch_photos 的离线自测（不联网）
 scripts/split_route_map.py  官方 Route Map PDF 按路线切割成卡片封面（压缩版）+ 详情页原图
 scripts/fetch_elevation.py  SRTM 30m 高程抓取脚本（生成 olleeElevation.ts）
 scripts/fetch_olle_osm.py   从 OSM（relation + 散 way）与整条 GPX **三源比选**，抓每条线的真实走向（→ tracks/osm/*.geojson）

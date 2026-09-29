@@ -59,12 +59,16 @@ function resolveAsset(file: string): ImageRef {
  * 叠加随包分发的素材到路线上（不落库，manifest 变了刷新即生效）。
  *
  * 两个来源，各司其职：
- * - `public/photos/maps.json`  官方路线图（scripts/split_route_map.py 切 PDF 产出）
- *     → `cover`（压缩版，约 30KB）作卡片封面；`file`（原图 1432px）进相册，点开看全尺寸
- * - `public/photos/manifest.json` Wikimedia 自由授权照片 → 只进相册
+ * - `public/photos/manifest.json` 该路线一带的**风景照**（scripts/fetch_photos.py 从 Wikimedia Commons 抓）
+ *     → `cover`（压缩版 760px，约 25KB）作卡片封面；`file`（原图 1600px）进相册
+ * - `public/photos/maps.json`   官方路线图（scripts/split_route_map.py 切 PDF 产出）
+ *     → 同样出 cover/file 两份，但**只进相册**，卡片上让位给风景照
  *
- * 封面优先级：**用户自己在后台设的 cover > 官方路线图 > 照片**（官方图比地点示意照更能说明「这条线怎么走」）。
- * 相册顺序：官方路线图 → 照片 → 用户自己上传的。
+ * 封面优先级：**用户在后台设的 cover > 风景照 > 官方路线图**。
+ * 官方图是照着走的示意图，缩到卡片尺寸只剩一片灰白；风景照一眼能认出这条线，
+ * 而路线图仍保留在详情页相册里，点开看全尺寸。
+ *
+ * 相册顺序：风景照 → 官方路线图 → 用户自己上传的。
  */
 function mergeAssets(route: Route, photos: PhotoManifest, maps: PhotoManifest): Route {
   const code = route.code
@@ -77,21 +81,26 @@ function mergeAssets(route: Route, photos: PhotoManifest, maps: PhotoManifest): 
   const mapImage = mapEntry ? resolveAsset(mapEntry.file) : undefined
   const mapCover = mapEntry ? resolveAsset(mapEntry.cover ?? mapEntry.file) : undefined
   const photoImage = photoEntry ? resolveAsset(photoEntry.file) : undefined
+  const photoCover = photoEntry ? resolveAsset(photoEntry.cover ?? photoEntry.file) : undefined
   const inAlbum = (image?: ImageRef) =>
     !!image && route.album.some((a) => a.image.kind === image.kind && a.image.value === image.value)
 
   const prepend: AlbumItem[] = []
-  if (mapImage && !inAlbum(mapImage)) {
-    // 署名写进 caption：相册与灯箱都会显示，满足官方图的 © 标注要求
-    prepend.push({ id: `map_${code}`, image: mapImage, caption: `${mapEntry.caption} · ${mapEntry.credit}` })
-  }
   if (photoImage && !inAlbum(photoImage)) {
-    prepend.push({ id: `photo_${code}`, image: photoImage, caption: photoEntry.caption })
+    // 署名写进 caption：相册与灯箱都会显示，满足 CC-BY 的署名要求
+    prepend.push({
+      id: `photo_${code}`,
+      image: photoImage,
+      caption: [photoEntry.caption, photoEntry.credit].filter(Boolean).join(' · '),
+    })
+  }
+  if (mapImage && !inAlbum(mapImage)) {
+    prepend.push({ id: `map_${code}`, image: mapImage, caption: `${mapEntry.caption} · ${mapEntry.credit}` })
   }
 
   return {
     ...route,
-    cover: route.cover ?? mapCover ?? photoImage,
+    cover: route.cover ?? photoCover ?? mapCover,
     album: [...prepend, ...route.album],
   }
 }

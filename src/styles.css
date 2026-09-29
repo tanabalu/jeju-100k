@@ -429,9 +429,10 @@ textarea.input {
 
 .route-cover {
   position: relative;
-  /* 封面是官方路线图整页（842×596 横版），按页面比例留位才能零裁切；
-     换图源要同步改这里，否则 object-fit: cover 会把地图上下切掉 */
-  aspect-ratio: 842 / 596;
+  /* 封面是风景照（横构图，多数 3:2），按 3:2 留位；object-fit: cover 只会裁掉上下极少一点。
+     官方路线图（842×596 ≈ 1.41:1）只是「照片缺失」时的兜底，落到这个比例会上下各裁约 3%，
+     地图本体不受影响（四周本来就只有约 3% 留白，路线完整）。换图源要同步改这里。 */
+  aspect-ratio: 3 / 2;
   background: var(--line-soft);
 }
 
