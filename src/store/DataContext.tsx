@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { AlbumItem, AppSettings, ElevSample, ImageRef, Plan, PlanItem, Route, TrackPoint } from '../types'
+import type { AlbumItem, AppSettings, ElevSample, ImageRef, Plan, PlanItem, Route } from '../types'
 import { store, type ChecklistState, type UiState } from '../lib/storage'
 import { PREP_GROUPS, PREP_PRESETS, normItemText } from '../lib/prep'
 import { buildSeedRoutes } from '../lib/seed'
@@ -132,80 +132,18 @@ function mergeAssets(route: Route, photos: PhotoManifest, maps: PhotoManifest): 
   }
 }
 
-/** 两个坐标是否视为同一点（预置值的比较用，1e-9 度 ≈ 0.1 mm，足够区分有没有被手改过） */
-const SAME_POINT_EPS = 1e-9
-
-/**
- * 起终点是否仍是预置值（= 用户没在后台动过坐标）。
- *
- * ⚠️ **只比首尾两点，绝不比途经点数量**：途经点是随素材版本增补的（2026 全量铺开后，
- *    01 从「起+终」两点变成「起+13 途经+终」），本机旧数据仍是两点。若按 `length` 判定，
- *    会把「素材升级」误判成「用户手工改过坐标」，于是 `snapRouteEnds` 整个跳过 ——
- *    起终点就会退回 `PLACES` 的城镇级近似值（01 的 siheung 实测偏真实起点约 10km）。
- *    这正是 2026-09-29「01 起终点被改错」的根因。
- */
-function isUntouchedSeed(route: Route, seedPts: Map<string, { lng: number; lat: number }[]>): boolean {
-  const seed = seedPts.get(route.id)
-  const cur = route.points ?? []
-  if (!seed || seed.length < 2 || cur.length < 2) return false
-  const same = (a: { lng: number; lat: number }, b: { lng: number; lat: number }) =>
-    Math.abs(a.lng - b.lng) < SAME_POINT_EPS && Math.abs(a.lat - b.lat) < SAME_POINT_EPS
-  return same(cur[0], seed[0]) && same(cur[cur.length - 1], seed[seed.length - 1])
-}
-
-/**
- * 把起点/终点吸附到真实轨迹的首末点。
- *
- * 预置坐标是「城镇级近似值」，实测偏差可达 10~13 km（Route 1 的起终点就是这样），
- * 所以只换折线不换途经点的话，起点/终点标记还会留在错的位置上。
- * 轨迹首末点就是这条线真实的起终点，直接用它。
- *
- * ⚠️ 例外：route.startPoint / route.endPoint 设置了官方权威坐标时，优先钉到官方命名地点
- *   （06 起点现在与 05 真实轨迹终点一致；07 为旧 GPX 与官方地图数字化补线）。07-1 的官方终点锚点离现有路线末点约 1.3km，
- *   因此保留其轨迹端点作为地图标记，避免标记脱离用户确认正确的线路。
- *   折线仍走真实轨迹，只把起终点标记挪回官方位置。
- *
- * ⚠️ 只在起终点「仍是预置值」时吸附 —— 你在后台手动校正过的坐标不会被覆盖。
- *   途经点数量变化不影响该判定（见 `isUntouchedSeed`）。
- */
-function snapRouteEnds(
-  route: Route,
-  track: [number, number, number | null][],
-  seedPts: Map<string, { lng: number; lat: number }[]>,
-): TrackPoint[] {
-  const pts = route.points ?? []
-  if (pts.length < 2 || !isUntouchedSeed(route, seedPts)) return pts
-  const first = track[0]
-  const last = track[track.length - 1]
-  const eleOf = (p: [number, number, number | null]) => (typeof p[2] === 'number' ? p[2] : undefined)
-  // 官方权威起/终点优先：06 / 07 的轨迹首末点可能偏离官方 trailhead，
-  // 钉到官方命名地点才能让标记落到正确位置，折线仍走真实轨迹。
-  const sAnchor = route.startPoint
-  const eAnchor = route.endPoint
-  return pts.map((p, i) => {
-    if (i === 0 && sAnchor)
-      return { ...p, lng: sAnchor.lng, lat: sAnchor.lat, ele: sAnchor.ele ?? eleOf(first) ?? p.ele }
-    if (i === pts.length - 1 && eAnchor)
-      return { ...p, lng: eAnchor.lng, lat: eAnchor.lat, ele: eAnchor.ele ?? eleOf(last) ?? p.ele }
-    if (i === 0) return { ...p, lng: first[0], lat: first[1], ele: eleOf(first) ?? p.ele }
-    if (i === pts.length - 1) return { ...p, lng: last[0], lat: last[1], ele: eleOf(last) ?? p.ele }
-    return p
-  })
-}
-
 /**
  * 叠加真实轨迹（不落库，改 `public/tracks.json` 刷新即生效）。
  *
  * 轨迹一到位，这条线的「位置 / 形状 / 里程 / 爬升」就全部改用真实数据：
  * - `elevationProfile` 换成轨迹点 —— 它本来就是「密采样序列」，剖面图与爬升都从它来；
  * - `elevationBasis` 置为 `'track'`，界面据此改口径文案（不再说「估算」）；
- * - 起点/终点吸附到轨迹首末点（见 `snapRouteEnds`）。
+ * - 起点/终点用 `olle-endpoints.json` 固化的权威坐标（seed 时写入 `points`），此处不再二次处理；折线/海拔来自 `tracks.json`。
  * 没录海拔的轨迹：剖面会显示「暂缺海拔数据」，而不是拿旧的错线剖面冒充。
  */
 function mergeTrack(
   route: Route,
   tracks: TrackManifest,
-  seedPts: Map<string, { lng: number; lat: number }[]>,
 ): Route {
   const entry = route.code ? tracks[route.code] : undefined
   const raw = entry?.points
@@ -236,7 +174,7 @@ function mergeTrack(
   const { elevationSegments: _oldSegments, ...routeWithoutOldSegments } = route
   return {
     ...routeWithoutOldSegments,
-    points: snapRouteEnds(route, clean, seedPts),
+    points: route.points,
     elevationProfile: samples,
     ...(segs.length > 1 ? { elevationSegments: segs } : {}),
     elevationBasis: 'track',
@@ -304,14 +242,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [photoManifest, setPhotoManifest] = useState<PhotoManifest>({})
   const [routeMaps, setRouteMaps] = useState<PhotoManifest>({})
   const [trackManifest, setTrackManifest] = useState<TrackManifest>({})
-  /** 预置途经点坐标，用于判断某条路线有没有被手动改过（决定要不要吸附到轨迹） */
-  const seedPts = useMemo(
-    () =>
-      new Map(
-        buildSeedRoutes().map((r) => [r.id, r.points.map((p) => ({ lng: p.lng, lat: p.lat }))] as const),
-      ),
-    [],
-  )
   const [checklist, setChecklist] = useState<ChecklistState>({
     checked: [],
     skipped: [],
@@ -380,9 +310,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!hasAssets && !hasTracks) return rawRoutes
     return rawRoutes.map((r) => {
       const withAssets = hasAssets ? mergeAssets(r, photoManifest, routeMaps) : r
-      return hasTracks ? mergeTrack(withAssets, trackManifest, seedPts) : withAssets
+      return hasTracks ? mergeTrack(withAssets, trackManifest) : withAssets
     })
-  }, [rawRoutes, photoManifest, routeMaps, trackManifest, seedPts])
+  }, [rawRoutes, photoManifest, routeMaps, trackManifest])
 
   const upsertRoute = useCallback((route: Route) => {
     setRawRoutes((prev) => {
@@ -558,12 +488,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setChecklist((prev) => {
       const gone = prev.extras.filter(match).map((e) => e.id)
       if (gone.length === 0) return prev
-      const dead = new Set(gone)
+      const goneIds = new Set(gone)
       const next: ChecklistState = {
         ...prev,
-        checked: prev.checked.filter((x) => !dead.has(x)),
-        skipped: prev.skipped.filter((x) => !dead.has(x)),
-        extras: prev.extras.filter((e) => !dead.has(e.id)),
+        checked: prev.checked.filter((x) => !goneIds.has(x)),
+        skipped: prev.skipped.filter((x) => !goneIds.has(x)),
+        extras: prev.extras.filter((e) => !goneIds.has(e.id)),
       }
       store.setChecklist(next)
       return next

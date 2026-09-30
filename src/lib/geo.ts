@@ -293,12 +293,6 @@ export function routeBadgeAnchor(route: Route): GeoPoint | null {
   return ok[i]
 }
 
-/** 把路线按里程切成 N 段用于剖面/进度展示 */
-export function distanceLabels(points: TrackPoint[]): { km: number; name: string }[] {
-  const cum = cumulativeKm(points)
-  return points.map((p, i) => ({ km: cum[i], name: p.name }))
-}
-
 export function formatKm(km: number): string {
   if (!Number.isFinite(km)) return '—'
   return km >= 10 ? km.toFixed(1) : km.toFixed(2)

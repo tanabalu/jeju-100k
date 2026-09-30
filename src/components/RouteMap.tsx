@@ -168,7 +168,7 @@ function makeBadgeIcon(label: string): L.DivIcon {
 }
 
 interface RouteMapProps {
-  /** 单段路线（兼容旧用法）；与 trails 二选一 */
+  /** 单段路线；与 trails 二选一 */
   points?: TrackPoint[]
   /** 多段路线：每段是一条折线，用于一次性展示多条路线的位置分布 */
   trails?: TrackPoint[][]

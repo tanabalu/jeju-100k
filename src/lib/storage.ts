@@ -130,7 +130,7 @@ export function normalizeRoute(route: Route): Route {
  * 归一化一个行程篮：缺 items 时补空数组，避免「已加入」列表整页崩掉。
  *
  * 只做这一件事。行程篮的「天数 / 住宿锁定 / 出发日期」字段是后来加的，
- * **不做旧版本兼容**：老数据里缺这些字段就读成 undefined（= 未分天），
+ * **导入备份/脏数据兜底**：老备份里缺这些字段就读成 undefined（= 未分天），
  * 由用户在「按天」视图里重新排一次即可。
  */
 export function normalizePlan(plan: Plan): Plan {
@@ -156,7 +156,7 @@ export const store = {
   getPlanDraftId: () => read<string>(K_PLAN_DRAFT, ''),
   setPlanDraftId: (v: string) => write(K_PLAN_DRAFT, v),
 
-  // 兼容升级前存的数据（没有 skipped / extras 字段），逐字段兜底，避免读到脏数据时整页崩
+  // 导入升级前老备份的数据（没有 skipped / extras 字段），逐字段兜底，避免读到脏数据时整页崩
   getChecklist: (): ChecklistState => {
     const raw = read<Partial<ChecklistState> | null>(K_CHECKLIST, EMPTY_CHECKLIST)
     if (!raw || typeof raw !== 'object') return EMPTY_CHECKLIST
@@ -176,26 +176,6 @@ export const store = {
   setUi: (v: UiState) => write(K_UI, normalizeUi(v)),
 }
 
-export function emptyRoute(partial: Partial<Route> = {}): Route {
-  const now = Date.now()
-  return {
-    id: uid('route'),
-    name: '未命名路线',
-    region: '',
-    summary: '',
-    kind: 'hike',
-    difficulty: 3,
-    points: [],
-    tags: [],
-    hotels: [],
-    sights: [],
-    album: [],
-    createdAt: now,
-    updatedAt: now,
-    ...partial,
-  }
-}
-
 export function emptyHotel(partial: Partial<Hotel> = {}): Hotel {
   return { id: uid('hotel'), name: '未命名住宿', lng: 0, lat: 0, ...partial }
 }
@@ -211,7 +191,7 @@ export function emptyAlbumItem(partial: Partial<AlbumItem> = {}): AlbumItem {
 /**
  * 备份文件格式。
  *
- * ## 不做向后兼容
+ * ## 不做向后兼容（仅导入兜底，不随版本升级）
  * version 是**写入端**的标记：**v2 及以后才带**「第几天 / 住宿锁定 / 出发日期 / 每天备注」。
  * 导入时**不识别 version、也不做任何升级转换** ——读进来的新字段缺失就是缺失
  * （行程篮没有分天就是没有分天），交给 `normalizePlan` 兜底成可用状态。
@@ -267,14 +247,3 @@ export function importBackup(text: string, mode: 'merge' | 'replace'): { routes:
   return { routes: routes.length, plans: store.getPlans().length }
 }
 
-/** 收集一条路线里用到的所有本地图片 key */
-export function collectLocalImages(route: Route): Set<string> {
-  const out = new Set<string>()
-  const push = (ref?: ImageRef) => {
-    if (ref && ref.kind === 'local') out.add(ref.value)
-  }
-  push(route.cover)
-  arr<Sight>(route.sights).forEach((s) => arr<ImageRef>(s?.images).forEach(push))
-  arr<AlbumItem>(route.album).forEach((a) => push(a?.image))
-  return out
-}

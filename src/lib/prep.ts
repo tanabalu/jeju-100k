@@ -794,7 +794,3 @@ export const BUDGET_HINTS = [
   { label: '租车自驾（含油费停车）', value: '约 ¥250–450 / 天 额外（≈ ₩50,000–90,000）' },
 ]
 
-/** 一次性统计所有条目 id（含自定义） */
-export function allItemIds(groups: PrepGroup[]): string[] {
-  return groups.flatMap((g) => g.items.map((i) => i.id))
-}

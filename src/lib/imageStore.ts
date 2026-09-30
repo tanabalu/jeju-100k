@@ -35,22 +35,6 @@ export async function putImageFile(file: File, maxWidth = 1600): Promise<ImageRe
   return { kind: 'local', value: key }
 }
 
-export async function deleteImage(ref: ImageRef): Promise<void> {
-  if (ref.kind !== 'local') return
-  const db = await openDB()
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite')
-    tx.objectStore(STORE).delete(ref.value)
-    tx.oncomplete = () => resolve()
-    tx.onerror = () => reject(tx.error)
-  })
-  const url = urlCache.get(ref.value)
-  if (url) {
-    URL.revokeObjectURL(url)
-    urlCache.delete(ref.value)
-  }
-}
-
 const urlCache = new Map<string, string>()
 
 /** 把 ImageRef 解析成可直接用于 <img src> 的地址 */
@@ -118,15 +102,4 @@ export async function clearImageStore(): Promise<void> {
   }
   dbPromise = null
   urlCache.clear()
-}
-
-/** 列出所有本地图片 key，用于清理孤儿数据 */
-export async function listImageKeys(): Promise<string[]> {
-  const db = await openDB()
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readonly')
-    const req = tx.objectStore(STORE).getAllKeys()
-    req.onsuccess = () => resolve(req.result.map(String))
-    req.onerror = () => reject(req.error)
-  })
 }

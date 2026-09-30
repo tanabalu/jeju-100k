@@ -15,7 +15,7 @@
  * 拿不到的一律返回空/降级，**不编造酒店名**。宁可显示「附近没有已录入的住宿」，
  * 也不能虚构一家看起来合理的民宿 —— 用户会照着找过去。
  */
-import type { Hotel, Plan, PlanItem, Route } from '../types'
+import type { Hotel, PlanItem, Route } from '../types'
 import { TRIP_PLANS, type TripPlan } from './tripPlans'
 import { haversineKm } from './geo'
 import type { DayPlan } from './dayPlan'
@@ -395,7 +395,3 @@ export function collectHotels(routes: Route[]): LinkedHotel[] {
   return out
 }
 
-/** 某天的住宿备注 */
-export function dayNoteOf(plan: Plan | undefined, day: number): string {
-  return plan?.dayNotes?.[day] ?? ''
-}

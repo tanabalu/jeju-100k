@@ -8,9 +8,9 @@ import olleEndpointsJson from '../data/olle-endpoints.json'
  * 27 条线的**权威起终点**（钉死值，不再靠运行时推导）。
  *
  * ⚠️ 为什么不再用 `PLACES` 的坐标当起终点：那是「城镇/地点级近似坐标」，
- *    实测 23/27 偏差 >1km、最大 6.7km；原先靠 `DataContext.snapRouteEnds` 运行时吸附到
- *    `tracks.json` 首尾来盖住它，一旦吸附判定失效（2026-09-29：加了途经点后点数对不上，
- *    被误判成"用户手工改过坐标"）就会整体退回陈旧坐标，01 起点偏 5.29km、终点偏 6.35km。
+ *    实测 23/27 偏差 >1km、最大 6.7km。起终点已在此文件钉死为权威值，seed 时直接写入
+ *    `points` 与 `startPoint`/`endPoint`，运行时不再做任何吸附；即使 `tracks.json` 后续被校正，
+ *    起终点标记也不会被带走。轨迹若真变了，`scripts/check_endpoints.py` 三向对账会报警提醒重固化。
  *
  * ⚠️ 为什么按「线」而不是按「地点」存：`daepyeong`（08 终点 vs 09 起点）差 180m、
  *    `hwasun`（09 终点 vs 10 起点）、`jeoji`（13/14 vs 14-1 支线）同样不一致 ——
@@ -248,9 +248,8 @@ function buildRoute(spec: OlleSpec): Route {
     code: spec.code,
     name: `偶来 ${spec.code} · ${s.zh} → ${e.zh}`,
     region: `韩国 · 济州岛 · ${spec.region ?? ''}`,
-    // 起终点标记一律钉在固化的权威坐标上：startPoint/endPoint 会让 `snapRouteEnds`
-    // 优先用它们而不是吸附到轨迹首末点。这样 tracks.json 后续被校正时标记不会被带走；
-    // 若轨迹确实变了，`scripts/check_endpoints.py` 会对账报警提醒重新固化。
+  // 起终点标记一律钉在固化的权威坐标上（startPoint/endPoint）。tracks.json 后续被校正时标记不会被带走；
+  // 若轨迹确实变了，`scripts/check_endpoints.py` 会对账报警提醒重新固化。
     startPoint: start,
     endPoint: end,
     summary: isLoop

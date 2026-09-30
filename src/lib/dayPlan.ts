@@ -325,10 +325,3 @@ export function stayIdOfDay(items: PlanItem[], day: number): string | undefined 
   return undefined
 }
 
-/** 某天的内容概况：酒店 id + 备注 */
-export function stayOfDay(items: PlanItem[], day: number): { stayId?: string; stayNote?: string } {
-  for (const i of items) {
-    if (i.day === day && (i.stayId || i.stayNote)) return { stayId: i.stayId, stayNote: i.stayNote }
-  }
-  return {}
-}
