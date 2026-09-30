@@ -5,6 +5,7 @@ import { computeMetrics, formatKm } from '../lib/geo'
 import { RouteCard } from '../components/RouteCard'
 import { ListSkeleton } from '../components/Skeleton'
 import { useActivePlan } from '../hooks/useActivePlan'
+import styles from './RoutesPage.module.less'
 
 type SortKey = 'code' | 'distance' | 'difficulty' | 'difficultyAsc'
 
@@ -65,13 +66,13 @@ export function RoutesPage() {
 
   return (
     <div className="page">
-      <div className="plan-mini">
-        <div className="plan-mini-left">
-          <span className="plan-mini-label">当前行程篮</span>
+      <div className={`${styles['plan-mini']}`}>
+        <div className={`${styles['plan-mini-left']}`}>
+          <span className={`${styles['plan-mini-label']}`}>当前行程篮</span>
           {/* 直接切换行程篮：卡片上的「加入」会加进这里选中的那个 */}
           {plans.length > 0 ? (
             <select
-              className="input plan-mini-select"
+              className={`input ${styles['plan-mini-select']}`}
               value={plan?.id ?? ''}
               onChange={(e) => selectPlan(e.target.value)}
               title="切换当前行程篮"
@@ -85,7 +86,7 @@ export function RoutesPage() {
           ) : (
             <strong>（还没有行程篮）</strong>
           )}
-          <span className="plan-mini-km">
+          <span className={`${styles['plan-mini-km']}`}>
             {formatKm(planTotal)} / {target} km
           </span>
           {plan && <span className="muted">已加入 {plan.items.length} 条</span>}
@@ -98,7 +99,7 @@ export function RoutesPage() {
         </Link>
       </div>
 
-      <div className="toolbar">
+      <div className={`${styles['toolbar']}`}>
         <input
           className="input"
           placeholder="搜索路线名 / 地区 / 标签"

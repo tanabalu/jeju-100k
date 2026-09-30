@@ -9,6 +9,7 @@ import { PlanPage } from './pages/PlanPage'
 import { PrepPage } from './pages/PrepPage'
 import { AdminPage } from './pages/AdminPage'
 import { SettingsPage } from './pages/SettingsPage'
+import styles from './App.module.less'
 
 const NAV = [
   { to: '/', label: '路线' },
@@ -21,6 +22,9 @@ const NAV = [
 /** 页脚「数据来源」署名（纯文本标注，不占链接位） */
 const DATA_SOURCES = 'jejuolletrailguide.net'
 
+/** 本项目仓库地址（README §9 的 Dokploy 部署与本页脚引用同一个仓）。 */
+const GITHUB_REPO = 'https://github.com/tanabalu/jeju-100k'
+
 /**
  * 页脚友链：加一条往这里塞就行。
  * 外链一律 target="_blank" + rel="noopener noreferrer"（防新开页通过 window.opener 反向控制本页）。
@@ -32,6 +36,28 @@ const FRIEND_LINKS = [
     desc: '济州偶来官方英文站：437km 步道里程、难度与实用信息',
   },
 ]
+
+/**
+ * GitHub 官方 Mark 图标（24×24 官方网格，实际尺寸由 CSS 定）。
+ * path 来自 simple-icons 的 github.svg（CC0 公有领域）；fill 走 currentColor，
+ * 因此深色图形会跟随链接文字色变化，不需要再维护一份 hover 色。
+ */
+function GitHubMark() {
+  return (
+    <svg
+      className={`${styles['footer-github-icon']}`}
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        fill="currentColor"
+        d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"
+      />
+    </svg>
+  )
+}
 
 /**
  * 内容区单独包一层错误边界：某个页面挂了，顶栏导航还在，切到别的页面还能继续用。
@@ -112,17 +138,17 @@ export default function App() {
       <FeedbackProvider>
         <DataProvider>
           <div className="app">
-            <header className="topbar">
-              <Link to="/" className="brand" title="回到首页" onClick={closeMobileNav}>
-                <span className="brand-mark">100K</span>
-                <span className="brand-text">
+            <header className={`${styles['topbar']}`}>
+              <Link to="/" className={`${styles['brand']}`} title="回到首页" onClick={closeMobileNav}>
+                <span className={`${styles['brand-mark']}`}>100K</span>
+                <span className={`${styles['brand-text']}`}>
                   偶来小路 · 百公里攻略
                   <em>济州岛 Jeju Olle Trail · 27 条路线凑里程</em>
                 </span>
               </Link>
               <button
                 type="button"
-                className="mobile-menu-button"
+                className={`${styles['mobile-menu-button']}`}
                 ref={mobileMenuButtonRef}
                 aria-label={mobileNavOpen ? '关闭目录' : '打开目录'}
                 aria-expanded={mobileNavOpen}
@@ -135,7 +161,7 @@ export default function App() {
                   <i />
                 </span>
               </button>
-              <nav className="nav">
+              <nav className={`${styles['nav']}`}>
                 {NAV.map((n) => (
                   <NavLink key={n.to} to={n.to} end={n.to === '/'} className={({ isActive }) => (isActive ? 'nav-link is-active' : 'nav-link')}>
                     {n.label}
@@ -147,18 +173,18 @@ export default function App() {
               <>
                 <button
                   type="button"
-                  className="mobile-nav-backdrop"
+                  className={`${styles['mobile-nav-backdrop']}`}
                   aria-label="关闭目录"
                   onClick={closeMobileNav}
                 />
-                <aside id="mobile-main-nav" className="mobile-nav-drawer" role="dialog" aria-modal="true" aria-label="主目录">
-                  <div className="mobile-nav-heading">
+                <aside id="mobile-main-nav" className={`${styles['mobile-nav-drawer']}`} role="dialog" aria-modal="true" aria-label="主目录">
+                  <div className={`${styles['mobile-nav-heading']}`}>
                     <strong>目录</strong>
-                    <button type="button" className="mobile-nav-close" aria-label="关闭目录" onClick={closeMobileNav}>
+                    <button type="button" className={`${styles['mobile-nav-close']}`} aria-label="关闭目录" onClick={closeMobileNav}>
                       <span aria-hidden="true">×</span>
                     </button>
                   </div>
-                  <nav className="mobile-nav-links">
+                  <nav className={`${styles['mobile-nav-links']}`}>
                     {NAV.map((n) => (
                       <NavLink
                         key={n.to}
@@ -174,19 +200,19 @@ export default function App() {
                 </aside>
               </>
             )}
-            <main className="content">
+            <main className={`${styles['content']}`}>
               <PageRoutes />
             </main>
-            <footer className="footer">
-              <p className="footer-line">
+            <footer className={`${styles['footer']}`}>
+              <p className={`${styles['footer-line']}`}>
                 数据仅保存在本机浏览器 · 底图服务：OpenStreetMap · 数据来源：{DATA_SOURCES}
               </p>
-              <p className="footer-line footer-friends">
-                <span className="footer-tag">友情链接</span>
+              <p className={`${styles['footer-line']} ${styles['footer-friends']}`}>
+                <span className={`${styles['footer-tag']}`}>友情链接</span>
                 {FRIEND_LINKS.map((l) => (
                   <a
                     key={l.url}
-                    className="footer-link"
+                    className={`${styles['footer-link']}`}
                     href={l.url}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -195,6 +221,18 @@ export default function App() {
                     {l.name}
                   </a>
                 ))}
+              </p>
+              <p className={`${styles['footer-line']} ${styles['footer-github']}`}>
+                <a
+                  className={`${styles['footer-github-link']}`}
+                  href={GITHUB_REPO}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="在 GitHub 上查看本项目源码（tanabalu/jeju-100k）"
+                >
+                  <GitHubMark />
+                  <span>GitHub</span>
+                </a>
               </p>
             </footer>
           </div>

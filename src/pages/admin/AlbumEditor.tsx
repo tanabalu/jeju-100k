@@ -3,6 +3,7 @@ import { emptyAlbumItem } from '../../lib/storage'
 import { ImageField } from '../../components/ImageField'
 import { Thumb } from '../../components/Thumb'
 import { useConfirm } from '../../components/Feedback'
+import styles from './AlbumEditor.module.less'
 
 interface Props {
   route: Route
@@ -35,14 +36,14 @@ export function AlbumEditor({ route, onPatch }: Props) {
 
       {album.length === 0 && <p className="muted">还没有照片。支持本地上传（自动压缩）或填外链。</p>}
 
-      <div className="album-editor">
+      <div className={`${styles['album-editor']}`}>
         {album.map((a) => {
           const isSystem = isSystemAlbumItem(a)
           return (
             <div key={a.id} className={`album-editor-cell${isSystem ? ' is-system' : ''}`}>
-              <div className="album-editor-img">
+              <div className={`${styles['album-editor-img']}`}>
                 <Thumb image={a.image} alt={a.caption ?? ''} />
-                {isSystem && <span className="album-system-tag">系统</span>}
+                {isSystem && <span className={`${styles['album-system-tag']}`}>系统</span>}
               </div>
               <ImageField value={a.image} onChange={(image) => patch(a.id, { image: image ?? { kind: 'url', value: '' } })} height={90} />
               <input

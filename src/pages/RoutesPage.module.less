@@ -1,0 +1,78 @@
+/* 组件专属样式（CSS Modules + Less，局部作用域） */
+
+.toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.toolbar :global(.input) {
+  width: auto;
+  min-width: 160px;
+}
+.plan-mini {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.plan-mini-left {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  white-space: nowrap;
+}
+.plan-mini-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+.plan-mini-select {
+  width: auto;
+  min-width: 140px;
+  max-width: 220px;
+  padding: 4px 8px;
+  font-weight: 600;
+  color: var(--text);
+}
+.plan-mini-km {
+  color: var(--brand-dark);
+  font-weight: 600;
+  font-size: 13px;
+}
+@media (max-width: 720px) {
+.plan-mini {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+.plan-mini-left {
+    flex-wrap: wrap;
+    white-space: normal;
+  }
+.plan-mini-select {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+.toolbar {
+    width: 100%;
+  }
+.toolbar :global(.input) {
+    flex: 1 1 140px;
+    min-width: 0;
+    width: auto;
+  }
+.toolbar select:global(.input) {
+    flex: 1 1 140px;
+    min-width: 0;
+    width: auto;
+  }
+}
+@media (max-width: 480px) {
+.plan-mini {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}

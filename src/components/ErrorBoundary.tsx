@@ -2,6 +2,7 @@ import { Component, useState, type ErrorInfo, type ReactNode } from 'react'
 import { Modal } from './Modal'
 import { clearAllLocalData } from '../lib/storage'
 import { clearImageStore } from '../lib/imageStore'
+import styles from './ErrorBoundary.module.less'
 
 interface Props {
   children: ReactNode
@@ -97,14 +98,14 @@ function ErrorView({
 
   return (
     <div className={scope === 'app' ? 'error-page is-app' : 'error-page'}>
-      <div className="error-card">
-        <div className="error-badge">!</div>
+      <div className={`${styles['error-card']}`}>
+        <div className={`${styles['error-badge']}`}>!</div>
         <h1>{scope === 'app' ? '页面加载失败了' : '这个页面出错了'}</h1>
-        <p className="error-lead">
+        <p className={`${styles['error-lead']}`}>
           还好没白屏 —— 你的路线、行程篮和清单都存在本机浏览器里，不会因为这次报错丢掉。
         </p>
 
-        <div className="error-msg">{error.message || '未知错误'}</div>
+        <div className={`${styles['error-msg']}`}>{error.message || '未知错误'}</div>
 
         <div className="btn-row">
           <button className="btn btn-primary" onClick={onRetry}>
@@ -123,9 +124,9 @@ function ErrorView({
           )}
         </div>
 
-        {showStack && componentStack && <pre className="error-stack">{componentStack.trim()}</pre>}
+        {showStack && componentStack && <pre className={`${styles['error-stack']}`}>{componentStack.trim()}</pre>}
 
-        <div className="error-foot">
+        <div className={`${styles['error-foot']}`}>
           <span className="muted">反复出错的话，多半是本机数据里有条坏记录。</span>
           <button className="btn-link btn-link-danger" onClick={() => setWipeOpen(true)}>
             清空本机数据并重载

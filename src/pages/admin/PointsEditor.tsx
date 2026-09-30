@@ -5,6 +5,7 @@ import { trackLines } from '../../lib/geo'
 import { PointPicker } from '../../components/PointPicker'
 import { RouteMap, WP_TYPE_STYLE } from '../../components/RouteMap'
 import { useConfirm, useToast } from '../../components/Feedback'
+import styles from './PointsEditor.module.less'
 
 /**
  * 途经点设施类型选项：与地图图例（RouteMap 的 WP_TYPE_STYLE）完全一致，
@@ -111,19 +112,19 @@ export function PointsEditor({ route, onPatch }: Props) {
           ))}
         </select>
         <input
-          className="input input-num"
+          className={`input ${styles['input-num']}`}
           placeholder="经度"
           value={draft.lng}
           onChange={(e) => setDraft({ ...draft, lng: e.target.value })}
         />
         <input
-          className="input input-num"
+          className={`input ${styles['input-num']}`}
           placeholder="纬度"
           value={draft.lat}
           onChange={(e) => setDraft({ ...draft, lat: e.target.value })}
         />
         <input
-          className="input input-num"
+          className={`input ${styles['input-num']}`}
           placeholder="海拔"
           value={draft.ele}
           onChange={(e) => setDraft({ ...draft, ele: e.target.value })}
@@ -171,7 +172,7 @@ export function PointsEditor({ route, onPatch }: Props) {
               </td>
               <td>
                 {locked ? (
-                  <span className="locked-tag">{isStart ? '起点' : '终点'}</span>
+                  <span className={`${styles['locked-tag']}`}>{isStart ? '起点' : '终点'}</span>
                 ) : (
                   <select
                     className="input input-xs"

@@ -19,6 +19,7 @@ const K_SETTINGS = 'trail100k.settings'
 const K_PLAN_DRAFT = 'trail100k.planDraft'
 const K_SEED_VERSION = 'trail100k.seedVersion'
 const K_CHECKLIST = 'trail100k.checklist'
+const K_UI = 'trail100k.ui'
 
 /** 从「女士/男士常用清单」加进总清单的条目 */
 export interface ChecklistExtra extends PrepItem {
@@ -37,6 +38,30 @@ export interface ChecklistState {
 }
 
 const EMPTY_CHECKLIST: ChecklistState = { checked: [], skipped: [], custom: [], extras: [] }
+
+/**
+ * 界面上的筛选开关（只看未完成等）。
+ *
+ * 单独一个键，不塞进 settings / checklist：这两个都进备份文件（exportBackup / importBackup），
+ * 而「筛选开关」是本机视图偏好 —— 导入别人的备份不该顺手把我的筛选状态改掉。
+ */
+export interface UiState {
+  /** 行前清单：只看未完成 */
+  prepOnlyTodo: boolean
+  /** 行程篮：只看未完成（隐藏已走完的路线） */
+  planHideDone: boolean
+}
+
+const EMPTY_UI: UiState = { prepOnlyTodo: false, planHideDone: false }
+
+/** 逐字段兜底：脏数据 / 旧版本缺字段都回落到 false，不让 undefined 漏进渲染 */
+function normalizeUi(raw: Partial<UiState> | undefined | null): UiState {
+  if (!raw || typeof raw !== 'object') return EMPTY_UI
+  return {
+    prepOnlyTodo: raw.prepOnlyTodo === true,
+    planHideDone: raw.planHideDone === true,
+  }
+}
 
 /** 默认素材版本：9=起终点改为读 src/data/olle-endpoints.json 的固化权威值（不再运行时吸附）。
  *  ⚠️ 起终点是「权威声明」不是用户数据，所以这个版本号会触发一次起终点升级迁移
@@ -149,6 +174,9 @@ export const store = {
     }
   },
   setChecklist: (v: ChecklistState) => write(K_CHECKLIST, v),
+
+  getUi: () => normalizeUi(read<Partial<UiState> | null>(K_UI, EMPTY_UI)),
+  setUi: (v: UiState) => write(K_UI, normalizeUi(v)),
 }
 
 export function emptyRoute(partial: Partial<Route> = {}): Route {

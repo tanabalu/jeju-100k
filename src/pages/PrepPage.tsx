@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useData } from '../store/DataContext'
 import { useConfirm, useToast } from '../components/Feedback'
 import { BUDGET_HINTS, GUIDE_SECTIONS, PREP_GROUPS, PREP_PRESETS, normItemText, type PrepGroup, type PrepItem, type PrepPreset } from '../lib/prep'
+import styles from './PrepPage.module.less'
 
 /** 条目来源说明（「已放弃」区块用来标注这条原本属于哪） */
 function sourceOf(
@@ -19,6 +20,8 @@ function sourceOf(
 export function PrepPage() {
   const {
     checklist,
+    ui,
+    updateUi,
     toggleCheck,
     toggleSkip,
     resetChecklist,
@@ -30,7 +33,9 @@ export function PrepPage() {
   } = useData()
   const toast = useToast()
   const confirm = useConfirm()
-  const [onlyTodo, setOnlyTodo] = useState(false)
+  /** 只看未完成：状态存在本机缓存（trail100k.ui），刷新/关掉页面后仍然保持 */
+  const onlyTodo = ui.prepOnlyTodo
+  const setOnlyTodo = (v: boolean) => updateUi({ prepOnlyTodo: v })
   const [draft, setDraft] = useState('')
 
   const checked = useMemo(() => new Set(checklist.checked), [checklist.checked])
@@ -191,16 +196,16 @@ export function PrepPage() {
   return (
     <div className="page">
       {/* 标题+描述单独包一层：.page 是 gap:18px 的 flex 列，标题和描述合为一个子项，间距不受父级 gap 影响 */}
-      <div className="prep-head">
+      <div className={`${styles['prep-head']}`}>
         <h1 className="detail-title">行前准备 · 济州岛</h1>
         <p className="muted">
-          出发前逐项打勾，进度保存在本机浏览器。政策与价格会变，标「<span className="verify-tag">临行复核</span>」
+          出发前逐项打勾，进度保存在本机浏览器。政策与价格会变，标「<span className={`${styles['verify-tag']}`}>临行复核</span>」
           的项目请自己再确认一遍。想按性别补充的，到下面「<b>女士常用 / 男士常用</b>」两份备选清单里挑着加入。
         </p>
       </div>
 
       {/* ---------- 本页目录：快速跳转模块 ---------- */}
-      <nav className="prep-toc" aria-label="本页目录">
+      <nav className={`${styles['prep-toc']}`} aria-label="本页目录">
         {toc.map((t) => (
           <button
             key={t.id}
@@ -225,14 +230,14 @@ export function PrepPage() {
       </nav>
 
       {/* ---------- 总进度 ---------- */}
-      <section id="prep-progress" className="section prep-summary">
-        <div className="prep-summary-head">
-          <div className="prep-summary-num">
+      <section id="prep-progress" className={`section ${styles['prep-summary']}`}>
+        <div className={`${styles['prep-summary-head']}`}>
+          <div className={`${styles['prep-summary-num']}`}>
             <b>{done}</b>
             <i>/ {total}</i>
             <em>已备齐</em>
           </div>
-          <div className="prep-summary-bar">
+          <div className={`${styles['prep-summary-bar']}`}>
             <div className="progress progress-lg">
               <div
                 className={`progress-bar${complete ? ' is-done' : ''}`}
@@ -247,7 +252,7 @@ export function PrepPage() {
           </div>
         </div>
         <div className="btn-row">
-          <label className="switch">
+          <label className={`${styles['switch']}`}>
             <input type="checkbox" checked={onlyTodo} onChange={(e) => setOnlyTodo(e.target.checked)} />
             <span>只看未完成</span>
           </label>
@@ -298,7 +303,7 @@ export function PrepPage() {
               </button>
             </div>
             {g.desc && <p className="muted">{g.desc}</p>}
-            <ul className="check-list">
+            <ul className={`${styles['check-list']}`}>
               {g.items.map((item) => {
                 const isDone = checked.has(item.id)
                 const isSkipped = skipped.has(item.id)
@@ -307,19 +312,19 @@ export function PrepPage() {
                     key={item.id}
                     className={`check-item${isDone ? ' is-done' : ''}${isSkipped ? ' is-skipped' : ''}`}
                   >
-                    <div className="check-main">
+                    <div className={`${styles['check-main']}`}>
                       <label>
                         <input type="checkbox" checked={isDone} onChange={() => toggleCheck(item.id)} />
-                        <span className="check-text">
+                        <span className={`${styles['check-text']}`}>
                           {item.text}
-                          {item.verify && <span className="verify-tag">临行复核</span>}
+                          {item.verify && <span className={`${styles['verify-tag']}`}>临行复核</span>}
                           {g.id === 'extras' && (
-                            <span className="src-tag">{extraTagById.get(item.id) ?? '备选'}</span>
+                            <span className={`${styles['src-tag']}`}>{extraTagById.get(item.id) ?? '备选'}</span>
                           )}
-                          {isSkipped && <span className="skip-tag">已放弃</span>}
+                          {isSkipped && <span className={`${styles['skip-tag']}`}>已放弃</span>}
                         </span>
                       </label>
-                      <div className="check-actions">
+                      <div className={`${styles['check-actions']}`}>
                         {isSkipped ? (
                           <button className="btn-link" onClick={() => toggleSkip(item.id)}>
                             恢复
@@ -354,7 +359,7 @@ export function PrepPage() {
                         )}
                       </div>
                     </div>
-                    {item.note && <p className="check-note">{item.note}</p>}
+                    {item.note && <p className={`${styles['check-note']}`}>{item.note}</p>}
                   </li>
                 )
               })}
@@ -401,20 +406,20 @@ export function PrepPage() {
           前面那些分组是通用项；这两份是分性别的补充项，<b>不要求全加</b>。
           点「加入」就并进上面的总清单、一起算进度；加错了随时移除。清单里已经有同一件事时会标成「已在清单」，不会重复加。
         </p>
-        <div className="grid-preset">
+        <div className={`${styles['grid-preset']}`}>
           {PREP_PRESETS.map((p) => {
             const addedCount = checklist.extras.filter((e) => e.from === p.id).length
             const pending = presetPending.get(p.id) ?? []
             return (
-              <div className="preset-card" id={`prep-p-${p.id}`} key={p.id}>
-                <div className="preset-head">
+              <div className={`${styles['preset-card']}`} id={`prep-p-${p.id}`} key={p.id}>
+                <div className={`${styles['preset-head']}`}>
                   <h3>{p.title}</h3>
-                  <span className="preset-count">
+                  <span className={`${styles['preset-count']}`}>
                     已加入 {addedCount} / {p.items.length}
                   </span>
                 </div>
                 <p className="muted">{p.desc}</p>
-                <div className="preset-ops">
+                <div className={`${styles['preset-ops']}`}>
                   <button
                     className="btn btn-sm btn-primary"
                     disabled={pending.length === 0}
@@ -445,14 +450,14 @@ export function PrepPage() {
                     全部移出
                   </button>
                 </div>
-                <ul className="preset-list">
+                <ul className={`${styles['preset-list']}`}>
                   {p.items.map((it) => {
                     const owned = extraIds.has(it.id)
                     const taken = !owned && takenTexts.has(normItemText(it.text))
                     return (
                       <li className={`preset-item${owned ? ' is-added' : ''}`} key={it.id}>
-                        <div className="preset-main">
-                          <span className="preset-text">{it.text}</span>
+                        <div className={`${styles['preset-main']}`}>
+                          <span className={`${styles['preset-text']}`}>{it.text}</span>
                           {owned ? (
                             <button
                               className="btn-link"
@@ -464,7 +469,7 @@ export function PrepPage() {
                               移除
                             </button>
                           ) : taken ? (
-                            <span className="preset-own">已在清单</span>
+                            <span className={`${styles['preset-own']}`}>已在清单</span>
                           ) : (
                             <button
                               className="btn-link"
@@ -477,7 +482,7 @@ export function PrepPage() {
                             </button>
                           )}
                         </div>
-                        {it.note && <p className="check-note">{it.note}</p>}
+                        {it.note && <p className={`${styles['check-note']}`}>{it.note}</p>}
                       </li>
                     )
                   })}
@@ -490,7 +495,7 @@ export function PrepPage() {
 
       {/* ---------- 已放弃：集中查看 + 恢复（次要信息，置于自定义补充下方） ---------- */}
       {skippedCount > 0 && (
-        <section id="prep-skipped" className="section prep-skipped">
+        <section id="prep-skipped" className={`section ${styles['prep-skipped']}`}>
           <div className="section-head">
             <h2>
               已放弃
@@ -506,26 +511,26 @@ export function PrepPage() {
               全部恢复
             </button>
           </div>
-          <ul className="check-list">
+          <ul className={`${styles['check-list']}`}>
             {allItems
               .filter((i) => skipped.has(i.id))
               .map((item) => {
                 const src = sourceOf(item, PREP_PRESETS, checklist.extras, checklist.custom)
                 return (
                   <li key={item.id} className="check-item is-skipped">
-                    <div className="check-main">
-                      <span className="check-text">
+                    <div className={`${styles['check-main']}`}>
+                      <span className={`${styles['check-text']}`}>
                         {item.text}
-                        {item.verify && <span className="verify-tag">临行复核</span>}
-                        <span className="skip-tag">已放弃</span>
+                        {item.verify && <span className={`${styles['verify-tag']}`}>临行复核</span>}
+                        <span className={`${styles['skip-tag']}`}>已放弃</span>
                       </span>
-                      <div className="check-actions">
+                      <div className={`${styles['check-actions']}`}>
                         <button className="btn-link" onClick={() => toggleSkip(item.id)}>
                           恢复
                         </button>
                       </div>
                     </div>
-                    {src && <p className="check-note">来自：{src}</p>}
+                    {src && <p className={`${styles['check-note']}`}>来自：{src}</p>}
                   </li>
                 )
               })}
@@ -534,7 +539,7 @@ export function PrepPage() {
       )}
 
       {/* ---------- 吃喝住行 ---------- */}
-      <h2 className="prep-h2">吃喝住行速查</h2>
+      <h2 className={`${styles['prep-h2']}`}>吃喝住行速查</h2>
       <p className="muted">
         按品类给方向，不推荐具体店名 —— 没核实过的名字不写，请自己在 Kakao / Naver 地图上看实时评价。
         价格是公开攻略里的常见区间，只用来估预算。
@@ -545,18 +550,18 @@ export function PrepPage() {
             <h2>{s.title}</h2>
           </div>
           <p className="muted">{s.desc}</p>
-          <div className="grid-guide">
+          <div className={`${styles['grid-guide']}`}>
             {s.cards.map((c) => (
-              <div className="guide-card" key={c.title}>
+              <div className={`${styles['guide-card']}`} key={c.title}>
                 <h3>{c.title}</h3>
                 <ul>
                   {c.lines.map((l) => (
                     <li key={l}>{l}</li>
                   ))}
                 </ul>
-                {c.warn && <p className="guide-warn">{c.warn}</p>}
+                {c.warn && <p className={`${styles['guide-warn']}`}>{c.warn}</p>}
                 {c.sources && c.sources.length > 0 && (
-                  <div className="guide-sources">
+                  <div className={`${styles['guide-sources']}`}>
                     <span>参考：</span>
                     {c.sources.map((s) => (
                       <a key={s.url} href={s.url} target="_blank" rel="noreferrer">
@@ -573,7 +578,7 @@ export function PrepPage() {
 
       <section id="prep-budget" className="section">
         <h2>预算粗算（每人每天，含住）</h2>
-        <ul className="plain-list">
+        <ul className={`${styles['plain-list']}`}>
           {BUDGET_HINTS.map((b) => (
             <li key={b.label}>
               <span>{b.label}</span>
@@ -581,7 +586,7 @@ export function PrepPage() {
             </li>
           ))}
         </ul>
-        <div className="callout">
+        <div className={`${styles['callout']}`}>
           <b>数据来源与边界</b>
           <p className="muted">
             内容与价格参考偶来小路官网（jejuolle.org）、韩国旅游发展局公开资料、公开游记，以及个人实测经验，

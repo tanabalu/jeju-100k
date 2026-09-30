@@ -1,0 +1,15 @@
+/* 组件专属样式（CSS Modules + Less，局部作用域） */
+
+.image-multi {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.image-multi-cell {
+  width: 220px;
+}
+@media (max-width: 720px) {
+.image-multi-cell {
+    width: 100%;
+  }
+}

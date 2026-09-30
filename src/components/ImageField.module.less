@@ -1,0 +1,35 @@
+/* 组件专属样式（CSS Modules + Less，局部作用域） */
+
+.image-field {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.image-preview {
+  width: 200px;
+  min-width: 160px;
+  background: var(--line-soft);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.image-preview > div {
+  height: 100%;
+}
+.image-preview > img {
+  height: 100%;
+}
+.image-ops {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+@media (max-width: 720px) {
+.image-preview {
+    width: 100%;
+    min-width: 0;
+  }
+}

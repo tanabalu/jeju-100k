@@ -7,11 +7,12 @@ import { useConfirm, useToast } from '../components/Feedback'
 import { Modal } from '../components/Modal'
 import { RouteMap } from '../components/RouteMap'
 import { OLLE_TOTAL_KM } from '../lib/seed'
+import styles from './PlanPage.module.less'
 
 type PlanSort = 'added' | 'km'
 
 export function PlanPage() {
-  const { routes } = useData()
+  const { routes, ui, updateUi } = useData()
   const planApi = useActivePlan()
   const { plan, plans, addRoute, removeRoute, toggleDone, setTarget, rename, clear, createPlan, removePlan, selectPlan } = planApi
   const toast = useToast()
@@ -21,8 +22,9 @@ export function PlanPage() {
   const [newTarget, setNewTarget] = useState(100)
   /** 默认按加入行程篮的先后顺序排（也就是你打算走的次序） */
   const [sort, setSort] = useState<PlanSort>('added')
-  /** 只看未完成：隐藏已勾选走完的路线 */
-  const [hideDone, setHideDone] = useState(false)
+  /** 只看未完成：隐藏已勾选走完的路线。状态存在本机缓存（trail100k.ui），刷新后仍然保持 */
+  const hideDone = ui.planHideDone
+  const setHideDone = (v: boolean) => updateUi({ planHideDone: v })
 
   const metrics = useMemo(() => new Map(routes.map((r) => [r.id, computeMetrics(r)])), [routes])
 
@@ -127,12 +129,12 @@ export function PlanPage() {
 
   return (
     <div className="page">
-      <div className="plan-head">
+      <div className={`${styles['plan-head']}`}>
         <div>
           <h1 className="detail-title">行程篮 · 自动算百公里</h1>
           <p className="muted">把想走的路线加进来，实时累计里程，看看到没到 100 公里。</p>
         </div>
-        <div className="plan-head-actions">
+        <div className={`${styles['plan-head-actions']}`}>
           <select className="input" value={plan?.id ?? ''} onChange={(e) => selectPlan(e.target.value)}>
             {plans.length === 0 && <option value="">（暂无行程篮）</option>}
             {plans.map((p) => (
@@ -163,11 +165,11 @@ export function PlanPage() {
         </div>
       ) : (
         <>
-          <div className="plan-summary">
-            <div className="plan-target">
+          <div className={`${styles['plan-summary']}`}>
+            <div className={`${styles['plan-target']}`}>
               <label>
                 目标里程（km）
-                <div className="target-row">
+                <div className={`${styles['target-row']}`}>
                   <input
                     className="input"
                     type="number"
@@ -189,14 +191,14 @@ export function PlanPage() {
               </label>
             </div>
             <div className={`plan-result ${done ? 'is-done' : ''}`}>
-              <div className="plan-result-km">
+              <div className={`${styles['plan-result-km']}`}>
                 <b>{formatKm(total)}</b>
                 <span>/ {target} km</span>
               </div>
               <div className="progress progress-lg">
                 <div className={`progress-bar ${done ? 'is-done' : ''}`} style={{ width: `${pct}%` }} />
               </div>
-              <div className="plan-result-tip">
+              <div className={`${styles['plan-result-tip']}`}>
                 {done
                   ? `已达标，超出 ${formatKm(total - target)} km`
                   : `还差 ${formatKm(gap)} km，从下面挑几条补上即可`}
@@ -237,7 +239,7 @@ export function PlanPage() {
                 <div className="btn-row">
                   <button
                     className={`btn btn-sm${hideDone ? ' is-active' : ''}`}
-                    onClick={() => setHideDone((v) => !v)}
+                    onClick={() => setHideDone(!hideDone)}
                   >
                     只看未完成
                   </button>
@@ -258,8 +260,8 @@ export function PlanPage() {
             </div>
 
             {rows.length > 0 && (
-              <div className="plan-done">
-                <div className="progress progress-sm">
+              <div className={`${styles['plan-done']}`}>
+                <div className={`progress ${styles['progress-sm']}`}>
                   <div
                     className={`progress-bar${allDone ? ' is-done' : ''}`}
                     style={{ width: `${donePct}%` }}
@@ -288,10 +290,10 @@ export function PlanPage() {
               <table className="table">
                 <thead>
                   <tr>
-                    <th className="th-done" title="标记走完">
-                      <span className="sr-only">完成</span>
+                    <th className={`${styles['th-done']}`} title="标记走完">
+                      <span className={`${styles['sr-only']}`}>完成</span>
                     </th>
-                    <th className="th-idx">序</th>
+                    <th className={`${styles['th-idx']}`}>序</th>
                     <th>路线</th>
                     <th>里程</th>
                     <th />
@@ -300,7 +302,7 @@ export function PlanPage() {
                 <tbody>
                   {visibleRows.map(({ route, km, done: isDone }, idx) => (
                     <tr key={route.id} className={isDone ? 'is-done' : ''}>
-                      <td className="td-done">
+                      <td className={`${styles['td-done']}`}>
                         <input
                           type="checkbox"
                           checked={isDone}
@@ -308,7 +310,7 @@ export function PlanPage() {
                           aria-label={`标记 ${route.name} 已走完`}
                         />
                       </td>
-                      <td className="td-idx">{idx + 1}</td>
+                      <td className={`${styles['td-idx']}`}>{idx + 1}</td>
                       <td>
                         <Link to={`/routes/${route.id}`}>{route.name}</Link>
                       </td>
@@ -325,8 +327,8 @@ export function PlanPage() {
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td className="td-done" />
-                    <td className="td-idx" />
+                    <td className={`${styles['td-done']}`} />
+                    <td className={`${styles['td-idx']}`} />
                     <td>合计</td>
                     <td>
                       <b>{formatKm(total)} km</b>
@@ -360,7 +362,7 @@ export function PlanPage() {
             </section>
           )}
 
-          <div className="plan-foot">
+          <div className={`${styles['plan-foot']}`}>
             <button className="btn" onClick={copyMarkdown}>
               复制为 Markdown
             </button>

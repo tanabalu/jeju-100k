@@ -1,0 +1,244 @@
+/* 组件专属样式（CSS Modules + Less，局部作用域） */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 24px;
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: inherit;
+  border-radius: 10px;
+  padding: 2px 6px;
+  margin-left: -6px;
+}
+.brand:hover {
+  background: var(--line-soft);
+}
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--brand);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: -0.5px;
+}
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  font-weight: 620;
+  font-size: 15px;
+  line-height: 1.2;
+}
+.brand-text em {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.nav {
+  display: flex;
+  gap: 4px;
+}
+.mobile-menu-button {
+  display: none;
+}
+.mobile-nav-backdrop {
+  display: none;
+}
+.mobile-nav-drawer {
+  display: none;
+}
+.content {
+  flex: 1;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 20px 24px 48px;
+}
+.footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+.footer-line {
+  margin: 0;
+}
+.footer-line + .footer-line {
+  margin-top: 6px;
+}
+.footer-friends {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.footer-tag {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--line-soft);
+  color: var(--muted);
+  font-size: 11px;
+}
+.footer-link {
+  color: var(--brand);
+  
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+.footer-link:hover {
+  text-decoration-style: solid;
+}
+.footer-link::after {
+  content: ' ↗';
+  font-size: 10px;
+}
+/* 底部 GitHub 入口：胶囊按钮 + 官方 Mark 图标。
+   图标 fill 用 currentColor，所以只在链接上换色，图形跟着变，不必再维护一份 hover 色。 */
+.footer-github {
+  margin-top: 10px;
+}
+.footer-github-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background-color: var(--card);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.8;
+  text-decoration: none;
+  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+.footer-github-link:hover,
+.footer-github-link:focus-visible {
+  color: var(--text);
+  border-color: var(--brand);
+  background-color: var(--brand-soft);
+}
+.footer-github-icon {
+  display: block;
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+}
+@media (max-width: 720px) {
+.topbar {
+    padding: 8px 14px;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+.brand-text {
+    font-size: 14px;
+    min-width: 0;
+  }
+.brand-text em {
+    display: none;
+  }
+.topbar > .nav {
+    display: none;
+  }
+.mobile-menu-button {
+    display: inline-flex;
+    flex: 0 0 40px;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--text);
+    cursor: pointer;
+  }
+.mobile-menu-button:hover {
+    background: var(--line-soft);
+  }
+.mobile-nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: rgba(17, 24, 39, 0.38);
+    animation: mobile-nav-fade-in 0.18s ease-out both;
+  }
+.mobile-nav-drawer {
+    display: flex;
+    position: fixed;
+    inset: 0 0 0 auto;
+    z-index: 41;
+    flex-direction: column;
+    width: min(82vw, 340px);
+    height: 100dvh;
+    padding: max(16px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
+    background: var(--card);
+    box-shadow: -12px 0 36px rgba(16, 24, 40, 0.16);
+    animation: mobile-nav-slide-in 0.22s ease-out both;
+  }
+.mobile-nav-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 44px;
+    margin-bottom: 12px;
+    color: var(--text);
+    font-size: 17px;
+  }
+.mobile-nav-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border: 0;
+    border-radius: 9px;
+    background: var(--line-soft);
+    color: var(--text);
+    font: inherit;
+    font-size: 26px;
+    line-height: 1;
+    cursor: pointer;
+  }
+.mobile-nav-links {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+.mobile-nav-links :global(.nav-link) {
+    padding: 12px 14px;
+    border-radius: 10px;
+    font-size: 15px;
+  }
+.content {
+    padding: 14px 14px 40px;
+  }
+.footer {
+    padding: 14px;
+  }
+}

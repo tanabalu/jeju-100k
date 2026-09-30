@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { Modal } from './Modal'
+import styles from './Feedback.module.less'
 
 type ToastType = 'info' | 'success' | 'error'
 
@@ -75,7 +76,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     <FeedbackContext.Provider value={api}>
       {children}
       {createPortal(
-        <div className="toast-stack">
+        <div className={`${styles['toast-stack']}`}>
           {toasts.map((t) => (
             <div key={t.id} className={`toast toast-${t.type}`}>
               {t.text}

@@ -1,0 +1,53 @@
+/* 组件专属样式（CSS Modules + Less，局部作用域） */
+
+.info-view {
+  padding: 2px 0;
+}
+.info-title {
+  margin: 0 0 14px;
+  font-size: 17px;
+  font-weight: 600;
+}
+.info-list {
+  margin: 0;
+  display: grid;
+  gap: 0;
+  border: 1px solid #eee;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.info-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 12px;
+  padding: 9px 14px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.info-row:last-child {
+  border-bottom: none;
+}
+.info-label {
+  color: var(--muted, #6b7280);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.info-value {
+  margin: 0;
+  color: #1f2937;
+  font-size: 13.5px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+.info-block {
+  margin-top: 16px;
+}
+.info-block .info-label {
+  margin-bottom: 6px;
+}
+@media (max-width: 520px) {
+.info-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}

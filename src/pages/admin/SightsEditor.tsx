@@ -4,6 +4,7 @@ import { PointPicker } from '../../components/PointPicker'
 import { ImageField } from '../../components/ImageField'
 import { useConfirm } from '../../components/Feedback'
 import { projectToRoute, formatKm, trackLines } from '../../lib/geo'
+import styles from './SightsEditor.module.less'
 
 const TYPE_LABEL: Record<SightType, string> = {
   view: '观景',
@@ -108,9 +109,9 @@ export function SightsEditor({ route, onPatch }: Props) {
               </label>
               <div className="field">
                 <span>照片（最多 5 张）</span>
-                <div className="image-multi">
+                <div className={`${styles['image-multi']}`}>
                   {s.images.map((img, i) => (
-                    <div key={`${img.kind}_${img.value}_${i}`} className="image-multi-cell">
+                    <div key={`${img.kind}_${img.value}_${i}`} className={`${styles['image-multi-cell']}`}>
                       <ImageField
                         value={img}
                         height={96}
@@ -127,7 +128,7 @@ export function SightsEditor({ route, onPatch }: Props) {
                     </div>
                   ))}
                   {s.images.length < 5 && (
-                    <div className="image-multi-cell">
+                    <div className={`${styles['image-multi-cell']}`}>
                       <ImageField height={96} onChange={(v) => v && patchImages(s.id, [...s.images, v])} />
                     </div>
                   )}

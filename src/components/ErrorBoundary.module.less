@@ -1,0 +1,87 @@
+/* 组件专属样式（CSS Modules + Less，局部作用域） */
+
+.error-card {
+  width: 100%;
+  max-width: 560px;
+  padding: 24px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+.error-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 12px;
+  border-radius: 50%;
+  background: #fdecec;
+  color: var(--danger);
+  font-size: 22px;
+  font-weight: 700;
+}
+.error-card h1 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+.error-lead {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.error-msg {
+  max-height: 160px;
+  overflow: auto;
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.error-stack {
+  max-height: 240px;
+  overflow: auto;
+  margin: 12px 0 0;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: #4b5563;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.error-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 12px;
+}
+.error-foot :global(.btn-link) {
+  align-self: center;
+  margin-left: 0;
+  color: var(--danger);
+}
+@media (max-width: 480px) {
+.error-card {
+    padding: 18px 14px;
+  }
+}

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import styles from './Modal.module.less'
 
 interface ModalProps {
   open: boolean
@@ -33,16 +34,16 @@ export function Modal({ open, title, onClose, children, footer, width = 640 }: M
   if (!open) return null
 
   return createPortal(
-    <div className="modal-mask" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ width }} role="dialog" aria-modal="true" aria-label={title}>
-        <header className="modal-head">
+    <div className={`${styles['modal-mask']}`} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className={`${styles['modal']}`} style={{ width }} role="dialog" aria-modal="true" aria-label={title}>
+        <header className={`${styles['modal-head']}`}>
           <h3>{title}</h3>
-          <button className="icon-btn" onClick={onClose} aria-label="关闭">
+          <button className={`${styles['icon-btn']}`} onClick={onClose} aria-label="关闭">
             ✕
           </button>
         </header>
-        <div className="modal-body">{children}</div>
-        {footer && <footer className="modal-foot">{footer}</footer>}
+        <div className={`${styles['modal-body']}`}>{children}</div>
+        {footer && <footer className={`${styles['modal-foot']}`}>{footer}</footer>}
       </div>
     </div>,
     document.body,

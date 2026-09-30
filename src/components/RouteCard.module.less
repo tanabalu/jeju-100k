@@ -1,0 +1,131 @@
+/* 组件专属样式（CSS Modules + Less，局部作用域） */
+
+.route-cover {
+  position: relative;
+  
+  aspect-ratio: 16 / 9;
+  background: var(--line-soft);
+}
+.cover-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, #e6ede8 0%, #d6e3da 100%);
+  color: #7d8f83;
+  font-size: 13px;
+}
+.badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--text);
+}
+.code-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(31, 41, 55, 0.86);
+  color: #fff;
+}
+.badge-100 {
+  background: var(--brand);
+  color: #fff;
+  font-weight: 600;
+}
+.done-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #16a34a;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+  cursor: default;
+}
+.route-cover:has(.done-badge) .badge-100 {
+  top: 44px;
+}
+.route-body {
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.route-title {
+  font-size: 15px;
+  font-weight: 620;
+  color: var(--text);
+}
+.route-title:hover {
+  color: var(--brand);
+}
+.route-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+}
+.route-stats div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.route-stats b {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  font-size: 14px;
+}
+.route-stats b i {
+  font-style: normal;
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--muted);
+}
+.route-stats em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--muted);
+}
+.tag-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tag {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+  font-size: 12px;
+}
+@media (max-width: 720px) {
+.route-stats {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px 6px;
+  }
+.route-stats > div {
+    flex: 0 1 calc(50% - 6px);
+  }
+}

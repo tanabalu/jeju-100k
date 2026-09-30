@@ -8,6 +8,7 @@ import { PointsEditor } from './admin/PointsEditor'
 import { HotelsEditor } from './admin/HotelsEditor'
 import { SightsEditor } from './admin/SightsEditor'
 import { AlbumEditor } from './admin/AlbumEditor'
+import styles from './AdminPage.module.less'
 
 type Tab = 'basic' | 'points' | 'hotels' | 'sights' | 'album'
 
@@ -42,12 +43,12 @@ export function AdminPage() {
 
   return (
     <div className="page">
-      <div className="admin-head">
+      <div className={`${styles['admin-head']}`}>
         <div>
           <h1 className="detail-title">素材管理后台</h1>
           <p className="muted">在这里查看 / 编辑已有路线的素材（起终点、住宿、看点、相册）。所有数据保存在本机浏览器。</p>
         </div>
-        <div className="admin-head-actions">
+        <div className={`${styles['admin-head-actions']}`}>
           <select
             className="input"
             value={routeId}
@@ -69,7 +70,7 @@ export function AdminPage() {
         </div>
       ) : (
         <>
-          <div className="admin-meta">
+          <div className={`${styles['admin-meta']}`}>
             <span>
               当前里程：<b>{formatKm(metrics?.distanceKm ?? 0)} km</b>
               {route.manualDistanceKm ? '（手填）' : '（估算）'}
@@ -85,7 +86,7 @@ export function AdminPage() {
             </Link>
           </div>
 
-          <div className="tabs">
+          <div className={`${styles['tabs']}`}>
             {TABS.map((t) => (
               <button
                 key={t.key}
@@ -97,7 +98,7 @@ export function AdminPage() {
             ))}
           </div>
 
-          <div className="tab-panel">
+          <div className={`${styles['tab-panel']}`}>
             {tab === 'basic' && <BasicForm route={route} />}
             {tab === 'points' && <PointsEditor route={route} onPatch={patch} />}
             {tab === 'hotels' && <HotelsEditor route={route} onPatch={patch} />}

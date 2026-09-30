@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ImageRef } from '../types'
 import { resolveImageSrc } from '../lib/imageStore'
+import styles from './Thumb.module.less'
 
 interface ThumbProps {
   image?: ImageRef
@@ -31,7 +32,7 @@ export function Thumb({ image, alt = '', fit = 'cover', radius = 8 }: ThumbProps
   }, [image?.kind, image?.value])
 
   if (!image || !image.value || failed) {
-    return <div className="thumb-empty" style={{ borderRadius: radius }}>无图</div>
+    return <div className={`${styles['thumb-empty']}`} style={{ borderRadius: radius }}>无图</div>
   }
   if (!src) return <div className="skeleton" style={{ width: '100%', height: '100%', borderRadius: radius }} />
   return (

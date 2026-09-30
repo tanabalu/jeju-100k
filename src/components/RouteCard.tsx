@@ -6,6 +6,7 @@ import { useData } from '../store/DataContext'
 import { Thumb } from './Thumb'
 import { routeKindLabel } from '../lib/routeKind'
 import { useActivePlan } from '../hooks/useActivePlan'
+import styles from './RouteCard.module.less'
 
 export function RouteCard({ route }: { route: Route }) {
   const m = useMemo(() => computeMetrics(route), [route])
@@ -21,29 +22,29 @@ export function RouteCard({ route }: { route: Route }) {
 
   return (
     <div className="card route-card">
-      <div className="route-cover">
+      <div className={`${styles['route-cover']}`}>
         {route.cover ? (
           <Thumb image={route.cover} alt={route.name} radius={0} />
         ) : (
           /* 地区信息只在下面的 meta 行出现一次，占位图不重复显示 */
-          <div className="cover-placeholder">
+          <div className={`${styles['cover-placeholder']}`}>
             <span>暂无配图</span>
           </div>
         )}
-        {route.code && <span className="code-badge">{route.code}</span>}
+        {route.code && <span className={`${styles['code-badge']}`}>{route.code}</span>}
         {donePlan && (
           <span
-            className="done-badge"
+            className={`${styles['done-badge']}`}
             title={`已在「${donePlan.name}」行程篮中标记走完`}
             aria-label="已完成"
           >
             ✓
           </span>
         )}
-        {is100 && <span className="badge badge-100">百公里</span>}
+        {is100 && <span className={`${styles['badge']} ${styles['badge-100']}`}>百公里</span>}
       </div>
-      <div className="route-body">
-        <Link to={`/routes/${route.id}`} className="route-title">
+      <div className={`${styles['route-body']}`}>
+        <Link to={`/routes/${route.id}`} className={`${styles['route-title']}`}>
           {route.name}
         </Link>
         <div className="route-meta">
@@ -53,7 +54,7 @@ export function RouteCard({ route }: { route: Route }) {
           <span>·</span>
           <span>难度 {'★'.repeat(Math.max(1, Math.min(5, route.difficulty)))}</span>
         </div>
-        <div className="route-stats">
+        <div className={`${styles['route-stats']}`}>
           <div>
             <b>
               {formatKm(m.distanceKm)}
@@ -78,9 +79,9 @@ export function RouteCard({ route }: { route: Route }) {
           </div>
         </div>
         {route.tags.length > 0 && (
-          <div className="tag-row">
+          <div className={`${styles['tag-row']}`}>
             {route.tags.slice(0, 5).map((t) => (
-              <span key={t} className="tag">
+              <span key={t} className={`${styles['tag']}`}>
                 {t}
               </span>
             ))}

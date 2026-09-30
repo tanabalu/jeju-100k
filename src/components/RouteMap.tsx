@@ -3,6 +3,7 @@ import * as L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { ElevSample, GeoPoint, Hotel, MapStyle, Sight, TrackPoint, WaypointType } from '../types'
 import { useData } from '../store/DataContext'
+import styles from './RouteMap.module.less'
 
 const W = 800
 const H = 460
@@ -508,16 +509,16 @@ export function RouteMap({
   )
 
   return (
-    <div className="map-wrap" style={{ height }}>
-      <div ref={containerRef} className="map-canvas" style={{ height }} />
+    <div className={`${styles['map-wrap']}`} style={{ height }}>
+      <div ref={containerRef} className={`${styles['map-canvas']}`} style={{ height }} />
       {status === 'fallback' && (
-        <div className="map-fallback" style={{ height }}>
+        <div className={`${styles['map-fallback']}`} style={{ height }}>
           <FallbackSketch box={fallbackBox} pickable={pickable} onPick={onPick} tip={tip} />
         </div>
       )}
-      {status === 'ready' && pickable && <div className="map-pick-hint">点击地图取点</div>}
+      {status === 'ready' && pickable && <div className={`${styles['map-pick-hint']}`}>点击地图取点</div>}
       {status === 'ready' && !pickable && (
-        <div className="map-legend">
+        <div className={`${styles['map-legend']}`}>
           {badgeMode ? (
             <span><i style={{ background: COLORS.badge }} />路线编号</span>
           ) : (
@@ -536,7 +537,7 @@ export function RouteMap({
         </div>
       )}
       {!pickable && (
-        <div className="map-wp-disclaimer">⚠️  途经点均整理自网络公开资料，仅作参考，不保障其真实性和有效性！</div>
+        <div className={`${styles['map-wp-disclaimer']}`}>⚠️  途经点均整理自网络公开资料，仅作参考，不保障其真实性和有效性！</div>
       )}
     </div>
   )
@@ -637,12 +638,12 @@ function FallbackSketch({
   }
 
   return (
-    <div className="sketch">
-      <div className="sketch-tip">{tip}</div>
+    <div className={`${styles['sketch']}`}>
+      <div className={`${styles['sketch-tip']}`}>{tip}</div>
       <svg
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
-        className="sketch-svg"
+        className={`${styles['sketch-svg']}`}
         style={{ cursor: pickable ? 'crosshair' : 'default' }}
         onClick={handleClick}
       >
@@ -703,7 +704,7 @@ function FallbackSketch({
           </text>
         )}
       </svg>
-      <div className="sketch-foot">
+      <div className={`${styles['sketch-foot']}`}>
         {box.items.some((it) => it.label) ? (
           <span><i style={{ background: COLORS.badge }} />路线编号</span>
         ) : (

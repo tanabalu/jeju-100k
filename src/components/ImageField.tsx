@@ -3,6 +3,7 @@ import type { ImageRef } from '../types'
 import { putImageFile } from '../lib/imageStore'
 import { Thumb } from './Thumb'
 import { useToast } from './Feedback'
+import styles from './ImageField.module.less'
 
 interface Props {
   value?: ImageRef
@@ -41,8 +42,8 @@ export function ImageField({ value, onChange, height = 120, readOnly = false }: 
 
   if (readOnly) {
     return (
-      <div className="image-field">
-        <div className="image-preview" style={{ height }}>
+      <div className={`${styles['image-field']}`}>
+        <div className={`${styles['image-preview']}`} style={{ height }}>
           <Thumb image={value} />
         </div>
       </div>
@@ -50,11 +51,11 @@ export function ImageField({ value, onChange, height = 120, readOnly = false }: 
   }
 
   return (
-    <div className="image-field">
-      <div className="image-preview" style={{ height }}>
+    <div className={`${styles['image-field']}`}>
+      <div className={`${styles['image-preview']}`} style={{ height }}>
         {uploading ? <div className="skeleton" style={{ width: '100%', height: '100%' }} /> : <Thumb image={value} />}
       </div>
-      <div className="image-ops">
+      <div className={`${styles['image-ops']}`}>
         <input
           ref={inputRef}
           type="file"

@@ -3,6 +3,7 @@ import { useData } from '../store/DataContext'
 import { exportBackup, importBackup } from '../lib/storage'
 import type { MapStyle } from '../types'
 import { useConfirm, useToast } from '../components/Feedback'
+import styles from './SettingsPage.module.less'
 
 export function SettingsPage() {
   const { settings, updateSettings, reload, loading } = useData()
@@ -62,7 +63,7 @@ export function SettingsPage() {
         </p>
         <div className="field">
           <span>底图样式</span>
-          <div className="seg">
+          <div className={`${styles['seg']}`}>
             <button
               className={settings.mapStyle === 'standard' ? 'active' : ''}
               onClick={() => setStyle('standard')}
@@ -90,7 +91,7 @@ export function SettingsPage() {
           路线、住宿、看点、相册都保存在当前浏览器的 localStorage 与 IndexedDB 中，不会上传到任何服务器。
           换设备或清理浏览器数据前，可在下方导出 / 导入 JSON 备份。
         </p>
-        <div className="backup-bar">
+        <div className={`${styles['backup-bar']}`}>
           <button className="btn btn-sm" onClick={handleExport}>
             导出 JSON
           </button>

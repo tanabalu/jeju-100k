@@ -2,6 +2,7 @@ import type { Route } from '../../types'
 import { computeMetrics, formatKm } from '../../lib/geo'
 import { routeKindLabel } from '../../lib/routeKind'
 import { ImageField } from '../../components/ImageField'
+import styles from './BasicForm.module.less'
 
 interface Props {
   route: Route
@@ -34,25 +35,25 @@ export function BasicForm({ route }: Props) {
   ]
 
   return (
-    <div className="info-view">
-      <h3 className="info-title">{route.name}</h3>
-      <dl className="info-list">
+    <div className={`${styles['info-view']}`}>
+      <h3 className={`${styles['info-title']}`}>{route.name}</h3>
+      <dl className={`${styles['info-list']}`}>
         {rows.map((r) => (
-          <div className="info-row" key={r.label}>
-            <dt className="info-label">{r.label}</dt>
-            <dd className="info-value">{r.value}</dd>
+          <div className={`${styles['info-row']}`} key={r.label}>
+            <dt className={`${styles['info-label']}`}>{r.label}</dt>
+            <dd className={`${styles['info-value']}`}>{r.value}</dd>
           </div>
         ))}
       </dl>
       {route.summary && (
-        <div className="info-block">
-          <div className="info-label">简介</div>
-          <p className="info-value">{route.summary}</p>
+        <div className={`${styles['info-block']}`}>
+          <div className={`${styles['info-label']}`}>简介</div>
+          <p className={`${styles['info-value']}`}>{route.summary}</p>
         </div>
       )}
       {route.cover && (
-        <div className="info-block">
-          <div className="info-label">封面图</div>
+        <div className={`${styles['info-block']}`}>
+          <div className={`${styles['info-label']}`}>封面图</div>
           <ImageField value={route.cover} onChange={() => {}} readOnly />
         </div>
       )}

@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { AlbumItem, AppSettings, ElevSample, ImageRef, Plan, Route, TrackPoint } from '../types'
-import { store, SEED_VERSION, type ChecklistState } from '../lib/storage'
+import { store, SEED_VERSION, type ChecklistState, type UiState } from '../lib/storage'
 import { PREP_GROUPS, PREP_PRESETS, normItemText } from '../lib/prep'
 import { buildSeedRoutes } from '../lib/seed'
 import { uid } from '../lib/id'
@@ -259,6 +259,9 @@ interface DataApi {
   removePlan: (id: string) => void
   createPlan: (name?: string, targetKm?: number) => Plan
   updateSettings: (patch: Partial<AppSettings>) => void
+  /** 界面筛选开关（只看未完成等）：本机视图偏好，刷新后保持 */
+  ui: UiState
+  updateUi: (patch: Partial<UiState>) => void
   reload: () => void
   /** public/photos/manifest.json 里的配图表 */
   photoManifest: PhotoManifest
@@ -294,6 +297,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [rawRoutes, setRawRoutes] = useState<Route[]>([])
   const [plans, setPlans] = useState<Plan[]>([])
   const [settings, setSettings] = useState<AppSettings>({ mapStyle: 'standard' })
+  const [ui, setUi] = useState<UiState>({ prepOnlyTodo: false, planHideDone: false })
   const [photoManifest, setPhotoManifest] = useState<PhotoManifest>({})
   const [routeMaps, setRouteMaps] = useState<PhotoManifest>({})
   const [trackManifest, setTrackManifest] = useState<TrackManifest>({})
@@ -355,6 +359,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setPlans(store.getPlans())
         setSettings(store.getSettings())
         setChecklist(store.getChecklist())
+        setUi(store.getUi())
       } catch (err) {
         // rAF 回调里的异常不会冒泡到 React（则骨架屏会一直转，看着像卡死），
         // 这里转成渲染期抛错交给 ErrorBoundary，让用户看到错误页而不是假死。
@@ -456,6 +461,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setSettings((prev) => {
       const next = { ...prev, ...patch }
       store.setSettings(next)
+      return next
+    })
+  }, [])
+
+  const updateUi = useCallback((patch: Partial<UiState>) => {
+    setUi((prev) => {
+      const next = { ...prev, ...patch }
+      store.setUi(next)
       return next
     })
   }, [])
@@ -583,6 +596,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       routes,
       plans,
       settings,
+      ui,
+      updateUi,
       upsertRoute,
       removeRoute,
       getRoute,
@@ -611,6 +626,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       routes,
       plans,
       settings,
+      ui,
+      updateUi,
       photoManifest,
       checklist,
       upsertRoute,

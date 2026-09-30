@@ -11,6 +11,7 @@ import { resolveImageSrc } from '../lib/imageStore'
 import { useActivePlan } from '../hooks/useActivePlan'
 import { routeKindLabel } from '../lib/routeKind'
 import type { AlbumItem, RouteMetrics } from '../types'
+import styles from './RouteDetailPage.module.less'
 
 /** 爬升数字的口径说明，避免把「估算」和「实测」混为一谈 */
 function gainHint(m: RouteMetrics | undefined): string {
@@ -34,12 +35,26 @@ function basisLabel(m: RouteMetrics): string {
   return m.elevationBasis === 'loop' ? '环线圆周采样估算' : '直线采样估算'
 }
 
+/** 按路线编号排序（与「全部路线」列表默认顺序一致），用于详情页上/下一条衔接 */
+function byCode(a: { code?: string | null }, b: { code?: string | null }): number {
+  const na = parseFloat(a.code ?? '999')
+  const nb = parseFloat(b.code ?? '999')
+  if (na !== nb) return na - nb
+  return (a.code ?? '').localeCompare(b.code ?? '')
+}
+
 export function RouteDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const { getRoute } = useData()
+  const { getRoute, routes } = useData()
   const route = id ? getRoute(id) : undefined
   const { addRoute, has } = useActivePlan()
   const [lbIndex, setLbIndex] = useState<number | null>(null)
+
+  // 全量路线按编号排好序，再定位当前这条，才能拿到正确的上一条 / 下一条
+  const ordered = useMemo(() => [...routes].sort(byCode), [routes])
+  const idx = ordered.findIndex((r) => r.id === id)
+  const prev = idx > 0 ? ordered[idx - 1] : undefined
+  const next = idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] : undefined
 
   const m = useMemo(() => (route ? computeMetrics(route) : undefined), [route])
 
@@ -77,13 +92,13 @@ export function RouteDetailPage() {
 
   return (
     <div className="page">
-      <div className="detail-head">
+      <div className={`${styles['detail-head']}`}>
         <div>
-          <div className="crumb">
+          <div className={`${styles['crumb']}`}>
             <Link to="/">全部路线</Link> / {route.name}
           </div>
           <h1 className="detail-title">
-            {route.code && <span className="code-inline">偶来 {route.code}</span>}
+            {route.code && <span className={`${styles['code-inline']}`}>偶来 {route.code}</span>}
             {route.name}
           </h1>
           <div className="route-meta">
@@ -115,9 +130,9 @@ export function RouteDetailPage() {
         </div>
       </div>
 
-      <p className="detail-summary">{route.summary || '（还没有写简介）'}</p>
+      <p className={`${styles['detail-summary']}`}>{route.summary || '（还没有写简介）'}</p>
 
-      <div className="stat-row">
+      <div className={`${styles['stat-row']}`}>
         <Stat
           label="总里程"
           value={`${formatKm(m?.distanceKm ?? 0)} km`}
@@ -146,23 +161,23 @@ export function RouteDetailPage() {
       {route.code && plan && (
         <section className="section">
           <h2>行程建议</h2>
-          <div className="trip-card">
-            <div className="trip-head">
+          <div className={`${styles['trip-card']}`}>
+            <div className={`${styles['trip-head']}`}>
               <b>
                 {route.code}号线 · {start?.name ?? '—'} → {end?.name ?? '—'}
               </b>
-              <span className="trip-head-meta">
+              <span className={`${styles['trip-head-meta']}`}>
                 {formatKm(m?.distanceKm ?? 0)} · 难度 {'★'.repeat(Math.max(1, Math.min(5, route.difficulty)))}
               </span>
             </div>
-            <div className="trip-rows">
+            <div className={`${styles['trip-rows']}`}>
               <TripRow icon="🏨" label="前夜住宿" value={plan.stay} />
               <TripRow icon="⏰" label="建议起床" value={plan.wake} />
               <TripRow icon="🚌" label="去程交通" value={plan.access} />
               <TripRow icon="🚶" label="分段步行">
-                <div className="trip-chips">
+                <div className={`${styles['trip-chips']}`}>
                   {plan.stages.map((s, i) => (
-                    <span key={i} className="trip-chip">
+                    <span key={i} className={`${styles['trip-chip']}`}>
                       {s}
                     </span>
                   ))}
@@ -174,34 +189,34 @@ export function RouteDetailPage() {
             </div>
             {plan.notes?.map((n, i) => (
               <p key={i} className={`trip-note ${n.startsWith('⚠️') ? 'is-warn' : ''}`}>
-                <span className="trip-note-icon">{n.startsWith('⚠️') ? '⚠️' : 'ℹ️'}</span> {n.replace(/^⚠️\s*/, '')}
+                <span className={`${styles['trip-note-icon']}`}>{n.startsWith('⚠️') ? '⚠️' : 'ℹ️'}</span> {n.replace(/^⚠️\s*/, '')}
               </p>
             ))}
-            <p className="trip-disclaimer">{TRIP_PLAN_DISCLAIMER}</p>
+            <p className={`${styles['trip-disclaimer']}`}>{TRIP_PLAN_DISCLAIMER}</p>
           </div>
         </section>
       )}
 
       <section className="section">
         <h2>起终点与轨迹</h2>
-        <div className="start-end">
-          <div className="se-card">
-            <span className="dot dot-start" />
+        <div className={`${styles['start-end']}`}>
+          <div className={`${styles['se-card']}`}>
+            <span className={`${styles['dot']} ${styles['dot-start']}`} />
             <div>
               <b>起点</b>
               <p>{start?.name ?? '未设置'}</p>
               <code>{start ? `${start.lng.toFixed(5)}, ${start.lat.toFixed(5)}` : '—'}</code>
-              {start?.ele != null && <span className="se-ele">海拔 {start.ele} m</span>}
+              {start?.ele != null && <span className={`${styles['se-ele']}`}>海拔 {start.ele} m</span>}
             </div>
           </div>
-          <div className="se-arrow">→</div>
-          <div className="se-card">
-            <span className="dot dot-end" />
+          <div className={`${styles['se-arrow']}`}>→</div>
+          <div className={`${styles['se-card']}`}>
+            <span className={`${styles['dot']} ${styles['dot-end']}`} />
             <div>
               <b>终点</b>
               <p>{end?.name ?? '未设置'}</p>
               <code>{end ? `${end.lng.toFixed(5)}, ${end.lat.toFixed(5)}` : '—'}</code>
-              {end?.ele != null && <span className="se-ele">海拔 {end.ele} m</span>}
+              {end?.ele != null && <span className={`${styles['se-ele']}`}>海拔 {end.ele} m</span>}
             </div>
           </div>
         </div>
@@ -233,9 +248,9 @@ export function RouteDetailPage() {
           height={440}
         />
         {route.points.length > 2 && (
-          <div className="point-flow">
+          <div className={`${styles['point-flow']}`}>
             {route.points.map((p, i) => (
-              <span key={p.id} className="point-chip">
+              <span key={p.id} className={`${styles['point-chip']}`}>
                 <i>{i === 0 ? '起' : i === route.points.length - 1 ? '终' : i}</i>
                 {p.name}
                 {p.ele != null && <em>{p.ele}m</em>}
@@ -296,8 +311,8 @@ export function RouteDetailPage() {
                   {hotel.priceRange && <span className="pill">¥{hotel.priceRange}</span>}
                   {hotel.rating != null && <span className="pill">{hotel.rating} 分</span>}
                 </div>
-                {hotel.note && <p className="list-note">{hotel.note}</p>}
-                {hotel.phone && <p className="list-note">电话：{hotel.phone}</p>}
+                {hotel.note && <p className={`${styles['list-note']}`}>{hotel.note}</p>}
+                {hotel.phone && <p className={`${styles['list-note']}`}>电话：{hotel.phone}</p>}
               </div>
             ))}
           </div>
@@ -311,13 +326,13 @@ export function RouteDetailPage() {
         {sightRows.length === 0 ? (
           <p className="muted">还没有录入看点。</p>
         ) : (
-          <div className="grid-sights">
+          <div className={`${styles['grid-sights']}`}>
             {sightRows.map(({ sight, atKm }) => (
-              <div key={sight.id} className="sight-card">
-                <div className="sight-img">
+              <div key={sight.id} className={`${styles['sight-card']}`}>
+                <div className={`${styles['sight-img']}`}>
                   <Thumb image={sight.images[0]} alt={sight.name} radius={8} />
                 </div>
-                <div className="sight-body">
+                <div className={`${styles['sight-body']}`}>
                   <b>{sight.name}</b>
                   <span className="pill">沿线 {formatKm(atKm)} km</span>
                   <p>{sight.desc || '（未填描述）'}</p>
@@ -336,16 +351,59 @@ export function RouteDetailPage() {
         {route.album.length === 0 ? (
           <p className="muted">还没有照片，去管理后台上传。</p>
         ) : (
-          <div className="album-grid">
+          <div className={`${styles['album-grid']}`}>
             {route.album.map((item, idx) => (
-              <button key={item.id} className="album-cell" onClick={() => setLbIndex(idx)}>
+              <button key={item.id} className={`${styles['album-cell']}`} onClick={() => setLbIndex(idx)}>
                 <Thumb image={item.image} alt={item.caption ?? ''} radius={8} />
-                {item.caption && <span className="album-cap">{item.caption}</span>}
+                {item.caption && <span className={`${styles['album-cap']}`}>{item.caption}</span>}
               </button>
             ))}
           </div>
         )}
       </section>
+
+      {/* 底部上一条 / 下一条：按编号顺序衔接，与「全部路线」列表默认顺序一致 */}
+      <nav className={`${styles['pager']}`} aria-label="路线切换">
+        {prev ? (
+          <Link
+            to={`/routes/${prev.id}`}
+            className={`${styles['pager-link']} ${styles['pager-prev']}`}
+            aria-label={`上一条：${prev.code ? `偶来 ${prev.code} · ` : ''}${prev.name}`}
+          >
+            <span className={`${styles['pager-dir']}`}>← 上一条</span>
+            <span className={`${styles['pager-name']}`}>
+              {prev.code && <em>偶来 {prev.code}</em>}
+              {prev.name}
+            </span>
+          </Link>
+        ) : (
+          <span className={`${styles['pager-link']} ${styles['pager-prev']} ${styles['is-disabled']}`} aria-disabled="true">
+            <span className={`${styles['pager-dir']}`}>← 上一条</span>
+            <span className={`${styles['pager-name']}`}>已经是第一条</span>
+          </span>
+        )}
+        <span className={`${styles['pager-count']}`}>
+          {idx + 1} / {ordered.length}
+        </span>
+        {next ? (
+          <Link
+            to={`/routes/${next.id}`}
+            className={`${styles['pager-link']} ${styles['pager-next']}`}
+            aria-label={`下一条：${next.code ? `偶来 ${next.code} · ` : ''}${next.name}`}
+          >
+            <span className={`${styles['pager-dir']}`}>下一条 →</span>
+            <span className={`${styles['pager-name']}`}>
+              {next.code && <em>偶来 {next.code}</em>}
+              {next.name}
+            </span>
+          </Link>
+        ) : (
+          <span className={`${styles['pager-link']} ${styles['pager-next']} ${styles['is-disabled']}`} aria-disabled="true">
+            <span className={`${styles['pager-dir']}`}>下一条 →</span>
+            <span className={`${styles['pager-name']}`}>已经是最后一条</span>
+          </span>
+        )}
+      </nav>
 
       {lbIndex != null && (
         <Lightbox
@@ -376,21 +434,21 @@ function TripRow({
   children?: React.ReactNode
 }) {
   return (
-    <div className="trip-row">
-      <span className="trip-row-label">
+    <div className={`${styles['trip-row']}`}>
+      <span className={`${styles['trip-row-label']}`}>
         <span aria-hidden>{icon}</span> {label}
       </span>
-      <div className="trip-row-value">{children ?? value}</div>
+      <div className={`${styles['trip-row-value']}`}>{children ?? value}</div>
     </div>
   )
 }
 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="stat">
-      <span className="stat-label">{label}</span>
-      <b className="stat-value">{value}</b>
-      {hint && <span className="stat-hint">{hint}</span>}
+    <div className={`${styles['stat']}`}>
+      <span className={`${styles['stat-label']}`}>{label}</span>
+      <b className={`${styles['stat-value']}`}>{value}</b>
+      {hint && <span className={`${styles['stat-hint']}`}>{hint}</span>}
     </div>
   )
 }
@@ -438,36 +496,36 @@ function Lightbox({
 
   return createPortal(
     <div
-      className="viewer"
+      className={`${styles['viewer']}`}
       role="dialog"
       aria-modal="true"
       aria-label={item.caption || `照片 ${index + 1} / ${album.length}`}
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <button className="viewer-close" onClick={onClose} aria-label="关闭">
+      <button className={`${styles['viewer-close']}`} onClick={onClose} aria-label="关闭">
         ✕
       </button>
       {canNav && (
-        <button className="viewer-nav viewer-prev" onClick={() => onNav(-1)} aria-label="上一张">
+        <button className={`${styles['viewer-nav']} ${styles['viewer-prev']}`} onClick={() => onNav(-1)} aria-label="上一张">
           ‹
         </button>
       )}
       {canNav && (
-        <button className="viewer-nav viewer-next" onClick={() => onNav(1)} aria-label="下一张">
+        <button className={`${styles['viewer-nav']} ${styles['viewer-next']}`} onClick={() => onNav(1)} aria-label="下一张">
           ›
         </button>
       )}
-      <div className="viewer-stage">
+      <div className={`${styles['viewer-stage']}`}>
         {src ? (
-          <img src={src} alt={item.caption ?? ''} className="viewer-img" />
+          <img src={src} alt={item.caption ?? ''} className={`${styles['viewer-img']}`} />
         ) : (
-          <div className="skeleton viewer-skeleton" />
+          <div className={`skeleton ${styles['viewer-skeleton']}`} />
         )}
-        {item.caption && <p className="viewer-cap">{item.caption}</p>}
-        {item.takenAt && <p className="viewer-taken">{item.takenAt}</p>}
+        {item.caption && <p className={`${styles['viewer-cap']}`}>{item.caption}</p>}
+        {item.takenAt && <p className={`${styles['viewer-taken']}`}>{item.takenAt}</p>}
       </div>
       {canNav && (
-        <div className="viewer-counter">
+        <div className={`${styles['viewer-counter']}`}>
           {index + 1} / {album.length}
         </div>
       )}
