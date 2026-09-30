@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>行程篮 · 多天排期 交互样例（待确认）</title>
+<style>
+:root{
+  --brand:#2f7d4f; --brand-soft:#e8f3ec; --brand-dark:#24603c;
+  --danger:#dc2626; --warn:#c2410c; --warn-soft:#fff7ed;
+  --bg:#f5f7f9; --card:#ffffff; --line:#e5e8ec; --line-soft:#eef1f5;
+  --text:#1f2937; --muted:#6b7280; --radius:12px;
+  --shadow:0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.06);
+  --topbar-h:56px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}
+/* ---------- 顶栏 ---------- */
+.topbar{height:var(--topbar-h);background:var(--card);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:22px;padding:0 20px;position:sticky;top:0;z-index:20}
+.topbar .logo{font-weight:700;color:var(--brand)}
+.topbar nav{display:flex;gap:18px}
+.topbar nav a{color:var(--muted);text-decoration:none;font-size:13px}
+.topbar nav a.on{color:var(--brand);font-weight:600}
+.page{max-width:1280px;margin:0 auto;padding:22px 20px 60px}
+h1{margin:0 0 4px;font-size:20px}
+h2{margin:0;font-size:16px}
+.muted{color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.btn{border:1px solid var(--line);background:#fff;color:var(--text);border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer;font-family:inherit}
+.btn:hover{border-color:#c9d0d8}
+.btn-sm{padding:4px 9px;font-size:12px}
+.btn-xs{padding:2px 7px;font-size:12px;border-radius:6px}
+.btn-primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn-primary:hover{background:var(--brand-dark);border-color:var(--brand-dark)}
+.btn.is-active{background:var(--brand-soft);border-color:#bcdcc7;color:var(--brand-dark);font-weight:600}
+.input{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit;background:#fff;color:var(--text)}
+select.input{padding:6px 8px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.pill{display:inline-block;background:var(--brand-soft);color:var(--brand-dark);border-radius:999px;padding:1px 9px;font-size:12px}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.ghost{background:#f3f4f6;color:var(--muted)}
+/* ---------- 说明条 ---------- */
+.notice{background:#fffbeb;border:1px solid #fde68a;border-radius:var(--radius);padding:12px 16px;margin:16px 0;font-size:13px;line-height:1.75}
+.notice b{color:#92400e}
+.notice ol{margin:6px 0 0;padding-left:20px}
+.notice li{margin:2px 0}
+/* ---------- 控件行 ---------- */
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:14px 0}
+.tabs{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+.tabs button{border:0;background:#fff;padding:7px 14px;font-size:13px;cursor:pointer;color:var(--muted);font-family:inherit}
+.tabs button+button{border-left:1px solid var(--line)}
+.tabs button.on{background:var(--brand-soft);color:var(--brand-dark);font-weight:600}
+.spacer{flex:1}
+/* ---------- 汇总条 ---------- */
+.summary{display:flex;gap:26px;align-items:center;padding:12px 18px;margin-bottom:14px;flex-wrap:wrap}
+.summary .k{font-size:12px;color:var(--muted)}
+.summary .v{font-size:19px;font-weight:700;line-height:1.3}
+.summary .v small{font-size:12px;font-weight:500;color:var(--muted)}
+/* ---------- Board ---------- */
+.board{display:flex;gap:14px;overflow-x:auto;padding-bottom:14px;align-items:flex-start}
+.col{min-width:318px;width:318px;background:#f0f3f6;border:1px solid var(--line);border-radius:var(--radius);padding:10px;display:flex;flex-direction:column;gap:9px}
+.col.backlog{background:#f8f9fb;border-style:dashed}
+.col.drop{outline:2px dashed var(--brand);outline-offset:-2px;background:var(--brand-soft)}
+.col-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.col-head .day{font-weight:700;font-size:15px}
+.col-head .date{font-size:12px;color:var(--muted)}
+.col-stats{font-size:12px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.col-warn{font-size:12px;border-radius:8px;padding:6px 9px;line-height:1.5;border:1px solid}
+.w-orange{background:#fff7ed;border-color:#fed7aa;color:#9a3412}
+.w-blue{background:#eff6ff;border-color:#bfdbfe;color:#1e40af}
+.w-green{background:#f0fdf4;border-color:#bbf7d0;color:#166534;display:inline-block;cursor:default}
+.w-gray{background:#f9fafb;border-color:var(--line);color:var(--muted)}
+.col-body{display:flex;flex-direction:column;gap:8px;min-height:34px}
+.col-empty{border:1px dashed #d3d9e0;border-radius:9px;padding:12px;text-align:center;color:var(--muted);font-size:12px;background:#fff}
+/* ---------- 路线卡 ---------- */
+.chip{background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 10px;box-shadow:0 1px 2px rgba(16,24,40,.05);cursor:grab}
+.chip.dragging{opacity:.4}
+.chip:hover{border-color:#c9d0d8}
+.chip-top{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.chip-code{background:var(--brand);color:#fff;border-radius:6px;padding:1px 7px;font-size:12px;font-weight:700}
+.chip-name{font-weight:600;font-size:13px}
+.chip-meta{font-size:12px;color:var(--muted);margin-top:4px;display:flex;gap:8px;flex-wrap:wrap}
+.chip-act{display:flex;gap:6px;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid var(--line-soft)}
+.chip-act select{flex:1}
+.iconbtn{border:1px solid var(--line);background:#fff;border-radius:6px;width:26px;height:26px;line-height:1;cursor:pointer;font-size:12px;color:var(--muted)}
+.iconbtn:hover{border-color:#c9d0d8;color:var(--text)}
+/* ---------- 住宿卡 ---------- */
+.stay{background:#fffdf7;border:1px solid #f4e2b8;border-radius:10px;padding:9px 10px}
+.stay-head{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.stay-head .t{font-size:12px;color:var(--muted)}
+.stay-area{font-weight:700;color:#92400e;font-size:14px}
+.stay-reason{font-size:12px;color:#7c5a10;margin-top:5px;line-height:1.6}
+.stay-opts{margin-top:8px;padding-top:8px;border-top:1px dashed #ecdcb8}
+.opt{border:1px solid #f0e3bf;background:#fff;border-radius:8px;padding:7px 9px;margin-bottom:6px}
+.opt.sel{border-color:var(--brand);background:var(--brand-soft)}
+.opt-n{font-size:13px;font-weight:600}
+.opt-m{font-size:11.5px;color:var(--muted);margin-top:2px}
+.opt-lock{font-size:11px;color:var(--brand-dark);font-weight:700}
+.stay-empty{font-size:12px;color:#7c5a10;background:#fffbeb;border:1px dashed #f0d79a;border-radius:8px;padding:8px 9px;line-height:1.6}
+.tag{display:inline-block;font-size:11px;border-radius:5px;padding:1px 6px;background:#f3f4f6;color:var(--muted);border:1px solid var(--line)}
+.tag.island{background:#eff6ff;color:#1e40af;border-color:#bfdbfe}
+.tag.demo{background:#fdf4ff;color:#a21caf;border-color:#f0abfc}
+/* ---------- Modal / 打印 ---------- */
+.mask{display:none;position:fixed;inset:0;background:rgba(17,24,39,.55);z-index:50;overflow:auto;padding:24px 0}
+.mask.open{display:block}
+.sheet-wrap{max-width:820px;margin:0 auto;background:#fff;border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)}
+.sheet-head{display:flex;gap:10px;align-items:center;margin-bottom:14px}
+.sheet{background:#fff;color:#111827;padding:26px 30px;border:1px solid var(--line);font-size:13px}
+.sheet h3{margin:0 0 3px;font-size:19px}
+.sheet .sub{color:#4b5563;font-size:12px;border-bottom:2px solid #111827;padding-bottom:10px;margin-bottom:14px}
+.sheet .d{margin-bottom:15px;break-inside:avoid}
+.sheet .d-h{font-weight:700;font-size:14px;border-left:3px solid #2f7d4f;padding-left:8px;margin-bottom:6px}
+.sheet .d-m{color:#4b5563;font-size:12px;margin-bottom:6px}
+.sheet table{width:100%;border-collapse:collapse;font-size:12px}
+.sheet th,.sheet td{border-bottom:1px solid #d1d5db;padding:5px 6px;text-align:left}
+.sheet th{background:#f3f4f6;font-weight:600}
+.sheet .stay-row{background:#fffbeb;padding:6px 9px;border-radius:6px;margin-top:6px;font-size:12px}
+.sheet .foot{margin-top:14px;border-top:1px solid #d1d5db;padding-top:8px;color:#6b7280;font-size:11px}
+.toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#111827;color:#fff;padding:9px 18px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:99}
+.toast.show{opacity:1}
+@media (max-width:900px){ .board{flex-direction:column} .col{width:100%;min-width:0} }
+@media print{
+  body{background:#fff}
+  .topbar,.toolbar,.summary,.notice,.board,.sheet-head,.no-print{display:none !important}
+  .mask{display:block !important;position:static;overflow:visible;padding:0}
+  .sheet-wrap{max-width:none;box-shadow:none;padding:0;border-radius:0}
+  .sheet{border:0;padding:0}
+  @page{margin:14mm}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar no-print">
+  <span class="logo">济州 100K</span>
+  <nav>
+    <a href="#">路线</a>
+    <a href="#" class="on">行程篮</a>
+    <a href="#">行前准备</a>
+    <a href="#">素材管理</a>
+    <a href="#">设置</a>
+  </nav>
+</div>
+
+<div class="page">
+  <h1>行程篮 · 自动算百公里</h1>
+  <p class="muted">把想走的路线加进来，按天排好，系统按每天的首尾位置推荐住宿，最后导出一份行程单。</p>
+
+  <!-- 样例说明 -->
+  <div class="notice no-print">
+    <b>这是交互样例（纯静态页面，数据写死在 JS 里），用来确认 4 件事：</b>
+    <div style="margin-top:6px">⚠️ 定稿时改了两点：<b>① 地图不做 Tab</b>，保持常驻在原来的位置（这里没画地图，就是那个位置）；
+    <b>② 不做旧版本兼容</b>，旧行程篮里的路线全部落在「待安排」，自己拖一次就行。</div>
+    <ol>
+      <li><b>能不能拖</b>：路线卡可以直接拖到「Day N」列 / 拖回「待安排」；也可以用卡上的下拉和 ↑↓ 按钮（手机上主用这个）。</li>
+      <li><b>每天自动算什么</b>：里程 / 约耗时 / 爬升 / 难度，>20km 或 >6.5h 会橙色警示。</li>
+      <li><b>住宿怎么推</b>：粉色卡是「推荐住宿区 + 理由」，底下带 ₩ 的是<b>候选清单</b>——注意候选清单目前<b>没有真实数据</b>，是拿来确认版式的示例（<span class="tag demo">示例数据</span>）。</li>
+      <li><b>行程单长什么样</b>：点右上角「导出行程单」，里面也有「打印/存 PDF」和「复制 Markdown」。</li>
+    </ol>
+    试试把 <b>10-1 加波岛</b> 拖进某一天 —— 会触发「需坐船、建议住岛上」的规则。
+  </div>
+
+  <!-- 控件行 -->
+  <div class="toolbar no-print">
+    <select class="input" id="planSel">
+      <option>济州百公里 · 4 天</option>
+      <option>秋季东海岸短线</option>
+    </select>
+    <label class="row" style="gap:6px"><span class="muted" style="font-size:13px">出发日</span>
+      <input class="input" type="date" id="startDate" value="2026-10-03"></label>
+    <span class="spacer"></span>
+    <div class="tabs">
+      <button>清单</button>
+      <button class="on">按天</button>
+    </div>
+    <button class="btn btn-primary" id="btnExport">导出行程单</button>
+  </div>
+
+  <!-- 汇总条 -->
+  <div class="summary card no-print" id="summary"></div>
+
+  <!-- Board -->
+  <div class="board" id="board"></div>
+</div>
+
+<!-- 导出预览 -->
+<div class="mask" id="mask">
+  <div class="sheet-wrap">
+    <div class="sheet-head no-print">
+      <h2>行程单预览</h2>
+      <span class="spacer"></span>
+      <button class="btn" id="btnPrint">打印 / 存为 PDF</button>
+      <button class="btn" id="btnMd">复制 Markdown</button>
+      <button class="btn" id="btnClose">关闭</button>
+    </div>
+    <div class="sheet" id="sheet"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============ 示例数据：真实路线取自 public/tracks.json + src/lib/tripPlans.ts ============ */
+const R = {
+  '01':   { code:'01',   name:'始兴 → 广峙其', km:15.1, gain:193, diff:'中', level:3, tags:[],
+            s:[126.8960,33.4772], e:[126.9242,33.4520], sN:'시흥리(始兴里)', eN:'광치기(广峙其)',
+            stayArea:'성산（城山）', nightReason:'今天终点「광치기（广峙其）」就在城山；且明天第 1 条偶来 02 的官方行程也建议前夜住城山 —— 两处口径一致' },
+  '02':   { code:'02',   name:'广峙其 → 温坪', km:14.6, gain:214, diff:'中', level:3, tags:[],
+            s:[126.9242,33.4520], e:[126.9462,33.4378], sN:'광치기(广峙其)', eN:'온평(温坪)',
+            stayArea:'성산（城山）', nightReason:'官方建议走完当天入住성산（城山）；城山到明早出发点 온평(温坪) 车程约 15 分钟' },
+  '03':   { code:'03',   name:'温坪 → 表善',   km:22.2, gain:260, diff:'难', level:4, tags:[],
+            s:[126.9462,33.4378], e:[126.9160,33.3690], sN:'온평(温坪)',   eN:'표선(表善)',
+            stayArea:'표선（表善）', nightReason:'官方建议走完当天入住표선（表善） 或 성산（城山）；终点就在表善，直接住下最省事' },
+  '04':   { code:'04',   name:'表善 → 南元',   km:18.9, gain:94,  diff:'中', level:3, tags:[],
+            s:[126.9160,33.3690], e:[126.9540,33.2890], sN:'표선(表善)',   eN:'남원(南元)',
+            stayArea:'남원（南元）', nightReason:'官方建议走完当天入住남원（南元） 或 서귀포（西归浦）；终点在南元' },
+  '07-1': { code:'07-1', name:'西归浦巴士总站 → 偶来旅客中心', km:14.7, gain:436, diff:'中', level:3, tags:[],
+            s:[126.4990,33.2540], e:[126.4880,33.2470], sN:'서귀포버스터미널', eN:'올레여행자센터',
+            stayArea:'서귀포（西归浦）', nightReason:'终点在西归浦市区' },
+  '10-1': { code:'10-1', name:'加波岛环岛',    km:4.3,  gain:23,  diff:'易', level:2, tags:['离岛','需坐船'],
+            s:[126.2700,33.1700], e:[126.2760,33.1720], sN:'가파도(加波岛)', eN:'가파도(加波岛)',
+            stayArea:'가파도（加波岛）', nightReason:'需坐船往返，错过末班船只能在岛内过夜' },
+}
+
+/* 示例候选住宿（真实项目里来自 Route.hotels，目前是全空的 —— 这里只为确认版式） */
+const HOTELS = [
+  { id:'h1', n:'성산 오션뷰 게스트하우스', c:[126.9280,33.4540], p:'₩ 90,000', r:4.6 },
+  { id:'h2', n:'광치기 민박',              c:[126.9310,33.4500], p:'₩ 70,000', r:4.2 },
+  { id:'h3', n:'표선 해변 스테이',          c:[126.9180,33.3710], p:'₩ 85,000', r:4.4 },
+  { id:'h4', n:'남원 리조트',               c:[126.9560,33.2910], p:'₩ 130,000', r:4.1 },
+  { id:'h5', n:'서귀포 시티 호텔',          c:[126.5000,33.2500], p:'₩ 110,000', r:4.3 },
+]
+
+const state = {
+  start:'2026-10-03',
+  backlog:['07-1','10-1'],
+  days:{ 1:['01'], 2:['02'], 3:['03'], 4:['04'] },
+  locked:{},        // day -> hotelId
+  areaPick:{},      // day -> 覆盖的推荐区域
+}
+
+/* ============ 工具 ============ */
+function hav(a,b){const R=6371,t=Math.PI/180;const dφ=(b[1]-a[1])*t,dλ=(b[0]-a[0])*t,φ1=a[1]*t,φ2=b[1]*t
+  const x=Math.sin(dφ/2)**2+Math.cos(φ1)*Math.cos(φ2)*Math.sin(dλ/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
+function hours(km,gain){return km/3.6+gain/450}
+function fmtH(h){const H=Math.floor(h),M=Math.round((h-H)*60);return (H?H+'h':'')+('0'+M).slice(-2)+'m'}
+function dayKeys(){return Object.keys(state.days).map(Number).sort((a,b)=>a-b)}
+function dateOf(d){
+  const base=new Date(state.start+'T00:00:00')   // 按本地时区解析，别用 toISOString（会倒退一天）
+  base.setDate(base.getDate()+d-1)
+  const p=n=>String(n).padStart(2,'0')
+  return {iso:`${base.getFullYear()}-${p(base.getMonth()+1)}-${p(base.getDate())}`,
+          label:`${base.getMonth()+1}/${base.getDate()}`, wd:'日一二三四五六'[base.getDay()]}
+}
+function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+
+/* ============ 每天计算（对应设计稿 §5） ============ */
+function calcDay(d){
+  const ids=state.days[d]||[], rs=ids.map(i=>R[i]).filter(Boolean)
+  const km=rs.reduce((s,r)=>s+r.km,0), gain=rs.reduce((s,r)=>s+r.gain,0)
+  const h=hours(km,gain), lv=Math.max(0,...rs.map(r=>r.level))
+  const isIsland=rs.some(r=>r.tags.includes('离岛'))
+  const ks=dayKeys(), isLast=d===ks[ks.length-1], isFirst=d===ks[0]
+  // R3 接力断口：前一天终点 ↔ 当日起点
+  let gap=null, linked=false
+  const prev=(state.days[d-1]||[]).length?d-1:null
+  if(prev&&rs.length){
+    const pe=R[state.days[prev].slice(-1)[0]].e
+    const dist=hav(pe,rs[0].s)
+    if(dist>1) gap=dist; else linked=true
+  }
+  return {d,ids,rs,km,gain,h,lv,isIsland,isLast,isFirst,gap,linked}
+}
+
+/* ============ 渲染 ============ */
+function chipHtml(id,inDay){
+  const r=R[id]
+  const opts=[`<option value="">待安排</option>`].concat(dayKeys().map(k=>`<option value="${k}"${inDay===k?' selected':''}>第 ${k} 天</option>`))
+  return `<div class="chip" draggable="true" data-id="${id}">
+    <div class="chip-top">
+      <span class="chip-code">${r.code}</span><span class="chip-name">${esc(r.name)}</span>
+      ${r.tags.map(t=>`<span class="tag ${t==='离岛'?'island':''}">${t}</span>`).join('')}
+    </div>
+    <div class="chip-meta"><b>${r.km} km</b><span>↑${r.gain}m</span><span>难度 ${r.diff}</span><span>约 ${fmtH(hours(r.km,r.gain))}</span></div>
+    <div class="chip-act">
+      <select class="input" data-act="move" data-id="${id}">${opts.join('')}</select>
+      <button class="iconbtn" data-act="up"   data-id="${id}" data-day="${inDay??''}" title="上移">↑</button>
+      <button class="iconbtn" data-act="down" data-id="${id}" data-day="${inDay??''}" title="下移">↓</button>
+      <button class="iconbtn" data-act="del"  data-id="${id}" data-day="${inDay??''}" title="移出行程篮">✕</button>
+    </div>
+  </div>`
+}
+
+function stayHtml(c){
+  if(!c.rs.length) return ''
+  if(c.isLast) return `<div class="stay"><div class="stay-head"><span class="t">🛏 今晚住</span></div>
+      <div class="stay-reason" style="color:var(--muted)">行程最后一天 —— 当日返程，不安排住宿。</div></div>`
+  const lastR=c.rs[c.rs.length-1]
+  const nextD=dayKeys().find(k=>k>c.d&&(state.days[k]||[]).length)
+  const nextR=nextD?R[state.days[nextD][0]]:null
+  let area=state.areaPick[c.d]||lastR.stayArea, reason=lastR.nightReason
+  if(c.isIsland){ area=lastR.stayArea; reason='这条路线需坐船（'+lastR.name+'），错过末班船只能在岛内过夜 → 强制推荐住岛上' }
+  const altView = (nextR && nextR.stayArea!==lastR.stayArea && !c.isIsland)
+    ? `备选区域「${nextR.stayArea}」：离明早出发点更近，但离今晚终点远一些。` : ''
+  // 候选：距当晚终点 8km 内
+  const cands=HOTELS.map(h=>({h,dp:hav(h.c,lastR.e),dn:nextR?hav(h.c,nextR.s):null}))
+    .filter(x=>x.dp<8)
+    .map(x=>({...x,score:0.6*x.dp+0.4*(x.dn??x.dp)}))
+    .sort((a,b)=>a.score-b.score)
+  const lock=state.locked[c.d]
+  return `<div class="stay">
+    <div class="stay-head"><span class="t">🛏 今晚住</span><span class="stay-area">${esc(area)}</span>
+      <select class="input" style="padding:2px 6px;font-size:12px" data-act="area" data-day="${c.d}">
+        <option value="">自动推荐</option>
+        ${['성산（城山）','표선（表善）','남원（南元）','서귀포（西归浦）','제주시（济州市）',lastR.stayArea]
+          .filter((v,i,a)=>a.indexOf(v)===i).map(v=>`<option${(state.areaPick[c.d]===v)?' selected':''}>${v}</option>`).join('')}
+      </select>
+    </div>
+    <div class="stay-reason">推荐理由：${esc(reason)}。${esc(altView)}</div>
+    <div class="stay-opts">
+      <div class="muted" style="font-size:11.5px;margin-bottom:5px">
+        候选清单（按「离今晚终点 0.6 + 离明早起点 0.4」加权距离排序）<span class="tag demo">示例数据</span></div>
+      ${cands.length?cands.map(({h,dp,dn})=>`<div class="opt ${lock===h.id?'sel':''}">
+        <div class="opt-n">${esc(h.n)} ${lock===h.id?'<span class="opt-lock">✓ 已锁定</span>':''}</div>
+        <div class="opt-m">距今晚终点 ${dp.toFixed(1)} km · 距明早起点 ${dn?dn.toFixed(1):'—'} km · ${h.p} · ★${h.r}
+          <button class="btn btn-xs" data-act="lock" data-day="${c.d}" data-h="${h.id}">${lock===h.id?'取消锁定':'住这家'}</button></div>
+      </div>`).join('')
+      :`<div class="stay-empty">附近 8km 内<b>没有已录入的住宿</b> —— 真实项目里这里会显示「去素材管理补录住宿」。<br>
+        在此之前，上面那条区域建议（${esc(area)}）就是全部可用信息。</div>`}
+    </div>
+  </div>`
+}
+
+function colHtml(d){
+  const c=calcDay(d), dt=dateOf(d)
+  const warn=[]
+  if(c.gap) warn.push(`<div class="col-warn w-orange">⚠ 与 Day ${c.d-1} 有 <b>${c.gap.toFixed(1)} km</b> 断口 —— 昨天终点不是今天起点，需要坐车接驳。</div>`)
+  if(c.linked) warn.push(`<div class="col-warn w-green">✓ 与 Day ${c.d-1} 接力 — 昨天终点就是今天起点。</div>`)
+  if(c.isIsland) warn.push(`<div class="col-warn w-blue">🚢 含离岛路线 —— 需坐船，末班船务必提前确认；当晚建议住岛上。</div>`)
+  if(c.km>20||c.h>6.5) warn.push(`<div class="col-warn w-orange">⚠ 这天偏重：${c.km} km / 约 ${fmtH(c.h)} —— 建议拆成两天，或把最后一段挪到下一天。</div>`)
+  if(c.km<5&&!c.isFirst&&!c.isLast) warn.push(`<div class="col-warn w-gray">这天只有 ${c.km} km，可以再塞一条短线。</div>`)
+  return `<section class="col" data-day="${d}">
+    <div class="col-head"><span class="day">Day ${d}</span><span class="date">${dt.label} 周${dt.wd}</span>
+      <span class="spacer"></span>${dayKeys().length>1?`<button class="btn btn-xs" data-act="delday" data-day="${d}">删除这天</button>`:''}</div>
+    <div class="col-stats"><span class="pill">${c.km.toFixed(1)} km</span><span class="pill">约 ${fmtH(c.h)}</span>
+      <span class="pill">↑${c.gain} m</span><span class="pill ghost">难度 ${'★'.repeat(c.lv)}${'☆'.repeat(5-c.lv)}</span></div>
+    ${warn.join('')}
+    <div class="col-body">${c.ids.map(id=>chipHtml(id,d)).join('')||`<div class="col-empty">把左侧路线拖到这里</div>`}</div>
+    ${stayHtml(c)}
+  </section>`
+}
+
+function render(){
+  const ks=dayKeys()
+  const all=ks.flatMap(k=>state.days[k])
+  const km=all.reduce((s,i)=>s+R[i].km,0)
+  const gain=all.reduce((s,i)=>s+R[i].gain,0)
+  const withRoutes=ks.filter(k=>(state.days[k]||[]).length)
+  const nights=Math.max(withRoutes.length-(withRoutes.length?1:0),0)
+  const overload=ks.filter(k=>{const c=calcDay(k);return c.km>20||c.h>6.5})
+  document.getElementById('summary').innerHTML=
+    `<div><div class="k">天数</div><div class="v">${ks.length} <small>天</small></div></div>
+     <div><div class="k">总里程</div><div class="v">${km.toFixed(1)} <small>km</small></div></div>
+     <div><div class="k">日均</div><div class="v">${(km/ks.length).toFixed(1)} <small>km/天</small></div></div>
+     <div><div class="k">累计爬升</div><div class="v">${gain} <small>m</small></div></div>
+     <div><div class="k">需住</div><div class="v">${Math.max(nights,0)} <small>晚</small></div></div>
+     <div><div class="k">待安排</div><div class="v">${state.backlog.length} <small>条</small></div></div>
+     ${overload.length?`<span class="pill warn">⚠ 第 ${overload.join('、')} 天超载</span>`:'<span class="pill">✓ 每天强度正常</span>'}`
+
+  document.getElementById('board').innerHTML=
+    `<section class="col backlog" data-day="0">
+      <div class="col-head"><span class="day">待安排</span><span class="date">还没分天的路线</span></div>
+      <div class="col-body">${state.backlog.map(id=>chipHtml(id,null)).join('')||`<div class="col-empty">都排好了 🎉</div>`}</div>
+    </section>`+
+    ks.map(colHtml).join('')+
+    `<section class="col backlog" style="min-width:150px;width:150px">
+      <div class="col-body"><button class="btn" style="width:100%" data-act="addday">+ 加一天</button></div>
+    </section>`
+  renderSheet()
+}
+
+/* ============ 交互 ============ */
+// 拖拽
+let dragId=null
+document.addEventListener('dragstart',e=>{const c=e.target.closest('.chip');if(!c)return;dragId=c.dataset.id;c.classList.add('dragging')})
+document.addEventListener('dragend',e=>{document.querySelectorAll('.chip').forEach(x=>x.classList.remove('dragging'))})
+document.addEventListener('dragover',e=>{const col=e.target.closest('.col');if(!col)return;e.preventDefault();document.querySelectorAll('.col.drop').forEach(x=>x.classList.remove('drop'));col.classList.add('drop')})
+document.addEventListener('dragleave',e=>{const col=e.target.closest('.col');if(col&&!col.contains(e.relatedTarget))col.classList.remove('drop')})
+document.addEventListener('drop',e=>{
+  const col=e.target.closest('.col'); if(!col||!dragId)return
+  e.preventDefault(); col.classList.remove('drop')
+  const day=Number(col.dataset.day)
+  removeEverywhere(dragId)
+  if(day===0) state.backlog.push(dragId)
+  else (state.days[day]=state.days[day]||[]).push(dragId)
+  dragId=null; render()
+})
+function removeEverywhere(id){
+  state.backlog=state.backlog.filter(x=>x!==id)
+  Object.keys(state.days).forEach(k=>{state.days[k]=(state.days[k]||[]).filter(x=>x!==id)})
+}
+// 按钮 / 下拉
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]'); if(!b)return
+  const {act,id,day,h}=b.dataset
+  if(act==='move')return
+  if(act==='up'||act==='down'){
+    const arr=day?state.days[day]:state.backlog, i=arr.indexOf(id)
+    const j=i+(act==='up'?-1:1); if(j<0||j>=arr.length)return
+    ;[arr[i],arr[j]]=[arr[j],arr[i]]
+  }
+  if(act==='del') removeEverywhere(id)
+  if(act==='addday'){const ks=dayKeys();state.days[ks[ks.length-1]+1]=[]}
+  if(act==='delday'){
+    const d=Number(day), keeps=state.days[d]||[]
+    delete state.days[d]
+    state.backlog.push(...keeps)
+    // 天号重排，避免中间留空洞
+    const rest=Object.keys(state.days).map(Number).sort((a,b)=>a-b), map={}
+    rest.forEach((k,i)=>{ map[i+1]=state.days[k] })
+    state.days=map
+  }
+  if(act==='lock'){ state.locked[day]= state.locked[day]===h?null:h }
+  render()
+})
+document.addEventListener('change',e=>{
+  const b=e.target.closest('[data-act]'); if(!b)return
+  const {act,id,day}=b.dataset
+  if(act==='move'){
+    const v=b.value; removeEverywhere(id)
+    if(v==='') state.backlog.push(id); else state.days[Number(v)].push(id)
+  }
+  if(act==='area'){ if(b.value) state.areaPick[day]=b.value; else delete state.areaPick[day] }
+  render()
+})
+document.getElementById('startDate').addEventListener('change',e=>{state.start=e.target.value||'2026-10-03';render()})
+
+/* ============ 行程单（对应设计稿 §7） ============ */
+function renderSheet(){
+  const ks=dayKeys(), all=ks.flatMap(k=>state.days[k])
+  const km=all.reduce((s,i)=>s+R[i].km,0)
+  const st=dateOf(1)
+  let html=`<h3>济州百公里 · ${ks.length} 天行程</h3>
+    <div class="sub">出发日：${st.iso}（周${st.wd}） · 合计 ${km.toFixed(1)} km · ${ks.length} 天 · ${Math.max(ks.length-1,0)} 晚住宿</div>`
+  ks.forEach(d=>{
+    const c=calcDay(d), dt=dateOf(d)
+    if(!c.rs.length) return
+    html+=`<div class="d"><div class="d-h">Day ${d} · ${dt.iso} 周${dt.wd}</div>
+      <div class="d-m">${c.km.toFixed(1)} km · 约 ${fmtH(c.h)} · 累计爬升 ${c.gain} m · 难度 ${'★'.repeat(c.lv)}</div>
+      <table><tr><th style="width:26px">序</th><th>路线</th><th style="width:70px">里程</th><th style="width:60px">爬升</th><th>起点 → 终点</th></tr>
+      ${c.rs.map((r,i)=>`<tr><td>${i+1}</td><td>偶来 ${r.code} · ${esc(r.name)}</td><td>${r.km} km</td><td>↑${r.gain}m</td><td>${r.sN} → ${r.eN}</td></tr>`).join('')}
+      </table>`
+    if(c.gap) html+=`<div class="d-m" style="color:#9a3412">⚠ 与 Day ${d-1} 有 ${c.gap.toFixed(1)} km 断口，需乘车接驳。</div>`
+    if(c.isIsland) html+=`<div class="d-m" style="color:#1e40af">🚢 含离岛路线：需坐船，请提前确认船班。</div>`
+    if(c.isLast) html+=`<div class="stay-row">🛏 行程结束，当日返程（不安排住宿）</div>`
+    else{
+      const lastR=c.rs[c.rs.length-1], area=state.areaPick[d]||lastR.stayArea
+      const lockObj=state.locked[d]?HOTELS.find(x=>x.id===state.locked[d]):null
+      html+=`<div class="stay-row">🛏 <b>建议住：${esc(area)}</b>
+        ${lockObj?`　—　已定：${esc(lockObj.n)}（${lockObj.p}）`:''}
+        <br><span style="color:#6b7280">理由：${esc(lastR.nightReason)}</span></div>`
+    }
+    html+=`</div>`
+  })
+  html+=`<div class="foot">济州偶来小路 100K 行程自动生成 · 里程为 tracks.json 实测值，耗时为按 3.6km/h + 爬升补偿的估算值，请以官方建议为准</div>`
+  document.getElementById('sheet').innerHTML=html
+}
+function markdown(){
+  const ks=dayKeys(), all=ks.flatMap(k=>state.days[k]), km=all.reduce((s,i)=>s+R[i].km,0), st=dateOf(1)
+  const L=[`# 济州百公里 · ${ks.length} 天行程`,'',
+    `出发日：${st.iso}（周${st.wd}） · 合计 ${km.toFixed(1)} km · ${Math.max(ks.length-1,0)} 晚住宿`,'']
+  ks.forEach(d=>{
+    const c=calcDay(d),dt=dateOf(d); if(!c.rs.length)return
+    L.push(`## Day ${d} · ${dt.label} 周${dt.wd} · ${c.km.toFixed(1)} km`,'')
+    L.push('| 序 | 路线 | 里程 | 爬升 | 起点 → 终点 |','| --- | --- | --- | --- | --- |')
+    c.rs.forEach((r,i)=>L.push(`| ${i+1} | 偶来 ${r.code} · ${r.name} | ${r.km} km | ↑${r.gain}m | ${r.sN} → ${r.eN} |`))
+    L.push('')
+    if(c.isLast) L.push('🛏 当日返程，不安排住宿','')
+    else{const lastR=c.rs[c.rs.length-1],area=state.areaPick[d]||lastR.stayArea
+      L.push(`🛏 建议住：**${area}** —— ${lastR.nightReason}`,'')}
+  })
+  return L.join('\n')
+}
+/* ====== modal ====== */
+const mask=document.getElementById('mask')
+document.getElementById('planSel'); // noop
+const open=()=>mask.classList.add('open')
+document.getElementById('btnExport').onclick=open
+document.getElementById('btnClose').onclick=()=>mask.classList.remove('open')
+document.getElementById('btnPrint').onclick=()=>window.print()
+document.getElementById('btnMd').onclick=async()=>{
+  try{await navigator.clipboard.writeText(markdown());toast('已复制 Markdown')}catch{toast('复制失败，请手动选择');console.log(markdown())}
+}
+mask.addEventListener('click',e=>{if(e.target===mask)mask.classList.remove('open')})
+let tt;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),1800)}
+render()
+</script>
+</body>
+</html>

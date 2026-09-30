@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { AlbumItem, AppSettings, ElevSample, ImageRef, Plan, Route, TrackPoint } from '../types'
+import type { AlbumItem, AppSettings, ElevSample, ImageRef, Plan, PlanItem, Route, TrackPoint } from '../types'
 import { store, SEED_VERSION, type ChecklistState, type UiState } from '../lib/storage'
 import { PREP_GROUPS, PREP_PRESETS, normItemText } from '../lib/prep'
 import { buildSeedRoutes } from '../lib/seed'
@@ -257,7 +257,8 @@ interface DataApi {
   setPlans: (plans: Plan[]) => void
   upsertPlan: (plan: Plan) => void
   removePlan: (id: string) => void
-  createPlan: (name?: string, targetKm?: number) => Plan
+  /** items 允许建篮时就带上（见实现处的注释：一次写入，别分两步） */
+  createPlan: (name?: string, targetKm?: number, items?: PlanItem[]) => Plan
   updateSettings: (patch: Partial<AppSettings>) => void
   /** 界面筛选开关（只看未完成等）：本机视图偏好，刷新后保持 */
   ui: UiState
@@ -447,17 +448,28 @@ export function DataProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  const createPlan = useCallback((name = '我的百公里行程', targetKm = 100) => {
-    const now = Date.now()
-    const plan: Plan = { id: uid('plan'), name, targetKm, items: [], createdAt: now, updatedAt: now }
-    setPlans((prev) => {
-      const next = [...prev, plan]
-      store.setPlans(next)
-      return next
-    })
-    store.setPlanDraftId(plan.id)
-    return plan
-  }, [])
+  /**
+   * 新建行程篮。
+   *
+   * `items` 允许在建篮时就带上：路线详情页点「加入行程篮」时如果还没有任何行程篮，
+   * 必须**一次写入**就把这条路线放进去 —— 先建空篮再补第二步 update 是两次
+   * `setPlans`，中间任何一次重排/覆盖都会让「篮建出来了、路线没进去」，
+   * 表现就是按钮显示「已加入」但行程篮里空空如也。
+   */
+  const createPlan = useCallback(
+    (name = '我的百公里行程', targetKm = 100, items: PlanItem[] = []) => {
+      const now = Date.now()
+      const plan: Plan = { id: uid('plan'), name, targetKm, items, createdAt: now, updatedAt: now }
+      setPlans((prev) => {
+        const next = [...prev, plan]
+        store.setPlans(next)
+        return next
+      })
+      store.setPlanDraftId(plan.id)
+      return plan
+    },
+    [],
+  )
 
   const updateSettings = useCallback((patch: Partial<AppSettings>) => {
     setSettings((prev) => {

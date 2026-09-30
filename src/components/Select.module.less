@@ -1,0 +1,149 @@
+/* 自定义下拉框（替代原生 select）。视觉走本应用令牌，弹出层用 portal 挂到 body，
+   避免被 overflow 容器裁剪（如按天看板的横向滚动区）。 */
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  min-width: 120px;
+  padding: 7px 28px 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.trigger:hover:not(.disabled) {
+  border-color: #cfd5dd;
+}
+
+.trigger:focus-visible {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(47, 125, 79, 0.12);
+}
+
+.trigger.is-open {
+  border-color: var(--brand);
+}
+
+.trigger.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sm {
+  min-width: 110px;
+  padding: 5px 26px 5px 8px;
+  font-size: 13px;
+}
+
+.xs {
+  min-width: 84px;
+  padding: 3px 22px 3px 6px;
+  font-size: 12px;
+}
+
+.label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.placeholder {
+  color: #9aa3af;
+}
+
+.chev {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 12px;
+  height: 12px;
+  color: var(--muted);
+  flex: 0 0 auto;
+  pointer-events: none;
+  transition: transform 0.15s ease;
+}
+
+.trigger.is-open .chev {
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.panel {
+  position: fixed;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+  z-index: 1200;
+}
+
+.opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.opt:hover {
+  background: var(--line-soft);
+}
+
+.opt.is-active {
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+}
+
+.opt.is-selected {
+  font-weight: 600;
+}
+
+.opt.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.opt-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.opt-check {
+  flex: 0 0 auto;
+  color: var(--brand);
+  font-weight: 700;
+}
+
+@media (max-width: 720px) {
+  .trigger {
+    font-size: 16px;
+  }
+  .sm {
+    font-size: 15px;
+  }
+  .xs {
+    font-size: 14px;
+  }
+}

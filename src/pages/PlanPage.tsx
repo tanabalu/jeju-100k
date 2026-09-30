@@ -6,20 +6,84 @@ import { useActivePlan } from '../hooks/useActivePlan'
 import { useConfirm, useToast } from '../components/Feedback'
 import { Modal } from '../components/Modal'
 import { RouteMap } from '../components/RouteMap'
+import { DayBoard, buildStays } from '../components/DayBoard'
+import { Select } from '../components/Select'
+import { DatePicker } from '../components/DatePicker'
+import { PlanPrintSheet } from '../components/PlanPrintSheet'
+import { collectHotels, suggestPrevNight } from '../lib/stayMatch'
+import {
+  DAY_HOURS_LIMIT,
+  DAY_KM_LIMIT,
+  dayDate,
+  planDayNumbers,
+  planDays,
+  planRows,
+  unassignedRows,
+} from '../lib/dayPlan'
 import { OLLE_TOTAL_KM } from '../lib/seed'
 import styles from './PlanPage.module.less'
 
 type PlanSort = 'added' | 'km'
+/** 只有「清单 / 按天」两个页签；地图是常驻区块，不参与切换 */
+type PlanView = 'list' | 'days'
+
+const VIEWS: { key: PlanView; label: string }[] = [
+  { key: 'list', label: '清单' },
+  { key: 'days', label: '按天' },
+]
+
+/** 记住用户上次停在哪个页签：刷新 / 重进都恢复；缓存里的值若已不存在（如旧版残留的 'map'）则回落到第一个页签 */
+const PLAN_VIEW_KEY = 'jeju:plan-view'
+function readPlanView(): PlanView {
+  if (typeof localStorage === 'undefined') return VIEWS[0].key
+  const v = localStorage.getItem(PLAN_VIEW_KEY)
+  return VIEWS.some((x) => x.key === v) ? (v as PlanView) : VIEWS[0].key
+}
+function writePlanView(v: PlanView) {
+  try {
+    localStorage.setItem(PLAN_VIEW_KEY, v)
+  } catch {
+    /* 隐私模式 / 配额满了：忽略，反正只是个视图偏好 */
+  }
+}
 
 export function PlanPage() {
   const { routes, ui, updateUi } = useData()
   const planApi = useActivePlan()
-  const { plan, plans, addRoute, removeRoute, toggleDone, setTarget, rename, clear, createPlan, removePlan, selectPlan } = planApi
+  const {
+    plan,
+    plans,
+    addRoute,
+    removeRoute,
+    toggleDone,
+    setTarget,
+    rename,
+    clear,
+    createPlan,
+    removePlan,
+    selectPlan,
+    assignDay,
+    moveInDay,
+    setStartDate,
+    setPrevStay,
+    setPrevStayNote,
+    setDayNote,
+    lockStay,
+    addDay,
+    removeDay,
+  } = planApi
   const toast = useToast()
   const confirm = useConfirm()
   const [newOpen, setNewOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [newTarget, setNewTarget] = useState(100)
+  const [exportOpen, setExportOpen] = useState(false)
+  /** 默认进「清单」视图 —— 老用户的习惯不能被改掉；但若本地缓存过上次选的页签则沿用 */
+  const [view, setView] = useState<PlanView>(readPlanView)
+  const changeView = (v: PlanView) => {
+    setView(v)
+    writePlanView(v)
+  }
   /** 默认按加入行程篮的先后顺序排（也就是你打算走的次序） */
   const [sort, setSort] = useState<PlanSort>('added')
   /** 只看未完成：隐藏已勾选走完的路线。状态存在本机缓存（trail100k.ui），刷新后仍然保持 */
@@ -27,20 +91,33 @@ export function PlanPage() {
   const setHideDone = (v: boolean) => updateUi({ planHideDone: v })
 
   const metrics = useMemo(() => new Map(routes.map((r) => [r.id, computeMetrics(r)])), [routes])
+  /** 住宿候选池：跨全部路线收集，由 hotel.id 去重 */
+  const hotels = useMemo(() => collectHotels(routes), [routes])
 
-  const rows = useMemo(() => {
-    if (!plan) return []
-    // plan.items 的顺序 = 加入行程篮的先后顺序，先按它原样取出
-    const list = plan.items
-      .map((i) => {
-        const r = routes.find((x) => x.id === i.routeId)
-        if (!r) return null
-        const km = metrics.get(r.id)?.distanceKm ?? 0
-        return { route: r, km, subtotal: km, done: !!i.done }
-      })
-      .filter((x): x is { route: (typeof routes)[number]; km: number; subtotal: number; done: boolean } => !!x)
-    return sort === 'km' ? [...list].sort((a, b) => b.subtotal - a.subtotal) : list
-  }, [plan, routes, metrics, sort])
+  const dayRows = useMemo(() => planRows(plan, routes, metrics), [plan, routes, metrics])
+  const days = useMemo(() => planDays(plan, dayRows, metrics), [plan, dayRows, metrics])
+  const stays = useMemo(() => buildStays(days, plan?.items ?? [], hotels), [days, plan, hotels])
+  const backlog = useMemo(() => unassignedRows(dayRows), [dayRows])
+  const firstDay = useMemo(() => days.find((d) => d.rows.length > 0), [days])
+  /** 「出发前一晚」的住宿建议：依据第一天那条的官方「前一晚住哪」口径 + 离第一天起点的距离 */
+  const prevNight = useMemo(
+    () => suggestPrevNight(firstDay, hotels, plan?.prevStayId),
+    [firstDay, hotels, plan],
+  )
+  /**
+   * 前夜的日期 = 出发日减一天。`dayDate(start, 0)` 正好算出这个：
+   * 它内部是 `start + (day - 1)`，第 1 天是出发日，第 0 天自然就是出发日前一晚。
+   */
+  const prevLabel = useMemo(() => {
+    const d = dayDate(plan?.startDate, 0)
+    return d ? `${d.label} ${d.weekday}` : ''
+  }, [plan?.startDate])
+
+  /** 清单视图里可以改排序；排序不影响「按天」视图（那边始终按加入顺序 + 天号） */
+  const rows = useMemo(
+    () => (sort === 'km' ? [...dayRows].sort((a, b) => b.km - a.km) : dayRows),
+    [dayRows, sort],
+  )
 
   /** 勾选过滤只影响展示，不改变合计与复制结果 */
   const visibleRows = hideDone ? rows.filter((r) => !r.done) : rows
@@ -81,7 +158,7 @@ export function PlanPage() {
   const planHotels = useMemo(() => rows.flatMap((r) => r.route.hotels ?? []), [rows])
   const planSights = useMemo(() => rows.flatMap((r) => r.route.sights ?? []), [rows])
 
-  const total = rows.reduce((s, r) => s + r.subtotal, 0)
+  const total = rows.reduce((s, r) => s + r.km, 0)
   const target = plan?.targetKm ?? 100
   const gap = target - total
   const done = total >= target
@@ -94,6 +171,18 @@ export function PlanPage() {
   const donePct = totalCount ? Math.round((doneCount / totalCount) * 100) : 0
   const allDone = totalCount > 0 && doneCount === totalCount
 
+  /** 按天视图的汇总 */
+  const usedDays = useMemo(() => days.filter((d) => d.rows.length > 0), [days])
+  /** 住几晚 = 出发前一晚 + 已排每一天当晚（最后一天同样算一晚 —— 那晚也要落脚） */
+  const nights = usedDays.length > 0 ? usedDays.length + 1 : 0
+  const overloaded = useMemo(
+    () =>
+      days
+        .filter((d) => d.rows.length > 0 && (d.distanceKm > DAY_KM_LIMIT || d.hours > DAY_HOURS_LIMIT))
+        .map((d) => d.day),
+    [days],
+  )
+
   const suggestions = useMemo(() => {
     if (done) return []
     const inPlan = new Set(plan?.items.map((i) => i.routeId) ?? [])
@@ -105,22 +194,92 @@ export function PlanPage() {
       .slice(0, 4)
   }, [done, plan, routes, metrics, gap])
 
-  const copyMarkdown = async () => {
-    if (!plan) return
-    const order = sort === 'added' ? '按加入顺序' : '按里程排序'
+  /**
+   * Markdown 行程单：分过天的按天分组输出，**没分天时退回原来的平铺表格** ——
+   * 「什么都没排」时复制出来的内容必须和以前一模一样。
+   */
+  const buildMarkdown = () => {
+    if (!plan) return ''
+    const used = days.filter((d) => d.rows.length > 0)
     const lines = [
       `# ${plan.name}`,
       '',
       `- 目标里程：${target} km`,
       `- 当前合计：**${formatKm(total)} km** ${done ? '✅ 已达标' : `（还差 ${formatKm(gap)} km）`}`,
-      `- 排序：${order}`,
-      '',
-      '| 序 | 路线 | 里程 | 完成 |',
-      '| --- | --- | --- | --- |',
-      ...rows.map((r, i) => `| ${i + 1} | ${r.route.name} | ${formatKm(r.km)} | ${r.done ? '✅' : ''} |`),
     ]
+    if (plan.startDate && used.length) lines.push(`- 出发日：${plan.startDate}`)
+    if (used.length) {
+      lines.push(`- 天数：${used.length} 天`)
+      lines.push(
+        `- 住宿：${nights} 晚（出发前一晚 + 每一天当晚${
+          used.length > 1 ? '，含最后一天' : ''
+        }）`,
+      )
+    } else {
+      lines.push(`- 排序：${sort === 'added' ? '按加入顺序' : '按里程排序'}`)
+    }
+    lines.push('')
+
+    if (!used.length) {
+      lines.push('| 序 | 路线 | 里程 | 完成 |', '| --- | --- | --- | --- |')
+      rows.forEach((r, i) => {
+        lines.push(`| ${i + 1} | ${r.route.name} | ${formatKm(r.km)} | ${r.done ? '✅' : ''} |`)
+      })
+      return lines.join('\n')
+    }
+
+    /* 出发前一晚：不归任何一天，单独一节放在最前面 */
+    if (firstDay) {
+      const head = prevLabel ? ` · ${prevLabel}` : ''
+      lines.push(`## 出发前一晚${head}`, '')
+      lines.push(
+        `次日要从「${firstDay.rows[0].route.startPoint?.name ?? firstDay.rows[0].route.name}」开走。`,
+        '',
+      )
+      if (prevNight) {
+        const locked = prevNight.lockedHotel ? ` —— 已定：${prevNight.lockedHotel.name}` : ''
+        lines.push(`🛏 建议住：**${prevNight.area}**${locked}`, '', `> ${prevNight.reason}`)
+        lines.push('')
+      } else {
+        lines.push('🛏 暂无前夜住宿数据可推荐', '')
+      }
+      if (plan.prevStayNote) lines.push(`备注：${plan.prevStayNote}`, '')
+    }
+
+    used.forEach((d) => {
+      const tail = d.dateISO ? ` · ${d.dateISO} ${d.weekday ?? ''}`.trimEnd() : ''
+      lines.push(`## 第 ${d.day} 天${tail} · ${formatKm(d.distanceKm)} km`, '')
+      lines.push('| 序 | 路线 | 里程 | 起点 → 终点 |', '| --- | --- | --- | --- |')
+      d.rows.forEach((r, i) => {
+        const pts = r.route.points ?? []
+        const from = pts[0]?.name ?? '—'
+        const to = pts[pts.length - 1]?.name ?? '—'
+        lines.push(`| ${i + 1} | ${r.route.name} | ${formatKm(r.km)} | ${from} → ${to} |`)
+      })
+      lines.push('')
+      const stay = stays.get(d.day) ?? null
+      if (stay) {
+        const locked = stay.lockedHotel ? ` —— 已定：${stay.lockedHotel.name}` : ''
+        lines.push(
+          `🛏 建议住：**${stay.area}**${d.isLast ? '（最后一晚）' : ''}${locked}`,
+          '',
+          `> ${stay.reason}`,
+        )
+        if (stay.altArea) lines.push(`> 备选：${stay.altArea} —— ${stay.altReason ?? ''}`)
+        lines.push('')
+      } else {
+        lines.push('🛏 暂无住宿数据可推荐', '')
+      }
+      const note = plan.dayNotes?.[d.day]
+      if (note) lines.push(`备注：${note}`, '')
+    })
+    return lines.join('\n')
+  }
+
+  const copyMarkdown = async () => {
+    if (!plan) return
     try {
-      await navigator.clipboard.writeText(lines.join('\n'))
+      await navigator.clipboard.writeText(buildMarkdown())
       toast('已复制为 Markdown', 'success')
     } catch {
       toast('复制失败，请手动选择文本', 'error')
@@ -132,17 +291,18 @@ export function PlanPage() {
       <div className={`${styles['plan-head']}`}>
         <div>
           <h1 className="detail-title">行程篮 · 自动算百公里</h1>
-          <p className="muted">把想走的路线加进来，实时累计里程，看看到没到 100 公里。</p>
+          <p className="muted">把想走的路线加进来，实时累计里程；切到「按天」排每天走哪几条，会自动推荐当晚住哪。</p>
         </div>
         <div className={`${styles['plan-head-actions']}`}>
-          <select className="input" value={plan?.id ?? ''} onChange={(e) => selectPlan(e.target.value)}>
-            {plans.length === 0 && <option value="">（暂无行程篮）</option>}
-            {plans.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+          <Select
+            value={plan?.id ?? ''}
+            onChange={(v) => selectPlan(v)}
+            options={[
+              ...(plans.length === 0 ? [{ value: '', label: '（暂无行程篮）' }] : []),
+              ...plans.map((p) => ({ value: p.id, label: p.name })),
+            ]}
+            ariaLabel="切换行程篮"
+          />
           <button
             className="btn btn-primary"
             onClick={() => {
@@ -206,6 +366,7 @@ export function PlanPage() {
             </div>
           </div>
 
+          {/* 行程位置地图：常驻区块，位置和以前一样（在汇总卡之后），不参与视图切换 */}
           {rows.length > 0 && (
             <section className="section">
               <h2>行程位置</h2>
@@ -230,115 +391,206 @@ export function PlanPage() {
             </section>
           )}
 
-          <section className="section">
-            <div className="section-head">
-              <h2>
-                已加入 <span className="count">{rows.length}</span>
-              </h2>
+          {/* 视图切换（左）· 出发日 + 导出行程单（右，两者挨在一起） */}
+          <div className={`${styles['plan-toolbar']}`}>
+            <div className={`${styles.tabs}`}>
+              {VIEWS.map((v) => (
+                <button
+                  key={v.key}
+                  className={`tab${view === v.key ? ' is-active' : ''}`}
+                  onClick={() => changeView(v.key)}
+                >
+                  {v.label}
+                </button>
+              ))}
+            </div>
+            <span className={`${styles.spacer}`} />
+            {/* 出发地和导出放一组：改完日期立刻能导出，扫描视线是一趟从左到右 */}
+            <div className={`${styles['export-group']}`}>
+              <label className={`${styles['date-field']}`}>
+                <span className="muted">出发日</span>
+                <DatePicker
+                  value={plan.startDate ?? ''}
+                  onChange={(v) => setStartDate(v || undefined)}
+                  placeholder="出发日"
+                  ariaLabel="出发日"
+                  title="填了之后，「按天」视图和行程单上会显示日期与星期"
+                />
+              </label>
+              <button
+                className="btn btn-primary"
+                onClick={() => setExportOpen(true)}
+                disabled={rows.length === 0}
+              >
+                导出行程单
+              </button>
+            </div>
+          </div>
+
+          {view === 'days' && (
+            <>
+              <div className={`${styles['day-summary']}`}>
+                <div>
+                  <span className="muted">已排天数</span>
+                  <b>{planDayNumbers(plan).length}</b>
+                </div>
+                <div>
+                  <span className="muted">待安排</span>
+                  <b>{backlog.length} 条</b>
+                </div>
+                <div title="出发前一晚 + 每一天当晚（含最后一天）">
+                  <span className="muted">需住宿</span>
+                  <b>{nights} 晚</b>
+                </div>
+                <div>
+                  <span className="muted">日均里程</span>
+                  <b>{usedDays.length ? `${formatKm(total / usedDays.length)} km` : '—'}</b>
+                </div>
+                {overloaded.length > 0 && (
+                  <span className={`${styles['warn-tag']}`}>⚠ 第 {overloaded.join('、')} 天超载</span>
+                )}
+              </div>
+              <p className="muted" style={{ fontSize: 13, margin: '0 0 12px' }}>
+                把卡片拖到某一天，或用卡上的下拉选天（手机上用这个），同一天内用 ↑↓ 调顺序。
+                「出发前一晚」和每天晚上都会给出住宿建议 —— 依据各路线自带的官方住宿口径，
+                以及你在素材管理里录入的附近住宿（前夜按离第一天出发点近排，每晚按离当晚终点、
+                明早起点的加权距离排）。
+                {overloaded.length > 0 && ' ⚠ 单日超过 20 km 或 6.5 小时会提示这天偏重。'}
+              </p>
+              <DayBoard
+                rows={dayRows}
+                days={days}
+                stays={stays}
+                prevNight={prevNight}
+                prevLabel={prevLabel}
+                prevNote={plan.prevStayNote ?? ''}
+                onSetPrevNote={setPrevStayNote}
+                onLockPrevStay={setPrevStay}
+                onAssignDay={assignDay}
+                onMoveInDay={moveInDay}
+                onRemove={removeRoute}
+                onToggleDone={toggleDone}
+                onLockStay={(day, hotelId) => lockStay(day, hotelId)}
+                onAddDay={addDay}
+                onRemoveDay={removeDay}
+                noteOfDay={(day) => plan.dayNotes?.[day] ?? ''}
+                onSetDayNote={setDayNote}
+              />
+            </>
+          )}
+
+          {view === 'list' && (
+            <section className="section">
+              <div className="section-head">
+                <h2>
+                  已加入 <span className="count">{rows.length}</span>
+                </h2>
+                {rows.length > 0 && (
+                  <div className="btn-row">
+                    <button
+                      className={`btn btn-sm${hideDone ? ' is-active' : ''}`}
+                      onClick={() => setHideDone(!hideDone)}
+                    >
+                      只看未完成
+                    </button>
+                    <button
+                      className={`btn btn-sm${sort === 'added' ? ' is-active' : ''}`}
+                      onClick={() => setSort('added')}
+                    >
+                      按加入顺序
+                    </button>
+                    <button
+                      className={`btn btn-sm${sort === 'km' ? ' is-active' : ''}`}
+                      onClick={() => setSort('km')}
+                    >
+                      按里程
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {rows.length > 0 && (
-                <div className="btn-row">
-                  <button
-                    className={`btn btn-sm${hideDone ? ' is-active' : ''}`}
-                    onClick={() => setHideDone(!hideDone)}
-                  >
-                    只看未完成
-                  </button>
-                  <button
-                    className={`btn btn-sm${sort === 'added' ? ' is-active' : ''}`}
-                    onClick={() => setSort('added')}
-                  >
-                    按加入顺序
-                  </button>
-                  <button
-                    className={`btn btn-sm${sort === 'km' ? ' is-active' : ''}`}
-                    onClick={() => setSort('km')}
-                  >
-                    按里程
-                  </button>
+                <div className={`${styles['plan-done']}`}>
+                  <div className={`progress ${styles['progress-sm']}`}>
+                    <div
+                      className={`progress-bar${allDone ? ' is-done' : ''}`}
+                      style={{ width: `${donePct}%` }}
+                    />
+                  </div>
+                  <span className="muted">
+                    {allDone
+                      ? `全部走完啦 · 共 ${formatKm(doneKm)} km`
+                      : `已完成 ${doneCount} / ${totalCount} 条 · ${formatKm(doneKm)} km`}
+                  </span>
                 </div>
               )}
-            </div>
 
-            {rows.length > 0 && (
-              <div className={`${styles['plan-done']}`}>
-                <div className={`progress ${styles['progress-sm']}`}>
-                  <div
-                    className={`progress-bar${allDone ? ' is-done' : ''}`}
-                    style={{ width: `${donePct}%` }}
-                  />
+              {rows.length === 0 ? (
+                <div className="empty">
+                  <p>行程篮是空的。</p>
+                  <Link to="/" className="btn btn-primary">
+                    去挑路线
+                  </Link>
                 </div>
-                <span className="muted">
-                  {allDone
-                    ? `全部走完啦 · 共 ${formatKm(doneKm)} km`
-                    : `已完成 ${doneCount} / ${totalCount} 条 · ${formatKm(doneKm)} km`}
-                </span>
-              </div>
-            )}
-
-            {rows.length === 0 ? (
-              <div className="empty">
-                <p>行程篮是空的。</p>
-                <Link to="/" className="btn btn-primary">
-                  去挑路线
-                </Link>
-              </div>
-            ) : visibleRows.length === 0 ? (
-              <div className="empty">
-                <p>没有未完成的路线，都走完啦 🎉</p>
-              </div>
-            ) : (
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th className={`${styles['th-done']}`} title="标记走完">
-                      <span className={`${styles['sr-only']}`}>完成</span>
-                    </th>
-                    <th className={`${styles['th-idx']}`}>序</th>
-                    <th>路线</th>
-                    <th>里程</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleRows.map(({ route, km, done: isDone }, idx) => (
-                    <tr key={route.id} className={isDone ? 'is-done' : ''}>
-                      <td className={`${styles['td-done']}`}>
-                        <input
-                          type="checkbox"
-                          checked={isDone}
-                          onChange={() => toggleDone(route.id)}
-                          aria-label={`标记 ${route.name} 已走完`}
-                        />
-                      </td>
-                      <td className={`${styles['td-idx']}`}>{idx + 1}</td>
-                      <td>
-                        <Link to={`/routes/${route.id}`}>{route.name}</Link>
-                      </td>
-                      <td>
-                        <b>{formatKm(km)} km</b>
-                      </td>
-                      <td className="td-right">
-                        <button className="btn btn-sm" onClick={() => removeRoute(route.id)}>
-                          移除
-                        </button>
-                      </td>
+              ) : visibleRows.length === 0 ? (
+                <div className="empty">
+                  <p>没有未完成的路线，都走完啦 🎉</p>
+                </div>
+              ) : (
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th className={`${styles['th-done']}`} title="标记走完">
+                        <span className={`${styles['sr-only']}`}>完成</span>
+                      </th>
+                      <th className={`${styles['th-idx']}`}>序</th>
+                      <th>路线</th>
+                      <th>里程</th>
+                      <th />
                     </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td className={`${styles['td-done']}`} />
-                    <td className={`${styles['td-idx']}`} />
-                    <td>合计</td>
-                    <td>
-                      <b>{formatKm(total)} km</b>
-                    </td>
-                    <td />
-                  </tr>
-                </tfoot>
-              </table>
-            )}
-          </section>
+                  </thead>
+                  <tbody>
+                    {visibleRows.map((r, idx) => (
+                      <tr key={r.route.id} className={r.done ? 'is-done' : ''}>
+                        <td className={`${styles['td-done']}`}>
+                          <input
+                            type="checkbox"
+                            checked={r.done}
+                            onChange={() => toggleDone(r.route.id)}
+                            aria-label={`标记 ${r.route.name} 已走完`}
+                          />
+                        </td>
+                        <td className={`${styles['td-idx']}`}>{idx + 1}</td>
+                        <td>
+                          <Link to={`/routes/${r.route.id}`}>{r.route.name}</Link>
+                          {r.item.day !== undefined && <span className="pill">第 {r.item.day} 天</span>}
+                        </td>
+                        <td>
+                          <b>{formatKm(r.km)} km</b>
+                        </td>
+                        <td className="td-right">
+                          <button className="btn btn-sm" onClick={() => removeRoute(r.route.id)}>
+                            移除
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td className={`${styles['td-done']}`} />
+                      <td className={`${styles['td-idx']}`} />
+                      <td>合计</td>
+                      <td>
+                        <b>{formatKm(total)} km</b>
+                      </td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                </table>
+              )}
+            </section>
+          )}
 
           {!done && suggestions.length > 0 && (
             <section className="section">
@@ -424,6 +676,40 @@ export function PlanPage() {
           <input className="input" type="number" min={1} value={newTarget} onChange={(e) => setNewTarget(Number(e.target.value))} />
         </label>
       </Modal>
+
+      {plan && rows.length > 0 && (
+        <Modal
+          open={exportOpen}
+          title="行程单"
+          width={860}
+          onClose={() => setExportOpen(false)}
+          footer={
+            <>
+              <span className={`${styles['export-hint']}`}>打印时页面框架会自动隐藏，纸上只留这份行程单</span>
+              <span className={`${styles.spacer}`} />
+              <button className="btn btn-primary" onClick={() => window.print()}>
+                打印 / 存为 PDF
+              </button>
+              <button className="btn" onClick={copyMarkdown}>
+                复制 Markdown
+              </button>
+              <button className="btn" onClick={() => setExportOpen(false)}>
+                关闭
+              </button>
+            </>
+          }
+        >
+          <PlanPrintSheet
+            plan={plan}
+            rows={dayRows}
+            days={days}
+            stays={stays}
+            prevNight={prevNight}
+            prevLabel={prevLabel}
+            metrics={metrics}
+          />
+        </Modal>
+      )}
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useData } from '../store/DataContext'
 import { computeMetrics, formatKm } from '../lib/geo'
 import { RouteCard } from '../components/RouteCard'
+import { Select } from '../components/Select'
 import { ListSkeleton } from '../components/Skeleton'
 import { useActivePlan } from '../hooks/useActivePlan'
 import styles from './RoutesPage.module.less'
@@ -71,18 +72,13 @@ export function RoutesPage() {
           <span className={`${styles['plan-mini-label']}`}>当前行程篮</span>
           {/* 直接切换行程篮：卡片上的「加入」会加进这里选中的那个 */}
           {plans.length > 0 ? (
-            <select
-              className={`input ${styles['plan-mini-select']}`}
+            <Select
+              className={styles['plan-mini-select']}
               value={plan?.id ?? ''}
-              onChange={(e) => selectPlan(e.target.value)}
-              title="切换当前行程篮"
-            >
-              {plans.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+              onChange={selectPlan}
+              options={plans.map((p) => ({ value: p.id, label: p.name }))}
+              ariaLabel="切换当前行程篮"
+            />
           ) : (
             <strong>（还没有行程篮）</strong>
           )}
@@ -106,12 +102,17 @@ export function RoutesPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <select className="input" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
-          <option value="code">按路线编号</option>
-          <option value="distance">按里程排序</option>
-          <option value="difficulty">按难度排序（难→易）</option>
-          <option value="difficultyAsc">按难度排序（易→难）</option>
-        </select>
+        <Select
+          value={sort}
+          onChange={(v) => setSort(v as SortKey)}
+          options={[
+            { value: 'code', label: '按路线编号' },
+            { value: 'distance', label: '按里程排序' },
+            { value: 'difficulty', label: '按难度排序（难→易）' },
+            { value: 'difficultyAsc', label: '按难度排序（易→难）' },
+          ]}
+          ariaLabel="排序方式"
+        />
         <Link to="/admin" className="btn btn-sm">
           管理素材
         </Link>

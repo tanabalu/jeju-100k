@@ -4,6 +4,7 @@ import { uid } from '../../lib/id'
 import { trackLines } from '../../lib/geo'
 import { PointPicker } from '../../components/PointPicker'
 import { RouteMap, WP_TYPE_STYLE } from '../../components/RouteMap'
+import { Select } from '../../components/Select'
 import { useConfirm, useToast } from '../../components/Feedback'
 import styles from './PointsEditor.module.less'
 
@@ -100,17 +101,12 @@ export function PointsEditor({ route, onPatch }: Props) {
           value={draft.name}
           onChange={(e) => setDraft({ ...draft, name: e.target.value })}
         />
-        <select
-          className="input"
+        <Select
           value={draft.wpType}
-          onChange={(e) => setDraft({ ...draft, wpType: e.target.value as WaypointType })}
-        >
-          {WPTYPE_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.zh}
-            </option>
-          ))}
-        </select>
+          onChange={(v) => setDraft({ ...draft, wpType: v as WaypointType })}
+          options={WPTYPE_OPTIONS.map((o) => ({ value: o.value, label: o.zh }))}
+          ariaLabel="途经点类型"
+        />
         <input
           className={`input ${styles['input-num']}`}
           placeholder="经度"
@@ -174,17 +170,13 @@ export function PointsEditor({ route, onPatch }: Props) {
                 {locked ? (
                   <span className={`${styles['locked-tag']}`}>{isStart ? '起点' : '终点'}</span>
                 ) : (
-                  <select
-                    className="input input-xs"
+                  <Select
+                    size="xs"
                     value={p.wpType ?? 'normal'}
-                    onChange={(e) => patch(p.id, { wpType: e.target.value as WaypointType })}
-                  >
-                    {WPTYPE_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.zh}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(v) => patch(p.id, { wpType: v as WaypointType })}
+                    options={WPTYPE_OPTIONS.map((o) => ({ value: o.value, label: o.zh }))}
+                    ariaLabel="途经点类型"
+                  />
                 )}
               </td>
               <td>

@@ -1,0 +1,437 @@
+/* 按天排期看板（CSS Modules，避开 global.less 里那批同名的 .day-* 类） */
+
+/*
+ * 布局：待安排固定单列（左）+ 天数列横向滚动（右）。
+ * - .board：整行 flex，左是固定宽度的待安排，右是 .days-scroll 横向滚动容器
+ * - .col-backlog：固定 300px，不参与滚动，永远在左边看得见、够得着
+ * - .days-scroll：overflow-x: auto，天数再多也只是横向滚动，不会把来源列推走
+ */
+.board {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.col {
+  flex: 0 0 300px;
+  width: 300px;
+  background: #f0f3f6;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+}
+
+/* 待安排：固定单列（不滚动），内部卡片横向自换行 */
+.col-backlog {
+  flex: 0 0 300px;
+  width: 300px;
+  align-self: stretch;
+}
+
+.strip {
+  background: #f8f9fb;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  padding: 10px;
+}
+
+.strip-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 34px;
+}
+
+.strip-body > * {
+  flex: 0 1 268px;
+}
+
+/* 横向滚动容器：天数列在这里面滚，待安排永远留在左侧 */
+.days-scroll {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+/* 前夜 + 各天：一排等宽列，不折行，超出就横向滚动 */
+.days {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  min-width: min-content;
+}
+
+.col-prev {
+  background: #fbfaff;
+  border-style: dashed;
+}
+
+.col-add {
+  background: transparent;
+  border-style: dashed;
+  box-shadow: none;
+  align-items: stretch;
+  justify-content: center;
+  min-height: 90px;
+}
+
+.col-add :global(.btn) {
+  width: 100%;
+}
+
+.col.is-over {
+  outline: 2px dashed var(--brand);
+  outline-offset: -2px;
+  background: var(--brand-soft);
+}
+
+.strip.is-over {
+  outline: 2px dashed var(--brand);
+  outline-offset: -2px;
+  background: var(--brand-soft);
+}
+
+.col-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.col-title {
+  font-size: 15px;
+}
+
+.col-date {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.col-stats {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.col-line {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.col-stats :global(.pill) {
+  font-variant-numeric: tabular-nums;
+}
+
+.col-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 30px;
+}
+
+.col-empty {
+  border: 1px dashed #d3d9e0;
+  border-radius: 9px;
+  padding: 14px 10px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  background: #fff;
+  flex: 1 1 auto;
+}
+
+/* ---- 警告条 ---- */
+.warn {
+  font-size: 12px;
+  line-height: 1.55;
+  border-radius: 8px;
+  padding: 6px 9px;
+  border: 1px solid transparent;
+}
+
+.w-overload,
+.w-gap {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #9a3412;
+}
+
+.w-island {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1e40af;
+}
+
+.w-light {
+  background: #f9fafb;
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+.w-info {
+  background: #f9fafb;
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+/* ---- 路线卡 ---- */
+.card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 10px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  cursor: grab;
+}
+
+.card:hover {
+  border-color: #c9d0d8;
+}
+
+.card.is-dragging {
+  opacity: 0.4;
+}
+
+.card-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.card-top input[type='checkbox'] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+
+.card-code {
+  background: var(--brand);
+  color: #fff;
+  border-radius: 6px;
+  padding: 1px 7px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.card-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.card-name:hover {
+  color: var(--brand-dark);
+}
+
+.tag {
+  font-size: 11px;
+  border-radius: 5px;
+  padding: 1px 6px;
+  background: #f3f4f6;
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+
+.tag-island {
+  background: #eff6ff;
+  color: #1e40af;
+  border-color: #bfdbfe;
+}
+
+.card-meta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.card-meta b {
+  color: var(--text);
+}
+
+.card-act {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
+}
+
+/* ---- 住宿卡 ---- */
+.stay {
+  background: #fffdf7;
+  border: 1px solid #f4e2b8;
+  border-radius: 10px;
+  padding: 9px 10px;
+}
+
+.stay-end,
+.stay-empty {
+  background: #f9fafb;
+  border-color: var(--line);
+}
+
+.stay-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.stay-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.stay-area {
+  font-size: 14px;
+  color: #92400e;
+}
+
+/* 「最后一晚」标记：末日同样给住宿建议，但得让人看出这是收尾那一晚 */
+.stay-tag {
+  font-size: 11px;
+  border-radius: 5px;
+  padding: 1px 6px;
+  background: #eef2ff;
+  color: #3730a3;
+  border: 1px solid #c7d2fe;
+}
+
+.stay-reason {
+  font-size: 12px;
+  color: #7c5a10;
+  line-height: 1.6;
+  margin-top: 5px;
+}
+
+.stay-alt {
+  font-size: 12px;
+  color: #7c5a10;
+  line-height: 1.6;
+  margin-top: 4px;
+  padding: 5px 7px;
+  background: #fffbeb;
+  border-radius: 6px;
+}
+
+.stay-opts {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #ecdcb8;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stay-nodata {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #7c5a10;
+  background: #fffbeb;
+  border: 1px dashed #f0d79a;
+  border-radius: 8px;
+  padding: 8px 9px;
+  line-height: 1.6;
+}
+
+.opt {
+  border: 1px solid #f0e3bf;
+  background: #fff;
+  border-radius: 8px;
+  padding: 7px 9px;
+}
+
+.opt.is-locked {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.opt-n {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.opt-lock {
+  font-size: 11px;
+  color: var(--brand-dark);
+  font-weight: 700;
+  margin-left: 6px;
+}
+
+.opt-m {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.opt-act {
+  margin-top: 5px;
+}
+
+.note-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.note-field :global(.input) {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 窄屏（<720px）：
+   - 待安排转成顶部整行（单列，固定，不滚动）；
+   - 天数列不再横向滚动，而是竖向流式排列（前夜 + 各天 + 加一天 一个接一个往下排），
+     这样手机上不用左右滑就能看到全部日期、也能靠下拉/按钮操作。 */
+@media (max-width: 720px) {
+  .board {
+    flex-direction: column;
+  }
+  .col-backlog {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+  /* 关掉横向滚动，让天数列恢复成普通竖向文档流 */
+  .days-scroll {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    overflow-x: visible;
+    overflow-y: visible;
+    padding-bottom: 0;
+  }
+  /* 原来是「一排等宽列、超出横向滚动」，手机上改成「竖向一列」 */
+  .days {
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 0;
+  }
+  .col {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+  .col-add {
+    min-height: 56px;
+  }
+  .strip-body > * {
+    flex: 1 1 160px;
+  }
+}

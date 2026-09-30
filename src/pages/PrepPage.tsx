@@ -64,7 +64,7 @@ export function PrepPage() {
       {
         id: 'extras',
         title: '备选清单已加入',
-        desc: '从「女士常用 / 男士常用清单」挑进来的，不想要的那一条直接移除即可。',
+        desc: '从「徒步装备 / 女士常用 / 男士常用 / 大疆 / 相机 / 无人机」几份备选清单里挑进来的，不想要的那一条直接移除即可。',
         items: checklist.extras,
       },
     ].filter((g) => g.items.length > 0)
@@ -200,7 +200,8 @@ export function PrepPage() {
         <h1 className="detail-title">行前准备 · 济州岛</h1>
         <p className="muted">
           出发前逐项打勾，进度保存在本机浏览器。政策与价格会变，标「<span className={`${styles['verify-tag']}`}>临行复核</span>」
-          的项目请自己再确认一遍。想按性别补充的，到下面「<b>女士常用 / 男士常用</b>」两份备选清单里挑着加入。
+          的项目请自己再确认一遍。装备、性别、拍摄设备这些因人而异的，到下面「<b>徒步装备 / 女士常用 / 男士常用 / 大疆 / 相机 / 无人机</b>」
+          几份备选清单里挑着加入 —— 徒步装备也在里面，按你要走的季节和路段挑。
         </p>
       </div>
 
@@ -403,8 +404,9 @@ export function PrepPage() {
       <section id="prep-presets" className="section">
         <h2>按需加入备选清单</h2>
         <p className="muted">
-          前面那些分组是通用项；这两份是分性别的补充项，<b>不要求全加</b>。
+          前面那些分组是通用项；下面这几份是分装备、分性别、分拍摄设备的补充项，<b>不要求全加</b>。
           点「加入」就并进上面的总清单、一起算进度；加错了随时移除。清单里已经有同一件事时会标成「已在清单」，不会重复加。
+          「徒步装备」按你要走的季节和路段挑，别整份全背；「无人机」那份大半是能不能飞的<b>规定</b>——先看完再决定这次带不带。
         </p>
         <div className={`${styles['grid-preset']}`}>
           {PREP_PRESETS.map((p) => {
@@ -419,6 +421,17 @@ export function PrepPage() {
                   </span>
                 </div>
                 <p className="muted">{p.desc}</p>
+                {p.warn && <p className={`${styles['guide-warn']}`}>{p.warn}</p>}
+                {p.sources && p.sources.length > 0 && (
+                  <div className={`${styles['guide-sources']}`}>
+                    <span>官方依据：</span>
+                    {p.sources.map((s) => (
+                      <a key={s.url} href={s.url} target="_blank" rel="noreferrer">
+                        {s.label}
+                      </a>
+                    ))}
+                  </div>
+                )}
                 <div className={`${styles['preset-ops']}`}>
                   <button
                     className="btn btn-sm btn-primary"

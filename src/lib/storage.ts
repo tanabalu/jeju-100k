@@ -21,7 +21,7 @@ const K_SEED_VERSION = 'trail100k.seedVersion'
 const K_CHECKLIST = 'trail100k.checklist'
 const K_UI = 'trail100k.ui'
 
-/** 从「女士/男士常用清单」加进总清单的条目 */
+/** 从备选清单（女士常用 / 男士常用 / 大疆 / 相机 / 无人机）加进总清单的条目 */
 export interface ChecklistExtra extends PrepItem {
   /** 来自哪份备选清单（PREP_PRESETS.id）；数据源改了也能认出来源 */
   from: string
@@ -33,7 +33,7 @@ export interface ChecklistState {
   /** 手动放弃：不算未完成、也不计入进度分母 */
   skipped: string[]
   custom: PrepItem[]
-  /** 从「女士常用 / 男士常用清单」挑着加进来的条目 */
+  /** 从备选清单（女士常用 / 男士常用 / 大疆 / 相机 / 无人机）挑着加进来的条目 */
   extras: ChecklistExtra[]
 }
 
@@ -132,7 +132,13 @@ export function normalizeRoute(route: Route): Route {
   }
 }
 
-/** 归一化一个行程篮：缺 items 时补空数组，避免「已加入」列表整页崩掉 */
+/**
+ * 归一化一个行程篮：缺 items 时补空数组，避免「已加入」列表整页崩掉。
+ *
+ * 只做这一件事。行程篮的「天数 / 住宿锁定 / 出发日期」字段是后来加的，
+ * **不做旧版本兼容**：老数据里缺这些字段就读成 undefined（= 未分天），
+ * 由用户在「按天」视图里重新排一次即可。
+ */
 export function normalizePlan(plan: Plan): Plan {
   return { ...plan, items: arr<PlanItem>(plan.items) }
 }
@@ -211,8 +217,19 @@ export function emptyAlbumItem(partial: Partial<AlbumItem> = {}): AlbumItem {
   return { id: uid('album'), image: { kind: 'url', value: '' }, ...partial }
 }
 
+/**
+ * 备份文件格式。
+ *
+ * ## 不做向后兼容
+ * version 是**写入端**的标记：**v2 及以后才带**「第几天 / 住宿锁定 / 出发日期 / 每天备注」。
+ * 导入时**不识别 version、也不做任何升级转换** ——读进来的新字段缺失就是缺失
+ * （行程篮没有分天就是没有分天），交给 `normalizePlan` 兜底成可用状态。
+ *
+ * 这是有意的：行程数据存在本机 localStorage，结构一变就让旧备份「半吊子复活」
+ * 反而更容易算出错的行程单。老备份真要用，用户在「按天」视图重排一次即可。
+ */
 export type BackupFile = {
-  version: 1
+  version: 2
   exportedAt: number
   routes: Route[]
   plans: Plan[]
@@ -221,7 +238,8 @@ export type BackupFile = {
 
 export function exportBackup(): string {
   const data: BackupFile = {
-    version: 1,
+    // 现在导出的就是含「按天排期 + 住宿锁定 + 出发日期」的 v2 格式，别再写 1
+    version: 2,
     exportedAt: Date.now(),
     routes: store.getRoutes(),
     plans: store.getPlans(),

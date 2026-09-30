@@ -1,0 +1,124 @@
+/* 行程单（打印 / 存 PDF 用） */
+
+.sheet {
+  background: #fff;
+  color: #111827;
+  padding: 24px 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.sheet h1 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  color: #111827;
+}
+
+.sub {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  color: #4b5563;
+  font-size: 12px;
+  border-bottom: 2px solid #111827;
+  padding-bottom: 10px;
+  margin-bottom: 14px;
+}
+
+.day {
+  /* 打印时不要把一天切断跨到两页 */
+  break-inside: avoid;
+  page-break-inside: avoid;
+  margin-bottom: 16px;
+}
+
+/* 「出发前一晚」栏：不属于任何一天，左边条换成紫色 + 灰底，跟正经的 Day 区分开 */
+.day-prev {
+  background: #fbfaff;
+  border: 1px dashed #c7d2fe;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.day-prev .day-h {
+  border-left-color: #6366f1;
+}
+
+.day-h {
+  font-weight: 700;
+  font-size: 14px;
+  border-left: 3px solid #2f7d4f;
+  padding-left: 8px;
+  margin-bottom: 6px;
+}
+
+.day-h span {
+  font-weight: 500;
+  color: #4b5563;
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.day-m {
+  color: #4b5563;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.sheet table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.sheet th,
+.sheet td {
+  border-bottom: 1px solid #d1d5db;
+  padding: 5px 6px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.sheet th {
+  background: #f3f4f6;
+  font-weight: 600;
+}
+
+.day-warn {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #9a3412;
+}
+
+.day-note {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.stay {
+  margin-top: 7px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  padding: 6px 9px;
+  font-size: 12px;
+}
+
+.stay-why,
+.stay-list {
+  color: #78350f;
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+.foot {
+  margin-top: 14px;
+  border-top: 1px solid #d1d5db;
+  padding-top: 8px;
+  color: #6b7280;
+  font-size: 11px;
+  line-height: 1.6;
+}

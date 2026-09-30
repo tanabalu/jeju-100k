@@ -1,0 +1,94 @@
+/**
+ * 打印样式 —— 「导出行程单 → 打印 / 存为 PDF」这一条链路专用。
+ *
+ * ## 前提
+ * 行程单是用 `window.print()` 交给浏览器渲染进 PDF 的（零依赖方案）。
+ * 点是出来的东西没有人肉 —— 所以这里必须把屏幕上那些只在交互语境下有意义的元素
+ * 全部隐藏：顶栏、按钮、地图、输入框边框色等等，只留白纸黑字的一份行程单。
+ *
+ * ## 关键一步：整个应用先隐藏
+ * 行程单是通过 portal 挂在 `<body>` 上的（`Modal` 必须脱离祖先的 transform 包含块），
+ * 所以打印时 DOM 结构是 `<body><div id="root">整个站点</div><遮罩>行程单</遮罩></body>`。
+ * 于是直接把 `#root` 整个关掉 —— 比给几十个元素挨个打 `.no-print` 可靠得多，
+ * 也不会漏掉某个新加的按钮。
+ *
+ * ## 另两条纪律
+ * 1. 另有零散元素需要隐藏时挂 `.no-print`（目前暂无使用，留作约定）。
+ * 2. 一天不要被切成两半：`.day` 上有 `break-inside: avoid`，
+ *    跨页断裂的行程单等于没法用（前一半表格头和后一半表格身分开）。
+ */
+
+@media print {
+  /* 屏幕上的壳：顶栏、布局容器里的交互控件统统不要 */
+  .no-print {
+    display: none !important;
+  }
+  #root {
+    display: none !important;
+  }
+
+  /* 打印时不再需要页面底色与卡片投影 */
+  html,
+  body {
+    background: #fff !important;
+    color: #111827 !important;
+  }
+
+  /* Modal 是 portal 到 body 的，屏幕版样式（遮罩、圆角、阴影）在纸上全是多余的 */
+  [class*='modal-mask'] {
+    position: static !important;
+    display: block !important;
+    overflow: visible !important;
+    background: none !important;
+    padding: 0 !important;
+  }
+
+  [class*='modal'],
+  [class*='modal-body'] {
+    width: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  /* Modal 的标题栏与底部按钮是屏幕交互用的，纸上不需要 */
+  [class*='modal-head'],
+  [class*='modal-foot'] {
+    display: none !important;
+  }
+
+  /* 行程单本体：去掉屏幕上的边框与留白，铺满纸张内容区 */
+  [class*='sheet'] {
+    border: 0 !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* 表格跨页时表头重复一次，避免第二页只剩数据没有列名 */
+  table {
+    break-inside: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  a {
+    color: #111827 !important;
+    text-decoration: none !important;
+  }
+
+  @page {
+    margin: 14mm;
+  }
+}

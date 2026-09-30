@@ -150,6 +150,19 @@ export interface PlanItem {
   routeId: string
   /** 是否已走完（用户手动勾选），用于查看完成进度 */
   done?: boolean
+  /**
+   * 第几天走（1-based）。undefined = 还没分天，落在「待安排」。
+   *
+   * 刻意做成 item 上的字段而不是 `plan.days[]` 数组：旧行程篮不需要结构迁移，
+   * 清空某天也不会留下空洞的天号。
+   * **同一天内的顺序 = `items` 数组里的先后顺序**（不放单独的 order 字段，
+   * 否则「按加入顺序」和「第 N 天里的第几条」会变成两套互相打架的真相）。
+   */
+  day?: number
+  /** 用户锁定的住宿 id（来自某条 Route.hotels）；锁定后推荐结果不再覆盖 */
+  stayId?: string
+  /** 这晚住宿的备注（"订了海景房，取消需提前 3 天"） */
+  stayNote?: string
 }
 
 /** 行程篮：把若干路线加进来，自动算有没有百公里 */
@@ -159,6 +172,28 @@ export interface Plan {
   /** 目标里程，默认 100 */
   targetKm: number
   items: PlanItem[]
+  /**
+   * 出发日期 'YYYY-MM-DD'。可选：填了才算出「Day 2 · 10/4 周日」这类日期标签，
+   * 没填的行程篮照样能用。
+   */
+  startDate?: string
+  /** 每天的用户备注，key 为 day（1-based） */
+  dayNotes?: Record<number, string>
+  /**
+   * 「出发前一晚」锁定的住宿 id（来自某条 Route.hotels）。
+   *
+   * 单独挂在行程篮上、而不是塞进某个 PlanItem：前夜不属于任何一天
+   * （它是 Day 1 之前的那晚），挂在 item 上要么得凭空造一个 `day: 0`，
+   * 要么会在删第 1 天时被顺手清掉 —— 都不合理。
+   */
+  prevStayId?: string
+  /** 「出发前一晚」的备注（航班号、接机安排等，会印进行程单） */
+  prevStayNote?: string
+  /**
+   * 显式撑到第几天：用户点了「加一天」但该天还没路线时，光看 items 是看不出来的
+   * （空天在数据里不存在）。实际天数 = max(所有 item 的 day, dayCount)。
+   */
+  dayCount?: number
   createdAt: number
   updatedAt: number
 }

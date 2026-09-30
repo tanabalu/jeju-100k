@@ -2,6 +2,7 @@ import type { AlbumItem, Route } from '../../types'
 import { emptyAlbumItem } from '../../lib/storage'
 import { ImageField } from '../../components/ImageField'
 import { Thumb } from '../../components/Thumb'
+import { DatePicker } from '../../components/DatePicker'
 import { useConfirm } from '../../components/Feedback'
 import styles from './AlbumEditor.module.less'
 
@@ -52,11 +53,12 @@ export function AlbumEditor({ route, onPatch }: Props) {
                 value={a.caption ?? ''}
                 onChange={(e) => patch(a.id, { caption: e.target.value })}
               />
-              <input
-                className="input input-xs"
-                type="date"
+              <DatePicker
+                size="xs"
                 value={a.takenAt ?? ''}
-                onChange={(e) => patch(a.id, { takenAt: e.target.value })}
+                onChange={(v) => patch(a.id, { takenAt: v })}
+                placeholder="拍摄日期"
+                ariaLabel="拍摄日期"
               />
               <button
                 className="btn btn-xs btn-danger"

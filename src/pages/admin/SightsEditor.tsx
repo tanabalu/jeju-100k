@@ -2,6 +2,7 @@ import type { ImageRef, Route, Sight, SightType } from '../../types'
 import { emptySight } from '../../lib/storage'
 import { PointPicker } from '../../components/PointPicker'
 import { ImageField } from '../../components/ImageField'
+import { Select } from '../../components/Select'
 import { useConfirm } from '../../components/Feedback'
 import { projectToRoute, formatKm, trackLines } from '../../lib/geo'
 import styles from './SightsEditor.module.less'
@@ -64,13 +65,15 @@ export function SightsEditor({ route, onPatch }: Props) {
               <div className="field-row">
                 <label className="field">
                   <span>类型</span>
-                  <select className="input" value={s.type} onChange={(e) => patch(s.id, { type: e.target.value as SightType })}>
-                    {(Object.keys(TYPE_LABEL) as SightType[]).map((k) => (
-                      <option key={k} value={k}>
-                        {TYPE_LABEL[k]}
-                      </option>
-                    ))}
-                  </select>
+                  <Select
+                    value={s.type}
+                    onChange={(v) => patch(s.id, { type: v as SightType })}
+                    options={(Object.keys(TYPE_LABEL) as SightType[]).map((k) => ({
+                      value: k,
+                      label: TYPE_LABEL[k],
+                    }))}
+                    ariaLabel="看点类型"
+                  />
                 </label>
                 <label className="field">
                   <span>经度</span>

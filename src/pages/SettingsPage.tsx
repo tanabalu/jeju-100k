@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useData } from '../store/DataContext'
-import { exportBackup, importBackup } from '../lib/storage'
+import { exportBackup, importBackup, clearAllLocalData } from '../lib/storage'
 import type { MapStyle } from '../types'
 import { useConfirm, useToast } from '../components/Feedback'
+import { Select } from '../components/Select'
 import styles from './SettingsPage.module.less'
 
 export function SettingsPage() {
@@ -105,14 +106,16 @@ export function SettingsPage() {
           <button className="btn btn-sm" onClick={() => fileRef.current?.click()}>
             导入 JSON
           </button>
-          <select
-            className="input input-sm"
+          <Select
+            size="sm"
             value={importMode}
-            onChange={(e) => setImportMode(e.target.value as 'merge' | 'replace')}
-          >
-            <option value="merge">合并（同 id 覆盖）</option>
-            <option value="replace">替换（清空后导入）</option>
-          </select>
+            onChange={(v) => setImportMode(v as 'merge' | 'replace')}
+            options={[
+              { value: 'merge', label: '合并（同 id 覆盖）' },
+              { value: 'replace', label: '替换（清空后导入）' },
+            ]}
+            ariaLabel="导入方式"
+          />
         </div>
         <div className="btn-row">
           <button
@@ -131,13 +134,15 @@ export function SettingsPage() {
               if (
                 await confirm({
                   title: '清空全部数据',
-                  message: '会删除本机的全部路线与行程篮（示例数据会重新生成）。确定继续？',
+                  message:
+                    '会删除本机全部本地数据，包括路线、行程篮与行前准备（示例数据会重新生成）。确定继续？',
                   confirmText: '清空',
                   danger: true,
                 })
               ) {
-                localStorage.removeItem('trail100k.routes')
-                localStorage.removeItem('trail100k.plans')
+                // 清整个 trail100k.* 命名空间（含 trail100k.checklist 行前准备、
+                // trail100k.settings / ui / planDraft 等），而非只删 routes/plans。
+                clearAllLocalData()
                 reload()
                 toast('已清空', 'success')
               }

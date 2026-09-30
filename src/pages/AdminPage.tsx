@@ -8,6 +8,7 @@ import { PointsEditor } from './admin/PointsEditor'
 import { HotelsEditor } from './admin/HotelsEditor'
 import { SightsEditor } from './admin/SightsEditor'
 import { AlbumEditor } from './admin/AlbumEditor'
+import { Select } from '../components/Select'
 import styles from './AdminPage.module.less'
 
 type Tab = 'basic' | 'points' | 'hotels' | 'sights' | 'album'
@@ -49,18 +50,15 @@ export function AdminPage() {
           <p className="muted">在这里查看 / 编辑已有路线的素材（起终点、住宿、看点、相册）。所有数据保存在本机浏览器。</p>
         </div>
         <div className={`${styles['admin-head-actions']}`}>
-          <select
-            className="input"
+          <Select
             value={routeId}
-            onChange={(e) => setParams({ route: e.target.value })}
-          >
-            {routes.length === 0 && <option value="">（暂无路线）</option>}
-            {routes.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => setParams({ route: v })}
+            options={[
+              ...(routes.length === 0 ? [{ value: '', label: '（暂无路线）' }] : []),
+              ...routes.map((r) => ({ value: r.id, label: r.name })),
+            ]}
+            ariaLabel="选择路线"
+          />
         </div>
       </div>
 
