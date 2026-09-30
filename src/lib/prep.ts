@@ -134,7 +134,7 @@ export const PREP_GROUPS: PrepGroup[] = [
       {
         id: 'transit.naver',
         text: '装好 Naver Map（有中文界面）',
-        note: '查公交时刻、票价与线路颜色、步行导航、到站提醒都靠它。注意部分网络环境下需要自备可用网络才能顺利打开。',
+        note: '查公交时刻、票价与线路颜色、步行导航、到站提醒都靠它。国内网络环境下 Naver Map 常被墙，需要科学上网（VPN）才能打开与定位，出发前先在本机装好并试通。',
         verify: true,
       },
       {
@@ -522,7 +522,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           'Google Maps：受韩国地图数据出口限制，公交线路查不准、步行导航基本不可用，只适合复制个地址去看点评。',
           'Kakao Map：本地数据同样很全，但界面只有英文和韩语，中文用户用起来别扭。',
         ],
-        warn: 'Naver Map 在部分网络环境下需要自备可用网络才能正常打开与定位，出发前先在本机试好。',
+        warn: 'Naver Map 在国内被墙，需要科学上网（VPN）才能正常打开与定位，出发前先在本机装好并试通；落地用韩国流量卡时一般能直连。',
       },
       {
         title: '其他要花钱的地方',
