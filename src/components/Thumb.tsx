@@ -9,10 +9,12 @@ interface ThumbProps {
   /** CSS object-fit */
   fit?: 'cover' | 'contain'
   radius?: number
+  /** 高度自适应图片原始比例（瀑布流用）；默认撑满容器 */
+  autoHeight?: boolean
 }
 
 /** 统一渲染外链图与本地上传图；加载中显示骨架块，避免布局跳动 */
-export function Thumb({ image, alt = '', fit = 'cover', radius = 8 }: ThumbProps) {
+export function Thumb({ image, alt = '', fit = 'cover', radius = 8, autoHeight = false }: ThumbProps) {
   const [src, setSrc] = useState<string>()
   const [failed, setFailed] = useState(false)
 
@@ -43,7 +45,7 @@ export function Thumb({ image, alt = '', fit = 'cover', radius = 8 }: ThumbProps
       /* 首页 26 张封面各约 25KB（压缩版，原图只留给详情页），懒加载避免首屏一次性拉完 */
       loading="lazy"
       decoding="async"
-      style={{ width: '100%', height: '100%', objectFit: fit, borderRadius: radius, display: 'block' }}
+      style={{ width: '100%', height: autoHeight ? 'auto' : '100%', objectFit: autoHeight ? undefined : fit, borderRadius: radius, display: 'block' }}
     />
   )
 }

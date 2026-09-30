@@ -1,6 +1,7 @@
 import type { Hotel, Route } from '../../types'
 import { emptyHotel } from '../../lib/storage'
 import { PointPicker } from '../../components/PointPicker'
+import { ImageField } from '../../components/ImageField'
 import { useConfirm } from '../../components/Feedback'
 import { projectToRoute, formatKm, trackLines } from '../../lib/geo'
 
@@ -48,6 +49,10 @@ export function HotelsEditor({ route, onPatch }: Props) {
                 >
                   删除
                 </button>
+              </div>
+              <div className="field">
+                <span>封面图</span>
+                <ImageField value={h.cover} onChange={(v) => patch(h.id, { cover: v })} ratio="4 / 3" layout="row" />
               </div>
               <div className="field-row">
                 <label className="field">

@@ -118,6 +118,7 @@ export function SightsEditor({ route, onPatch }: Props) {
                       <ImageField
                         value={img}
                         height={96}
+                        allowClear
                         onChange={(v) => {
                           if (!v) {
                             patchImages(s.id, s.images.filter((_, idx) => idx !== i))

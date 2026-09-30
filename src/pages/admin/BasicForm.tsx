@@ -1,7 +1,7 @@
 import type { Route } from '../../types'
 import { computeMetrics, formatKm } from '../../lib/geo'
 import { routeKindLabel } from '../../lib/routeKind'
-import { ImageField } from '../../components/ImageField'
+import { Thumb } from '../../components/Thumb'
 import styles from './BasicForm.module.less'
 
 interface Props {
@@ -54,7 +54,9 @@ export function BasicForm({ route }: Props) {
       {route.cover && (
         <div className={`${styles['info-block']}`}>
           <div className={`${styles['info-label']}`}>封面图</div>
-          <ImageField value={route.cover} onChange={() => {}} readOnly />
+          <div className={`${styles['cover-preview']}`}>
+            <Thumb image={route.cover} alt="封面图" radius={8} />
+          </div>
         </div>
       )}
     </div>

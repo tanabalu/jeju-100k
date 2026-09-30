@@ -51,6 +51,8 @@ export interface Hotel {
   phone?: string
   rating?: number
   note?: string
+  /** 封面图（本地上传进 IndexedDB 或外链） */
+  cover?: ImageRef
 }
 
 /** 路边景色 / 沿途看点 */

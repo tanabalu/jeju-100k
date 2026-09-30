@@ -590,7 +590,11 @@ export function PrepPage() {
       ))}
 
       <section id="prep-budget" className="section">
-        <h2>预算粗算（每人每天，含住）</h2>
+        <h2>预算粗算（每人每天，含住，人民币口径）</h2>
+        <p className="muted">
+          按 1 元人民币 ≈ 200 韩元取整折算（2026-09 央行中间价约 201.7 韩元/元，会有波动）；
+          括号内保留韩元原区间，方便对照当地实际支付。
+        </p>
         <ul className={`${styles['plain-list']}`}>
           {BUDGET_HINTS.map((b) => (
             <li key={b.label}>

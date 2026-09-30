@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useParams } from 'react-router-dom'
 import { useData } from '../store/DataContext'
@@ -10,8 +10,15 @@ import { TRIP_PLANS, TRIP_PLAN_DISCLAIMER } from '../lib/tripPlans'
 import { resolveImageSrc } from '../lib/imageStore'
 import { useActivePlan } from '../hooks/useActivePlan'
 import { routeKindLabel } from '../lib/routeKind'
-import type { AlbumItem, RouteMetrics } from '../types'
+import type { ImageRef, RouteMetrics } from '../types'
 import styles from './RouteDetailPage.module.less'
+
+/** 全屏查看器的条目：相册 / 景点图片统一成这个形状 */
+interface LightboxItem {
+  image: ImageRef
+  caption?: string
+  takenAt?: string
+}
 
 /** 爬升数字的口径说明，避免把「估算」和「实测」混为一谈 */
 function gainHint(m: RouteMetrics | undefined): string {
@@ -48,7 +55,8 @@ export function RouteDetailPage() {
   const { getRoute, routes } = useData()
   const route = id ? getRoute(id) : undefined
   const { addRoute, has } = useActivePlan()
-  const [lbIndex, setLbIndex] = useState<number | null>(null)
+  // 全屏查看器：items 是这次要看的图片集合（相册或某个景点的多图），index 是当前看到第几张
+  const [lb, setLb] = useState<{ items: LightboxItem[]; index: number } | null>(null)
 
   // 全量路线按编号排好序，再定位当前这条，才能拿到正确的上一条 / 下一条
   const ordered = useMemo(() => [...routes].sort(byCode), [routes])
@@ -302,8 +310,17 @@ export function RouteDetailPage() {
             {hotelRows.map(({ hotel, atKm, offRouteKm }) => (
               <div key={hotel.id} className="list-item">
                 <div className="list-main">
-                  <b>{hotel.name}</b>
-                  <span className="muted">{hotel.address || '（未填地址）'}</span>
+                  <div className={`${styles['hotel-head']}`}>
+                    {hotel.cover && (
+                      <div className={`${styles['hotel-cover']}`}>
+                        <Thumb image={hotel.cover} alt={hotel.name} radius={8} />
+                      </div>
+                    )}
+                    <div className="list-main">
+                      <b>{hotel.name}</b>
+                      <span className="muted">{hotel.address || '（未填地址）'}</span>
+                    </div>
+                  </div>
                 </div>
                 <div className="list-side">
                   <span className="pill">沿线 {formatKm(atKm)} km</span>
@@ -329,14 +346,26 @@ export function RouteDetailPage() {
           <div className={`${styles['grid-sights']}`}>
             {sightRows.map(({ sight, atKm }) => (
               <div key={sight.id} className={`${styles['sight-card']}`}>
-                <div className={`${styles['sight-img']}`}>
-                  <Thumb image={sight.images[0]} alt={sight.name} radius={8} />
-                </div>
+                {sight.images.length > 1 ? (
+                  <SightGallery
+                    images={sight.images}
+                    name={sight.name}
+                    onOpen={(i) => setLb({ items: sight.images.map((img) => ({ image: img })), index: i })}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    className={`${styles['sight-img']} ${styles['sight-click']}`}
+                    onClick={sight.images.length === 1 ? () => setLb({ items: [{ image: sight.images[0] }], index: 0 }) : undefined}
+                    aria-label={sight.name}
+                  >
+                    <Thumb image={sight.images[0]} alt={sight.name} radius={0} />
+                  </button>
+                )}
                 <div className={`${styles['sight-body']}`}>
                   <b>{sight.name}</b>
                   <span className="pill">沿线 {formatKm(atKm)} km</span>
                   <p>{sight.desc || '（未填描述）'}</p>
-                  {sight.images.length > 1 && <span className="muted">共 {sight.images.length} 张</span>}
                 </div>
               </div>
             ))}
@@ -353,8 +382,8 @@ export function RouteDetailPage() {
         ) : (
           <div className={`${styles['album-grid']}`}>
             {route.album.map((item, idx) => (
-              <button key={item.id} className={`${styles['album-cell']}`} onClick={() => setLbIndex(idx)}>
-                <Thumb image={item.image} alt={item.caption ?? ''} radius={8} />
+              <button key={item.id} className={`${styles['album-cell']}`} onClick={() => setLb({ items: route.album, index: idx })}>
+                <Thumb image={item.image} alt={item.caption ?? ''} radius={8} autoHeight />
                 {item.caption && <span className={`${styles['album-cap']}`}>{item.caption}</span>}
               </button>
             ))}
@@ -405,15 +434,13 @@ export function RouteDetailPage() {
         )}
       </nav>
 
-      {lbIndex != null && (
+      {lb && (
         <Lightbox
-          album={route.album}
-          index={lbIndex}
-          onClose={() => setLbIndex(null)}
+          items={lb.items}
+          index={lb.index}
+          onClose={() => setLb(null)}
           onNav={(d) =>
-            setLbIndex((i) =>
-              i == null ? i : (i + d + route.album.length) % route.album.length,
-            )
+            setLb((l) => (l == null ? l : { ...l, index: (l.index + d + l.items.length) % l.items.length }))
           }
         />
       )}
@@ -454,19 +481,19 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
 }
 
 function Lightbox({
-  album,
+  items,
   index,
   onClose,
   onNav,
 }: {
-  album: AlbumItem[]
+  items: LightboxItem[]
   index: number
   onClose: () => void
   onNav: (delta: number) => void
 }) {
-  const item = album[index]
+  const item = items[index]
   const [src, setSrc] = useState<string>()
-  const canNav = album.length > 1
+  const canNav = items.length > 1
 
   // 切换照片时重新解析图片源，切换过程中先显示骨架占位
   useEffect(() => {
@@ -499,7 +526,7 @@ function Lightbox({
       className={`${styles['viewer']}`}
       role="dialog"
       aria-modal="true"
-      aria-label={item.caption || `照片 ${index + 1} / ${album.length}`}
+      aria-label={item.caption || `照片 ${index + 1} / ${items.length}`}
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <button className={`${styles['viewer-close']}`} onClick={onClose} aria-label="关闭">
@@ -526,10 +553,75 @@ function Lightbox({
       </div>
       {canNav && (
         <div className={`${styles['viewer-counter']}`}>
-          {index + 1} / {album.length}
+          {index + 1} / {items.length}
         </div>
       )}
     </div>,
     document.body,
+  )
+}
+
+/**
+ * 路边景色的多图轮播：scroll-snap 原生滑动（触屏直接划），两侧箭头 + 指示点 + 计数器。
+ * 点击任意一张打开全屏查看器（从点的那张开始，可左右切换整个景点的图）。
+ */
+function SightGallery({
+  images,
+  name,
+  onOpen,
+}: {
+  images: ImageRef[]
+  name: string
+  onOpen: (index: number) => void
+}) {
+  const trackRef = useRef<HTMLDivElement>(null)
+  const [cur, setCur] = useState(0)
+
+  // 滑动时同步指示点 / 计数器：scrollLeft ÷ 视口宽 = 当前页
+  const onScroll = () => {
+    const el = trackRef.current
+    if (!el || el.clientWidth === 0) return
+    setCur(Math.min(images.length - 1, Math.max(0, Math.round(el.scrollLeft / el.clientWidth))))
+  }
+  const go = (d: number) => {
+    const el = trackRef.current
+    if (!el) return
+    el.scrollTo({ left: (cur + d) * el.clientWidth, behavior: 'smooth' })
+  }
+
+  return (
+    <div className={`${styles['swipe']}`}>
+      <div ref={trackRef} className={`${styles['swipe-track']}`} onScroll={onScroll}>
+        {images.map((img, i) => (
+          <button
+            key={i}
+            type="button"
+            className={`${styles['swipe-slide']}`}
+            onClick={() => onOpen(i)}
+            aria-label={`查看 ${name} 第 ${i + 1} 张，共 ${images.length} 张`}
+          >
+            <Thumb image={img} alt={name} radius={0} />
+          </button>
+        ))}
+      </div>
+      {cur > 0 && (
+        <button type="button" className={`${styles['swipe-nav']} ${styles['swipe-prev']}`} onClick={() => go(-1)} aria-label="上一张">
+          ‹
+        </button>
+      )}
+      {cur < images.length - 1 && (
+        <button type="button" className={`${styles['swipe-nav']} ${styles['swipe-next']}`} onClick={() => go(1)} aria-label="下一张">
+          ›
+        </button>
+      )}
+      <span className={`${styles['swipe-counter']}`}>
+        {cur + 1} / {images.length}
+      </span>
+      <div className={`${styles['swipe-dots']}`} aria-hidden>
+        {images.map((_, i) => (
+          <i key={i} className={i === cur ? styles['is-on'] : undefined} />
+        ))}
+      </div>
+    </div>
   )
 }

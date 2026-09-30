@@ -45,6 +45,14 @@
 .info-block .info-label {
   margin-bottom: 6px;
 }
+/* 封面预览：常规 4:3 比例的固定宽度框，不做全宽长条 */
+.cover-preview {
+  width: min(280px, 100%);
+  aspect-ratio: 4 / 3;
+  background: var(--line-soft);
+  border-radius: 8px;
+  overflow: hidden;
+}
 @media (max-width: 520px) {
 .info-row {
     grid-template-columns: 1fr;

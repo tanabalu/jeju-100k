@@ -1,14 +1,29 @@
 /* 组件专属样式（CSS Modules + Less，局部作用域） */
 
+/* 纵向布局：预览图在上，操作行（上传按钮 + URL 输入框）固定一排在下 */
 .image-field {
   display: flex;
-  gap: 12px;
+  flex-direction: column;
+  gap: 8px;
+}
+/* 横向布局：预览在左，操作（上传按钮 / URL 输入框上下结构）在右，顶部对齐、左对齐；太窄时操作换到下面 */
+.image-field.is-row {
+  flex-direction: row;
   align-items: flex-start;
   flex-wrap: wrap;
 }
+.image-field.is-row .image-ops {
+  flex: 1;
+  min-width: 200px;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.image-field.is-row .url-input {
+  align-self: stretch;
+  flex: none;
+}
 .image-preview {
-  width: 200px;
-  min-width: 160px;
+  width: 100%;
   background: var(--line-soft);
   border-radius: 8px;
   overflow: hidden;
@@ -20,16 +35,13 @@
   height: 100%;
 }
 .image-ops {
-  flex: 1;
-  min-width: 200px;
   display: flex;
   gap: 8px;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
-@media (max-width: 720px) {
-.image-preview {
-    width: 100%;
-    min-width: 0;
-  }
+/* URL 输入框占满按钮之外的空间，保证与上传按钮始终同排 */
+.url-input {
+  flex: 1;
+  min-width: 0;
 }
