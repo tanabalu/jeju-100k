@@ -455,6 +455,11 @@
       "name": "Hanon Craters",
       "distance": 12.6,
       "type": "viewpoint"
+    },
+    {
+      "name": "Geolmae Ecological Park",
+      "distance": 15.0,
+      "type": "normal"
     }
   ],
   "08": [

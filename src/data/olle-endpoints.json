@@ -160,9 +160,10 @@
       "key": "olleCenter",
       "zh": "偶来旅客中心",
       "ko": "제주올레여행자센터",
-      "lng": 126.547597,
-      "lat": 33.241056,
-      "source": "track"
+      "lng": 126.558717,
+      "lat": 33.247461,
+      "source": "official",
+      "ref": "jejuolle.org 官方 GPS（= 07 号线起点，同一地点）"
     }
   },
   "08": {

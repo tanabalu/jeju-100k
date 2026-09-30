@@ -1,7 +1,7 @@
 import type { ElevSample, Route, TrackPoint, TrackPointKind } from '../types'
 import { uid } from './id'
 import { OLLE_ELEVATION } from './olleeElevation'
-import { LEGACY_WAYPOINT_ROUTES, ROUTE_WAYPOINTS, type WaypointDef } from './waypointsData'
+import { ROUTE_WAYPOINTS, type WaypointDef } from './waypointsData'
 import olleEndpointsJson from '../data/olle-endpoints.json'
 
 /**
@@ -104,9 +104,6 @@ const PLACES: Record<PlaceKey, { zh: string; ko: string; lng: number; lat: numbe
 //       ⚠️ 爬升**不在这两份官方基准里**（App 只给海拔剖面小图、不给数字），
 //       界面上的爬升一律来自轨迹点 + SRTM 30m 地形。
 //       `python3 scripts/check_official_consistency.py` 可复现这层核对（先对 App，再对轨迹）。
-//    ⭐ 07 现行路线几何已结合旧 GPX 和用户提供的官方 Olle App 地图恢复：GPX 只保留
-//       与官方站点里程及走向相符的旅客中心→斗马尼莫公园段；公园之后按官方图经过
-//       Beophwan Elementary School 数字化补线至巴士总站。补绘段不是 GPS 实测，见 tracks.json 来源说明。
   olleCenter: { zh: '偶来旅客中心', ko: '제주올레여행자센터', lng: 126.558717, lat: 33.247461 }, // 官方 GPS
   seogwipoTerminal: { zh: '西归浦巴士总站', ko: '서귀포버스터미널', lng: 126.508588, lat: 33.249104 }, // 官方 GPS
   wolpyeong: { zh: '月坪', ko: '월평', lng: 126.457121, lat: 33.243879 },
@@ -213,8 +210,8 @@ export const OLLE_TOTAL_KM = Math.round(SPECS.reduce((sum, s) => sum + s.km, 0))
  * 途经点数据已迁移到 `src/lib/waypointsData.ts`（由 scripts/build_waypoints_data.py 自动生成）：
  * 源 = 2017 官方英文线路图 PDF（scripts/data/olle-waypoints.json），按沿线距离吸附到
  * `public/tracks.json` 真实轨迹得到坐标，并带官方图例分类 `WaypointType`。
- * - 14-1 按铁律完全跳过（已有 codex 校正的真实轨迹与端点，不加任何途经点/锚点）。
- * - 07 / 07-1 / 16 / 17 的途经点来自 2017 旧走向，标记 legacyWaypoints = true（详情页提示「旧走向 · 待核」）。
+ * - 所有线路的起终点与路径（`src/data/olle-endpoints.json` / `public/tracks.json`）均为已勘验的
+ *   定稿数据，一律不得改动；本管线只生成途经点标记，不触碰起终点与轨迹。
  */
 
 function buildRoute(spec: OlleSpec): Route {
@@ -258,8 +255,7 @@ function buildRoute(spec: OlleSpec): Route {
     kind: 'hike',
     difficulty: DIFF_NUM[spec.difficulty],
     // 途经点：起点 → 官方命名途经点（kind:'via'，带 wpType 设施分类）→ 终点。
-    // 坐标已按官方里程吸附到真实轨迹（见 waypointsData.ts 头注释）；14-1 无途经点。
-    ...(LEGACY_WAYPOINT_ROUTES.has(spec.code) ? { legacyWaypoints: true } : {}),
+    // 坐标已按官方里程吸附到真实轨迹（见 waypointsData.ts 头注释）。
     points: [
       start,
       ...(ROUTE_WAYPOINTS[spec.code] ?? []).map(viaFromDef),

@@ -14,9 +14,9 @@ route's known start/end coordinates (parsed from src/lib/seed.ts PLACES/SPECS) a
 the orientation whose endpoints are closer to the official trailheads.  Loop routes are
 used as-is (the circuit distance is the same either way).
 
-Excluded: 14-1 (already corrected by codex with a real 2024 GPX; iron rule — do not add
-approximate/fabricated waypoints to it).  Its waypoints would be distance-snapped onto a
-correct track, but the user explicitly asked not to touch that line's data, so we skip it.
+Note: all route endpoints and track geometry (olle-endpoints.json / tracks.json) are
+verified final data — never modify them.  This pipeline only emits waypoint markers
+(distance-snapped onto the track, never moving endpoints or tracks).
 
 Output: src/lib/waypointsData.ts
   export interface WaypointDef { name: string; lng: number; lat: number; type: WaypointType }
@@ -35,11 +35,6 @@ TRACKS_PATH = ROOT / "public" / "tracks.json"
 WP_PATH = ROOT / "scripts" / "data" / "olle-waypoints.json"
 SEED_PATH = ROOT / "src" / "lib" / "seed.ts"
 OUT_PATH = ROOT / "src" / "lib" / "waypointsData.ts"
-
-# Routes whose geometry was re-aligned after the 2017 map (or which we keep untouched).
-# 14-1 is excluded entirely (iron rule); 07/07-1/16/17 get waypoints but flagged legacy.
-EXCLUDED = {"14-1"}
-LEGACY = {"07", "07-1", "16", "17"}
 
 R_EARTH = 6371.0088  # km
 
@@ -89,9 +84,6 @@ def main() -> int:
     reports: list[str] = []
 
     for code, waypoints in wps.items():
-        if code in EXCLUDED:
-            reports.append(f"SKIP {code} (excluded by iron rule)")
-            continue
         entry = tracks.get(code)
         if not entry or not isinstance(entry.get("points"), list) or len(entry["points"]) < 2:
             reports.append(f"SKIP {code} (no track in tracks.json)")
@@ -123,11 +115,9 @@ def main() -> int:
                 "type": w["type"],
             })
         result[code] = snapped
-        flag = " [LEGACY/待核]" if code in LEGACY else ""
         reports.append(
             f"{code}: {len(snapped)} waypoints | track {total:.2f}km vs last wp {max_d:.1f}km"
             + (f" | {dropped} dropped(beyond track)" if dropped else "")
-            + flag
         )
 
     # Emit TypeScript module
@@ -156,14 +146,6 @@ def main() -> int:
             )
         lines.append("  ],")
     lines.append("}")
-    lines.append("")
-    lines.append("/** 途经点来自 2017 旧走向、而线路此后已改线的路线（详情页提示「旧走向 · 待核」）。 */")
-    legacy = sorted(LEGACY & set(result.keys()))
-    lines.append(
-        "export const LEGACY_WAYPOINT_ROUTES: ReadonlySet<string> = new Set("
-        + json.dumps(legacy)
-        + ")"
-    )
     lines.append("")
     OUT_PATH.write_text("\n".join(lines), encoding="utf-8")
 

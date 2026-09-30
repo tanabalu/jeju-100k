@@ -11,8 +11,7 @@
 
 取值策略：
   - `source: "track"`   默认。取 `public/tracks.json` 该线的首/末点（主线首尾相接，是事实基准）。
-  - `source: "official"` 仅 06/07 —— jejuolle.org 官方 GPS 标注点（见 PLACES 里的「官方 GPS」注释）。
-    07-1 官方终点锚点离轨迹末点约 1.26km，按既有共识保持 `track`（跟随轨迹端点）。
+  - `source: "official"` 仅 06/07/07-1(终点) —— jejuolle.org 官方 GPS 标注点。
 
 配 `scripts/check_endpoints.py` 三向对账（JSON ↔ tracks.json ↔ PLACES），改完必跑。
 
@@ -39,6 +38,9 @@ OFFICIAL: dict[str, dict[str, tuple[str, str]]] = {
     "07": {
         "start": ("olleCenter", "jejuolle.org 官方 GPS"),
         "end": ("seogwipoTerminal", "jejuolle.org 官方 GPS"),
+    },
+    "07-1": {
+        "end": ("olleCenter", "jejuolle.org 官方 GPS（= 07 号线起点，同一地点）"),
     },
 }
 

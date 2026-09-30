@@ -110,6 +110,7 @@ export const ROUTE_WAYPOINTS: Record<string, WaypointDef[]> = {
     { name: "Seoho Elementary School", lng: 126.529752, lat: 33.254363, type: "normal" },
     { name: "Bongrim-sa(temple)", lng: 126.539763, lat: 33.251372, type: "normal" },
     { name: "Hanon Craters", lng: 126.541095, lat: 33.250419, type: "viewpoint" },
+    { name: "Geolmae Ecological Park", lng: 126.55399, lat: 33.246065, type: "normal" },
   ],
   '08': [
     { name: "Yakcheon-sa(temple)", lng: 126.44551, lat: 33.245467, type: "normal" },
@@ -183,6 +184,15 @@ export const ROUTE_WAYPOINTS: Record<string, WaypointDef[]> = {
     { name: "Geumneung Beach", lng: 126.241774, lat: 33.395304, type: "normal" },
     { name: "Ongpo-pogu(port)", lng: 126.254773, lat: 33.408797, type: "transport" },
     { name: "Yongsu-sa(temple)", lng: 126.258988, lat: 33.412887, type: "normal" },
+  ],
+  '14-1': [
+    { name: "Al-mot(pond)", lng: 126.264233, lat: 33.335237, type: "normal" },
+    { name: "Gangjeong Dongsan(mound)", lng: 126.276082, lat: 33.333985, type: "normal" },
+    { name: "Jeoji Gotjawal (dense forest)", lng: 126.289392, lat: 33.331491, type: "normal" },
+    { name: "Entrance to Mundoji Oreum", lng: 126.295978, lat: 33.328056, type: "viewpoint" },
+    { name: "Top of Mundoji Oreum", lng: 126.294794, lat: 33.326978, type: "viewpoint" },
+    { name: "Jeoji Drinking Water Resource", lng: 126.28279, lat: 33.310093, type: "normal" },
+    { name: "O'Sulloc Green Tea Fields", lng: 126.286276, lat: 33.307602, type: "normal" },
   ],
   '15': [
     { name: "Kensington Resort in Hallim", lng: 126.279309, lat: 33.426889, type: "normal" },
@@ -279,6 +289,3 @@ export const ROUTE_WAYPOINTS: Record<string, WaypointDef[]> = {
     { name: "Top of Jimi-bong(peak)", lng: 126.908388, lat: 33.496187, type: "viewpoint" },
   ],
 }
-
-/** 途经点来自 2017 旧走向、而线路此后已改线的路线（详情页提示「旧走向 · 待核」）。 */
-export const LEGACY_WAYPOINT_ROUTES: ReadonlySet<string> = new Set(["07", "07-1", "16", "17"])
