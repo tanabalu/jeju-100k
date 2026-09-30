@@ -302,7 +302,7 @@ def fill_elevations(pts, cache):
                 url,
                 headers={
                     "Accept": "application/json",
-                    "User-Agent": "jeju-100k/1.0 (track elevation fill)",
+                    "User-Agent": "jeju-olle-100k/1.0 (track elevation fill)",
                 },
                 method="GET",
             )

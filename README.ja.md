@@ -500,9 +500,9 @@ python3 scripts/fetch_elevation.py --force    # キャッシュ無視で全件�
 
 | 内容 | 場所 |
 | --- | --- |
-| ルート / 行程かご / 設定 | `localStorage`（キー接頭辞 `trail100k.`） |
-| 出発前チェックリストのチェックとカスタム項目 | `localStorage` の `trail100k.checklist` |
-| ローカルアップロード画像 | `IndexedDB`（db `trail100k` → store `images`）、アップロード時に長辺 1600px、JPEG 0.82 に圧縮 |
+| ルート / 行程かご / 設定 | `localStorage`（キー接頭辞 `jejuolle100k.`） |
+| 出発前チェックリストのチェックとカスタム項目 | `localStorage` の `jejuolle100k.checklist` |
+| ローカルアップロード画像 | `IndexedDB`（db `jejuolle100k` → store `images`）、アップロード時に長辺 1600px、JPEG 0.82 に圧縮 |
 
 データはいかなるサーバーにもアップロードされません。デバイス変更やブラウザ消去前に、`/admin` 上部の「JSON エクスポート」でバックアップ；移行後は「JSON インポート」で復元（マージまたは上書き選択可）。
 
@@ -611,7 +611,7 @@ python3 scripts/fetch_photos.py --dry      # 検索のみ、ダウンロード�
 
 ### チェックリストのチェック / スキップ状態マシン
 
-`trail100k.checklist`（`src/lib/storage.ts` の `ChecklistState` 参照）は 4 つの相互排他な id 集合を管理：
+`jejuolle100k.checklist`（`src/lib/storage.ts` の `ChecklistState` 参照）は 4 つの相互排他な id 集合を管理：
 
 | 状態 | フィールド | 意味 |
 | --- | --- | --- |
@@ -673,17 +673,17 @@ python3 scripts/fetch_photos.py --dry      # 検索のみ、ダウンロード�
 ### ローカルでイメージをビルド・自己検証
 
 ```bash
-docker build -t jeju-100k .
-docker run --rm -p 8080:80 jeju-100k
+docker build -t jeju-olle-100k .
+docker run --rm -p 8080:80 jeju-olle-100k
 # ブラウザで http://localhost:8080/jeju/ を開き検証
 ```
 
 ### Dokploy へ push
 
-1. Dokploy で **Application** を新規作成、ソースは GitHub 公開リポジトリ `tanabalu/jeju-100k`（main ブランチ）に接続。
+1. Dokploy で **Application** を新規作成、ソースは GitHub 公開リポジトリ `tanabalu/jeju-olle-100k`（main ブランチ）に接続。
 2. ビルド方式は **Dockerfile** を選択（多段は既に記述、追加パラメータ不要）。
 3. ポート：コンテナは `80` を公開、Dokploy 内ポートは `80` を填入。
-4. **Traefik ルート規則**（PathPrefix）：`Path(\`/jeju\`) || PathPrefix(\`/jeju/\`)` を使い、`/jeju` のパス区間だけに一致させます。同一ホストの Pages パス `/jeju-100k/` が Dokploy に取られるのを防ぎます。
+4. **Traefik ルート規則**（PathPrefix）：`Path(\`/jeju\`) || PathPrefix(\`/jeju/\`)` を使い、`/jeju` のパス区間だけに一致させます。同一ホストの Pages パス `/jeju-olle-100k/` が Dokploy に取られるのを防ぎます。
 5. デプロイ後は `https://your-domain/jeju/` にアクセス（「your-domain」を実際のサブパス宿主ドメインに置換）。
 
 > サブパス変更時は 2 か所：`Dockerfile` の `COPY ... /usr/share/nginx/html/<新パス>` と `nginx.conf.template` 内の `/jeju`、`/jeju/`、`/jeju/index.html`。

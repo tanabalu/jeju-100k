@@ -23,7 +23,7 @@ const NAV = [
 const DATA_SOURCES = 'jejuolletrailguide.net'
 
 /** 本项目仓库地址（README §9 的 Dokploy 部署与本页脚引用同一个仓）。 */
-const GITHUB_REPO = 'https://github.com/tanabalu/jeju-100k'
+const GITHUB_REPO = 'https://github.com/tanabalu/jeju-olle-100k'
 
 /**
  * 页脚友链：加一条往这里塞就行。
@@ -275,7 +275,7 @@ export default function App() {
                   href={GITHUB_REPO}
                   target="_blank"
                   rel="noopener noreferrer"
-                  title="在 GitHub 上查看本项目源码（tanabalu/jeju-100k）"
+                  title="在 GitHub 上查看本项目源码（tanabalu/jeju-olle-100k）"
                 >
                   <GitHubMark />
                   <span>GitHub</span>

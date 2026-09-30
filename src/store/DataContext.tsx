@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { AlbumItem, AppSettings, ElevSample, ImageRef, Plan, PlanItem, Route, TrackPoint } from '../types'
-import { store, SEED_VERSION, type ChecklistState, type UiState } from '../lib/storage'
+import { store, type ChecklistState, type UiState } from '../lib/storage'
 import { PREP_GROUPS, PREP_PRESETS, normItemText } from '../lib/prep'
 import { buildSeedRoutes } from '../lib/seed'
 import { uid } from '../lib/id'
@@ -329,35 +329,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (r.length === 0) {
           r = buildSeedRoutes()
           store.setRoutes(r)
-          store.setSeedVersion(SEED_VERSION)
-        } else if (store.getSeedVersion() < SEED_VERSION) {
-          // v9：起终点改为读 `src/data/olle-endpoints.json` 的**固化权威值**，
-          // 不再靠 snapRouteEnds 运行时吸附到轨迹首尾（那条链路失效过一次，01 偏 5~6km）。
-          // 起终点属「权威声明」而非用户数据，所以官方路线一律换成新值、中间途经点不动；
-          // 用户自建路线（不在 seed 里）不受影响。
-          // ⚠️ 以后 tracks.json 再被校正：先跑 scripts/check_endpoints.py 看偏差，
-          //    确认要跟着变就重跑 build_endpoints_data.py，并把 SEED_VERSION +1 让这里再升一次。
-          const seeds = new Map(buildSeedRoutes().map((route) => [route.id, route]))
-          let changed = false
-          r = r.map((route) => {
-            const seed = seeds.get(route.id)
-            const pts = route.points ?? []
-            if (!seed?.startPoint || !seed?.endPoint || pts.length < 2) return route
-            changed = true
-            const next = [...pts]
-            next[0] = { ...next[0], lng: seed.startPoint.lng, lat: seed.startPoint.lat }
-            next[next.length - 1] = {
-              ...next[next.length - 1],
-              lng: seed.endPoint.lng,
-              lat: seed.endPoint.lat,
-            }
-            return { ...route, points: next, startPoint: seed.startPoint, endPoint: seed.endPoint }
-          })
-          if (changed) store.setRoutes(r)
-          store.setSeedVersion(SEED_VERSION)
         }
-        // ℹ️ 开发期不做历史版本迁移（用户拍板 2026-09-29）：数据结构变更时开发者自己清一次
-        // 浏览器数据即可。SEED_VERSION 保留，等正式上线后再决定要不要写兼容迁移。
         setRawRoutes(r)
         setPlans(store.getPlans())
         setSettings(store.getSettings())

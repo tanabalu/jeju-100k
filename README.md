@@ -502,9 +502,9 @@ python3 scripts/import_tracks.py --src ~/tracks --strict     # 有未识别文�
 
 | 内容 | 位置 |
 | --- | --- |
-| 路线 / 行程篮 / 设置 | `localStorage`（key 前缀 `trail100k.`） |
-| 行前 checklist 的勾选与自定义条目 | `localStorage` 的 `trail100k.checklist` |
-| 本地上传的图片 | `IndexedDB`（库 `trail100k` → store `images`），上传时压到最长边 1600px、JPEG 0.82 |
+| 路线 / 行程篮 / 设置 | `localStorage`（key 前缀 `jejuolle100k.`） |
+| 行前 checklist 的勾选与自定义条目 | `localStorage` 的 `jejuolle100k.checklist` |
+| 本地上传的图片 | `IndexedDB`（库 `jejuolle100k` → store `images`），上传时压到最长边 1600px、JPEG 0.82 |
 
 数据不上传任何服务器。换设备或清浏览器前，到 `/admin` 顶部「导出 JSON」备份，换机后「导入 JSON」恢复（可选合并/替换）。
 
@@ -637,7 +637,7 @@ python3 scripts/selftest_fetch_photos.py        # 离线自测挑选逻辑（不
 
 ### checklist 的勾选 / 放弃状态机
 
-`trail100k.checklist`（见 `src/lib/storage.ts` 的 `ChecklistState`）四种 id 集合互斥管理：
+`jejuolle100k.checklist`（见 `src/lib/storage.ts` 的 `ChecklistState`）四种 id 集合互斥管理：
 
 | 状态 | 字段 | 含义 |
 | --- | --- | --- |
@@ -703,17 +703,17 @@ python3 scripts/selftest_fetch_photos.py        # 离线自测挑选逻辑（不
 ### 构建并本地自测镜像
 
 ```bash
-docker build -t jeju-100k .
-docker run --rm -p 8080:80 jeju-100k
+docker build -t jeju-olle-100k .
+docker run --rm -p 8080:80 jeju-olle-100k
 # 浏览器打开 http://localhost:8080/jeju/ 验证
 ```
 
 ### 推到 Dokploy
 
-1. Dokploy 新建 **Application**，源码接 GitHub 公开仓 `tanabalu/jeju-100k`（main 分支）。
+1. Dokploy 新建 **Application**，源码接 GitHub 公开仓 `tanabalu/jeju-olle-100k`（main 分支）。
 2. 构建方式选 **Dockerfile**（多阶段已写好，无需额外参数）。
 3. 端口：容器暴露 `80`，Dokploy 内网端口填 `80`。
-4. **Traefik 路由规则**（PathPrefix）：`Path(\`/jeju\`) || PathPrefix(\`/jeju/\`)`，只匹配 `/jeju` 这一整段路径，避免同域 Pages 的 `/jeju-100k/` 被 Dokploy 抢走。
+4. **Traefik 路由规则**（PathPrefix）：`Path(\`/jeju\`) || PathPrefix(\`/jeju/\`)`，只匹配 `/jeju` 这一整段路径，避免同域 Pages 的 `/jeju-olle-100k/` 被 Dokploy 抢走。
 5. 部署后访问 `https://你的域名/jeju/`（把「你的域名」换成你实际托管该子路径的域名）。
 
 > 换子路径时改两处即可：`Dockerfile` 的 `COPY ... /usr/share/nginx/html/<新路径>` 与 `nginx.conf.template` 里的 `/jeju`、`/jeju/`、`/jeju/index.html`。

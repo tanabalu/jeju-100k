@@ -1,7 +1,7 @@
 import type { ImageRef } from '../types'
 import { uid } from './id'
 
-const DB_NAME = 'trail100k'
+const DB_NAME = 'jejuolle100k'
 const DB_VERSION = 1
 const STORE = 'images'
 

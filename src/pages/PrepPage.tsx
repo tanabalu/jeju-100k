@@ -33,7 +33,7 @@ export function PrepPage() {
   } = useData()
   const toast = useToast()
   const confirm = useConfirm()
-  /** 只看未完成：状态存在本机缓存（trail100k.ui），刷新/关掉页面后仍然保持 */
+  /** 只看未完成：状态存在本机缓存（jejuolle100k.ui），刷新/关掉页面后仍然保持 */
   const onlyTodo = ui.prepOnlyTodo
   const setOnlyTodo = (v: boolean) => updateUi({ prepOnlyTodo: v })
   const [draft, setDraft] = useState('')

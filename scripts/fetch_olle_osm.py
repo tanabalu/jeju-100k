@@ -215,7 +215,7 @@ def overpass(endpoint, query, retries=3):
                 "Accept": "application/json",
                 "Content-Type": "application/x-www-form-urlencoded",
                 # Overpass 明确要求带可识别的 UA，否则可能直接 403
-                "User-Agent": "jeju-100k/1.0 (jeju olle track fetch; personal project)",
+                "User-Agent": "jeju-olle-100k/1.0 (jeju olle track fetch; personal project)",
             },
             method="POST",
         )

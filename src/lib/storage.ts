@@ -13,13 +13,12 @@ import type {
 import type { PrepItem } from './prep'
 import { uid } from './id'
 
-const K_ROUTES = 'trail100k.routes'
-const K_PLANS = 'trail100k.plans'
-const K_SETTINGS = 'trail100k.settings'
-const K_PLAN_DRAFT = 'trail100k.planDraft'
-const K_SEED_VERSION = 'trail100k.seedVersion'
-const K_CHECKLIST = 'trail100k.checklist'
-const K_UI = 'trail100k.ui'
+const K_ROUTES = 'jejuolle100k.routes'
+const K_PLANS = 'jejuolle100k.plans'
+const K_SETTINGS = 'jejuolle100k.settings'
+const K_PLAN_DRAFT = 'jejuolle100k.planDraft'
+const K_CHECKLIST = 'jejuolle100k.checklist'
+const K_UI = 'jejuolle100k.ui'
 
 /** 从备选清单（女士常用 / 男士常用 / 大疆 / 相机 / 无人机）加进总清单的条目 */
 export interface ChecklistExtra extends PrepItem {
@@ -63,11 +62,6 @@ function normalizeUi(raw: Partial<UiState> | undefined | null): UiState {
   }
 }
 
-/** 默认素材版本：9=起终点改为读 src/data/olle-endpoints.json 的固化权威值（不再运行时吸附）。
- *  ⚠️ 起终点是「权威声明」不是用户数据，所以这个版本号会触发一次起终点升级迁移
- *    （见 DataContext.tsx）；其余结构变更开发期仍不写兼容，开发者自行清一次浏览器数据。 */
-export const SEED_VERSION = 9
-
 function read<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key)
@@ -91,7 +85,7 @@ function write<T>(key: string, value: T): void {
 export function clearAllLocalData(): void {
   try {
     Object.keys(localStorage)
-      .filter((k) => k.startsWith('trail100k.'))
+      .filter((k) => k.startsWith('jejuolle100k.'))
       .forEach((k) => localStorage.removeItem(k))
   } catch (err) {
     console.error('[storage] 清空失败', err)
@@ -161,9 +155,6 @@ export const store = {
   /** 当前正在编辑的行程篮 id */
   getPlanDraftId: () => read<string>(K_PLAN_DRAFT, ''),
   setPlanDraftId: (v: string) => write(K_PLAN_DRAFT, v),
-
-  getSeedVersion: () => read<number>(K_SEED_VERSION, 0),
-  setSeedVersion: (v: number) => write(K_SEED_VERSION, v),
 
   // 兼容升级前存的数据（没有 skipped / extras 字段），逐字段兜底，避免读到脏数据时整页崩
   getChecklist: (): ChecklistState => {

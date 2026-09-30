@@ -500,9 +500,9 @@ python3 scripts/fetch_elevation.py --force    # 캐시 무시 전체 재수집
 
 | 내용 | 위치 |
 | --- | --- |
-| 코스 / 여행 바구니 / 설정 | `localStorage`(키 접두어 `trail100k.`) |
-| 출발 전 체크리스트 체크 및 커스텀 항목 | `localStorage`의 `trail100k.checklist` |
-| 로컬 업로드 이미지 | `IndexedDB`(db `trail100k` → store `images`), 업로드 시 장변 1600px, JPEG 0.82 압축 |
+| 코스 / 여행 바구니 / 설정 | `localStorage`(키 접두어 `jejuolle100k.`) |
+| 출발 전 체크리스트 체크 및 커스텀 항목 | `localStorage`의 `jejuolle100k.checklist` |
+| 로컬 업로드 이미지 | `IndexedDB`(db `jejuolle100k` → store `images`), 업로드 시 장변 1600px, JPEG 0.82 압축 |
 
 데이터는 어떤 서버에도 업로드되지 않습니다. 기기 변경이나 브라우저 초기화 전에 `/admin` 상단 "JSON 내보내기"로 백업, 이전 후 "JSON 가져오기"로 복원(병합 또는 교체 선택 가능).
 
@@ -610,7 +610,7 @@ python3 scripts/fetch_photos.py --dry      # 검색만, 다운로드 안 함
 
 ### 체크리스트 체크 / 건너뛰기 상태 머신
 
-`trail100k.checklist`(`src/lib/storage.ts`의 `ChecklistState` 참조)는 4개 상호 배타 id 집합 관리:
+`jejuolle100k.checklist`(`src/lib/storage.ts`의 `ChecklistState` 참조)는 4개 상호 배타 id 집합 관리:
 
 | 상태 | 필드 | 의미 |
 | --- | --- | --- |
@@ -672,17 +672,17 @@ python3 scripts/fetch_photos.py --dry      # 검색만, 다운로드 안 함
 ### 로컬에서 이미지 빌드·자체 검증
 
 ```bash
-docker build -t jeju-100k .
-docker run --rm -p 8080:80 jeju-100k
+docker build -t jeju-olle-100k .
+docker run --rm -p 8080:80 jeju-olle-100k
 # 브라우저에서 http://localhost:8080/jeju/ 열어 검증
 ```
 
 ### Dokploy에 push
 
-1. Dokploy에서 **Application** 신규 생성, 소스는 GitHub 공개 저장소 `tanabalu/jeju-100k`(main 브랜치) 연결.
+1. Dokploy에서 **Application** 신규 생성, 소스는 GitHub 공개 저장소 `tanabalu/jeju-olle-100k`(main 브랜치) 연결.
 2. 빌드 방식은 **Dockerfile** 선택(다단계 이미 작성됨, 추가 파라미터 불필요).
 3. 포트: 컨테이너는 `80` 노출, Dokploy 내부 포트는 `80` 입력.
-4. **Traefik 라우트 규칙**(PathPrefix): `Path(\`/jeju\`) || PathPrefix(\`/jeju/\`)`를 사용해 `/jeju` 경로 세그먼트만 일치시킵니다. 같은 호스트의 Pages 경로 `/jeju-100k/`가 Dokploy에 가로채이지 않게 합니다.
+4. **Traefik 라우트 규칙**(PathPrefix): `Path(\`/jeju\`) || PathPrefix(\`/jeju/\`)`를 사용해 `/jeju` 경로 세그먼트만 일치시킵니다. 같은 호스트의 Pages 경로 `/jeju-olle-100k/`가 Dokploy에 가로채이지 않게 합니다.
 5. 배포 후 `https://your-domain/jeju/` 접속("your-domain"을 실제 서브경로 호스팅 도메인으로 교체).
 
 > 서브경로 바꿀 때 두 곳만: `Dockerfile`의 `COPY ... /usr/share/nginx/html/<새 경로>`와 `nginx.conf.template` 내 `/jeju`, `/jeju/`, `/jeju/index.html`.

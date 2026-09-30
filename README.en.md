@@ -500,9 +500,9 @@ Typical 100K usage: main routes average 15–20 km, **pick ~6 routes to reach 10
 
 | Content | Location |
 | --- | --- |
-| Routes / trip basket / settings | `localStorage` (key prefix `trail100k.`) |
-| Pre-trip checklist checks & custom items | `localStorage`'s `trail100k.checklist` |
-| Locally uploaded images | `IndexedDB` (db `trail100k` → store `images`), compressed to max edge 1600px, JPEG 0.82 on upload |
+| Routes / trip basket / settings | `localStorage` (key prefix `jejuolle100k.`) |
+| Pre-trip checklist checks & custom items | `localStorage`'s `jejuolle100k.checklist` |
+| Locally uploaded images | `IndexedDB` (db `jejuolle100k` → store `images`), compressed to max edge 1600px, JPEG 0.82 on upload |
 
 Data is not uploaded to any server. Before switching devices or clearing the browser, go to `/admin` top "Export JSON" to back up; after switching, "Import JSON" to restore (merge or replace optional).
 
@@ -611,7 +611,7 @@ When the script isn't run the album is empty, interface shows "no image" placeho
 
 ### Checklist check / skip state machine
 
-`trail100k.checklist` (see `ChecklistState` in `src/lib/storage.ts`) manages four mutually-exclusive id sets:
+`jejuolle100k.checklist` (see `ChecklistState` in `src/lib/storage.ts`) manages four mutually-exclusive id sets:
 
 | State | Field | Meaning |
 | --- | --- | --- |
@@ -673,17 +673,17 @@ The project is a **pure static front-end** (`HashRouter` + `base: './'`), no bac
 ### Build and self-test image locally
 
 ```bash
-docker build -t jeju-100k .
-docker run --rm -p 8080:80 jeju-100k
+docker build -t jeju-olle-100k .
+docker run --rm -p 8080:80 jeju-olle-100k
 # open http://localhost:8080/jeju/ in browser to verify
 ```
 
 ### Push to Dokploy
 
-1. Dokploy create **Application**, source connect GitHub public repo `tanabalu/jeju-100k` (main branch).
+1. Dokploy create **Application**, source connect GitHub public repo `tanabalu/jeju-olle-100k` (main branch).
 2. Build method select **Dockerfile** (multi-stage already written, no extra params).
 3. Port: container exposes `80`, Dokploy internal port fill `80`.
-4. **Traefik route rule** (PathPrefix): `Path(\`/jeju\`) || PathPrefix(\`/jeju/\`)`, which matches the `/jeju` path segment only and keeps a same-host Pages path such as `/jeju-100k/` out of Dokploy.
+4. **Traefik route rule** (PathPrefix): `Path(\`/jeju\`) || PathPrefix(\`/jeju/\`)`, which matches the `/jeju` path segment only and keeps a same-host Pages path such as `/jeju-olle-100k/` out of Dokploy.
 5. After deploy access `https://your-domain/jeju/` (replace "your-domain" with the domain actually hosting this subpath).
 
 > When switching subpath change two places: `Dockerfile`'s `COPY ... /usr/share/nginx/html/<new-path>` and `/jeju`, `/jeju/`, `/jeju/index.html` in `nginx.conf.template`.

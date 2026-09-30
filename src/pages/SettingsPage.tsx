@@ -32,7 +32,7 @@ export function SettingsPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `trail100k-backup-${new Date().toISOString().slice(0, 10)}.json`
+    a.download = `jejuolle100k-backup-${new Date().toISOString().slice(0, 10)}.json`
     a.click()
     URL.revokeObjectURL(url)
     toast('已导出备份文件', 'success')
@@ -140,8 +140,8 @@ export function SettingsPage() {
                   danger: true,
                 })
               ) {
-                // 清整个 trail100k.* 命名空间（含 trail100k.checklist 行前准备、
-                // trail100k.settings / ui / planDraft 等），而非只删 routes/plans。
+                // 清整个 jejuolle100k.* 命名空间（含 jejuolle100k.checklist 行前准备、
+                // jejuolle100k.settings / ui / planDraft 等），而非只删 routes/plans。
                 clearAllLocalData()
                 reload()
                 toast('已清空', 'success')

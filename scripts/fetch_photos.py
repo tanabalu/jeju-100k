@@ -47,7 +47,7 @@ except AttributeError:  # pragma: no cover - 兼容旧 Pillow
     RESAMPLE = Image.LANCZOS
 
 # Wikimedia 要求 UA 带联系方式，且对频率敏感：不带联系信息的匿名 UA 更容易被 429
-UA = "Trail100k-OllePhotoFetcher/0.3 (personal non-commercial project; contact: github.com/tanabalu/jeju-100k)"
+UA = "JejuOlle100k-OllePhotoFetcher/0.3 (personal non-commercial project; contact: github.com/tanabalu/jeju-olle-100k)"
 API = "https://commons.wikimedia.org/w/api.php"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_DIR = os.path.join(ROOT, "public", "photos", "scenes")

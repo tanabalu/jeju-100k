@@ -33,7 +33,7 @@ const VIEWS: { key: PlanView; label: string }[] = [
 ]
 
 /** 记住用户上次停在哪个页签：刷新 / 重进都恢复；缓存里的值若已不存在（如旧版残留的 'map'）则回落到第一个页签 */
-const PLAN_VIEW_KEY = 'jeju:plan-view'
+const PLAN_VIEW_KEY = 'jejuolle100k.plan-view'
 function readPlanView(): PlanView {
   if (typeof localStorage === 'undefined') return VIEWS[0].key
   const v = localStorage.getItem(PLAN_VIEW_KEY)
@@ -86,7 +86,7 @@ export function PlanPage() {
   }
   /** 默认按加入行程篮的先后顺序排（也就是你打算走的次序） */
   const [sort, setSort] = useState<PlanSort>('added')
-  /** 只看未完成：隐藏已勾选走完的路线。状态存在本机缓存（trail100k.ui），刷新后仍然保持 */
+  /** 只看未完成：隐藏已勾选走完的路线。状态存在本机缓存（jejuolle100k.ui），刷新后仍然保持 */
   const hideDone = ui.planHideDone
   const setHideDone = (v: boolean) => updateUi({ planHideDone: v })
 

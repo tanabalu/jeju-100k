@@ -99,7 +99,7 @@ def query_elevations(points: list[tuple[float, float]]) -> list[float | None]:
                 url,
                 headers={
                     "Accept": "application/json",
-                    "User-Agent": "jeju-100k/1.0 (elevation bootstrap)",
+                    "User-Agent": "jeju-olle-100k/1.0 (elevation bootstrap)",
                 },
                 method="GET",
             )
