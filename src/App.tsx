@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { HashRouter, Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { FeedbackProvider } from './components/Feedback'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { DataProvider } from './store/DataContext'
+import { DataProvider, useData, type PhotoManifest } from './store/DataContext'
 import { RoutesPage } from './pages/RoutesPage'
 import { RouteDetailPage } from './pages/RouteDetailPage'
 import { PlanPage } from './pages/PlanPage'
@@ -36,6 +36,52 @@ const FRIEND_LINKS = [
     desc: '济州偶来官方英文站：437km 步道里程、难度与实用信息',
   },
 ]
+
+/**
+ * 一份清单里实际存在的图片数（默认相册的额外照片也算，它们和主图同源）。
+ * 用来决定页脚要不要写某个来源 —— 没下载过就不写，不要凭空署名。
+ */
+function countImages(manifest: PhotoManifest): number {
+  return Object.values(manifest).reduce((sum, entry) => sum + 1 + (entry.gallery?.length ?? 0), 0)
+}
+
+/**
+ * 页脚「配图来源」：只写素材**来自哪个站 / 谁持有版权**，以及数量。
+ *
+ * 逐张作者与许可不在这里罗列 —— 那已经是 `mergeAssets` 拼进相册 caption 的内容
+ * （相册与灯箱都显示，满足 CC BY 的署名要求），完整清单另见 `public/photos/CREDITS.md`。
+ *
+ * ⚠️ 来源是**运行时读到的清单**推出来的，不是写死的：没跑 `fetch_photos.py` 时
+ * manifest.json 里没有条目，这一段会自动省掉，页脚不会谎称有 Commons 配图
+ * （那种情况下封面回落到官方路线图）。
+ */
+function FooterPhotoCredit() {
+  const { photoManifest, routeMaps } = useData()
+  const commonsCount = countImages(photoManifest)
+  const mapsCount = countImages(routeMaps)
+  if (commonsCount === 0 && mapsCount === 0) return null
+  return (
+    <p className={`${styles['footer-line']}`}>
+      配图来源：
+      {commonsCount > 0 && (
+        <>
+          <a
+            className={`${styles['footer-link']}`}
+            href="https://commons.wikimedia.org/"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="本站风景配图的来源站：逐张作者与许可见详情页相册说明"
+          >
+            Wikimedia Commons
+          </a>
+          {`（${commonsCount} 张 · CC0 / CC BY / CC BY-SA / 公共领域）`}
+        </>
+      )}
+      {commonsCount > 0 && mapsCount > 0 ? ' · ' : null}
+      {mapsCount > 0 && `官方路线图 © Jeju Olle Foundation（${mapsCount} 张）`}
+    </p>
+  )
+}
 
 /**
  * GitHub 官方 Mark 图标（24×24 官方网格，实际尺寸由 CSS 定）。
@@ -207,6 +253,7 @@ export default function App() {
               <p className={`${styles['footer-line']}`}>
                 数据仅保存在本机浏览器 · 底图服务：OpenStreetMap · 数据来源：{DATA_SOURCES}
               </p>
+              <FooterPhotoCredit />
               <p className={`${styles['footer-line']} ${styles['footer-friends']}`}>
                 <span className={`${styles['footer-tag']}`}>友情链接</span>
                 {FRIEND_LINKS.map((l) => (

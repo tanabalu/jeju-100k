@@ -265,6 +265,8 @@ interface DataApi {
   reload: () => void
   /** public/photos/manifest.json 里的配图表 */
   photoManifest: PhotoManifest
+  /** public/photos/maps.json 里的官方路线图表 */
+  routeMaps: PhotoManifest
   /** 行前 checklist 的勾选状态与自定义条目 */
   checklist: ChecklistState
   toggleCheck: (id: string) => void
@@ -611,6 +613,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       updateSettings,
       reload,
       photoManifest,
+      routeMaps,
       checklist,
       toggleCheck,
       toggleSkip,
@@ -629,6 +632,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       ui,
       updateUi,
       photoManifest,
+      routeMaps,
       checklist,
       upsertRoute,
       removeRoute,

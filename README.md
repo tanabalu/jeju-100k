@@ -494,6 +494,7 @@ python3 scripts/import_tracks.py --src ~/tracks --strict     # 有未识别文�
 | 设置 | `/settings` | 地图底图样式、清空数据 |
 
 > 页脚署名：底图服务 OpenStreetMap、数据来源 **jejuolletrailguide.net**（Jeju Olle Trail 官方英文指南）；该站同时列在页脚「友情链接」里（外链一律新开标签页 + `rel="noopener noreferrer"`）。友链列表在 `src/App.tsx` 的 `FRIEND_LINKS`，加一条即可。
+> 页脚另有「配图来源」一行（`src/App.tsx` 的 `FooterPhotoCredit`）：**按运行时实际读到的清单渲染** —— 有多少条算多少条，`Wikimedia Commons` 自由授权照片与 `© Jeju Olle Foundation` 官方路线图各自出一段，**没下载过的那一类不会出现在页脚**（不会出现「配图来自 Commons」但图其实是官方兜底的错署名）；逐张作者与许可仍写在相册 caption 里，完整清单见 `public/photos/CREDITS.md`。
 
 凑百公里的典型用法：主线平均 15~20 km，**挑 6 条左右就到 100 km**；想走完全岛就把目标设成 437。
 
