@@ -53,7 +53,7 @@ export interface UiState {
 
 const EMPTY_UI: UiState = { prepOnlyTodo: false, planHideDone: false }
 
-/** 逐字段兜底：脏数据 / 旧版本缺字段都回落到 false，不让 undefined 漏进渲染 */
+/** 逐字段兜底：缺字段 / 脏数据都回落到 false，不让 undefined 漏进渲染 */
 function normalizeUi(raw: Partial<UiState> | undefined | null): UiState {
   if (!raw || typeof raw !== 'object') return EMPTY_UI
   return {
@@ -100,9 +100,8 @@ function arr<T>(v: unknown): T[] {
 /**
  * 归一化一条路线：把可能缺失的数组字段补成 []。
  *
- * 数据有两个不可控入口——本机 localStorage 里的历史数据、以及「导入备份」的 JSON，
- * 只要 `points` / `sights` / `album` 里任意一个缺失，页面就会在 `.length` / `.map` 上
- * 直接白屏（曾经的表现就是整页被 ErrorBoundary 接管）。所以在读取边界一次性补齐。
+ * 数据的不可控入口是「导入备份」的 JSON（人手改过 / 别人给的），只要 `points` / `sights` /
+ * `album` 里任意一个缺失，页面就会在 `.length` / `.map` 上直接白屏。所以在读取边界一次性补齐。
  */
 export function normalizeRoute(route: Route): Route {
   return {
@@ -128,10 +127,7 @@ export function normalizeRoute(route: Route): Route {
 
 /**
  * 归一化一个行程篮：缺 items 时补空数组，避免「已加入」列表整页崩掉。
- *
- * 只做这一件事。行程篮的「天数 / 住宿锁定 / 出发日期」字段是后来加的，
- * **导入备份/脏数据兜底**：老备份里缺这些字段就读成 undefined（= 未分天），
- * 由用户在「按天」视图里重新排一次即可。
+ * 天数 / 住宿锁定 / 出发日期等可选字段缺省就读成 undefined（= 未分天）。
  */
 export function normalizePlan(plan: Plan): Plan {
   return { ...plan, items: arr<PlanItem>(plan.items) }
@@ -156,20 +152,8 @@ export const store = {
   getPlanDraftId: () => read<string>(K_PLAN_DRAFT, ''),
   setPlanDraftId: (v: string) => write(K_PLAN_DRAFT, v),
 
-  // 导入升级前老备份的数据（没有 skipped / extras 字段），逐字段兜底，避免读到脏数据时整页崩
-  getChecklist: (): ChecklistState => {
-    const raw = read<Partial<ChecklistState> | null>(K_CHECKLIST, EMPTY_CHECKLIST)
-    if (!raw || typeof raw !== 'object') return EMPTY_CHECKLIST
-    return {
-      checked: Array.isArray(raw.checked) ? raw.checked : [],
-      skipped: Array.isArray(raw.skipped) ? raw.skipped : [],
-      custom: Array.isArray(raw.custom) ? raw.custom : [],
-      // extras 是对象数组，比 id 数组更容易存进脏数据：逐条验字段，缺 id/text 的直接丢
-      extras: Array.isArray(raw.extras)
-        ? raw.extras.filter((x) => !!x && typeof x.id === 'string' && typeof x.text === 'string')
-        : [],
-    }
-  },
+  getChecklist: (): ChecklistState =>
+    read<ChecklistState>(K_CHECKLIST, EMPTY_CHECKLIST),
   setChecklist: (v: ChecklistState) => write(K_CHECKLIST, v),
 
   getUi: () => normalizeUi(read<Partial<UiState> | null>(K_UI, EMPTY_UI)),
@@ -189,15 +173,8 @@ export function emptyAlbumItem(partial: Partial<AlbumItem> = {}): AlbumItem {
 }
 
 /**
- * 备份文件格式。
- *
- * ## 不做向后兼容（仅导入兜底，不随版本升级）
- * version 是**写入端**的标记：**v2 及以后才带**「第几天 / 住宿锁定 / 出发日期 / 每天备注」。
- * 导入时**不识别 version、也不做任何升级转换** ——读进来的新字段缺失就是缺失
- * （行程篮没有分天就是没有分天），交给 `normalizePlan` 兜底成可用状态。
- *
- * 这是有意的：行程数据存在本机 localStorage，结构一变就让旧备份「半吊子复活」
- * 反而更容易算出错的行程单。老备份真要用，用户在「按天」视图重排一次即可。
+ * 备份文件格式。version 是写入端的格式标记；导入时不识别 version、不做转换，
+ * 缺失的可选字段交给 `normalizePlan` / `normalizeRoute` 兜底成可用状态。
  */
 export type BackupFile = {
   version: 2
@@ -209,7 +186,6 @@ export type BackupFile = {
 
 export function exportBackup(): string {
   const data: BackupFile = {
-    // 现在导出的就是含「按天排期 + 住宿锁定 + 出发日期」的 v2 格式，别再写 1
     version: 2,
     exportedAt: Date.now(),
     routes: store.getRoutes(),

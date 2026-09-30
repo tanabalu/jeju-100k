@@ -180,6 +180,30 @@
   font-size: 12px;
   color: var(--muted);
 }
+/* 导出弹窗 footer：默认横排（提示在左、按钮在右），与全局 .modal-foot 行为一致 */
+.export-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+/* 移动端：按钮放不下 → 纵向铺满排列，提示移到最上方 */
+@media (max-width: 720px) {
+  .export-foot {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .export-foot .spacer {
+    display: none;
+  }
+  .export-foot .export-hint {
+    order: -1;
+  }
+  .export-foot :global(.btn) {
+    width: 100%;
+  }
+}
 @media (max-width: 720px) {
   .plan-summary {
     grid-template-columns: 1fr;

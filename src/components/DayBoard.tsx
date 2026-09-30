@@ -15,6 +15,7 @@ import {
   type PrevStaySuggestion,
   type StaySuggestion,
 } from '../lib/stayMatch'
+import { formatDurationRange, officialDuration } from '../lib/olleDurations'
 import { Select } from './Select'
 import styles from './DayBoard.module.less'
 
@@ -299,13 +300,17 @@ function Card(p: CardProps) {
       <div className={`${styles['card-meta']}`}>
         <b>{formatKm(row.km)} km</b>
         <span>↑{row.gainM == null ? '—' : Math.round(row.gainM)} m</span>
-        <span>约 {formatHours(estimateHours(row.km, row.gainM))}</span>
+        {/* 官方口径优先：录了官方耗时就不再显示公式估算值 */}
+        <span>
+          {officialDuration(row.route.code)
+            ? `${formatDurationRange(officialDuration(row.route.code)!)}（官方）`
+            : `约 ${formatHours(estimateHours(row.km, row.gainM))}`}
+        </span>
       </div>
       <div className={`${styles['card-act']}`}>
         <Select
           size="xs"
           value={day != null ? String(day) : ''}
-          disabled={day === undefined}
           onChange={(v) => p.onAssignDay(row.route.id, v === '' ? undefined : Number(v))}
           options={[
             { value: '', label: '待安排' },

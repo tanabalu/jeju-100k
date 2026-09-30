@@ -30,6 +30,9 @@ interface Coords {
 }
 
 const PANEL_MAX_H = 260
+/** 面板最大宽度：再宽的选项也截断，避免盖住半屏 */
+const PANEL_MAX_W = 360
+const VIEWPORT_PAD = 8
 
 function computeCoords(rect: DOMRect): Coords {
   const spaceBelow = rect.bottom + 4 + PANEL_MAX_H <= window.innerHeight
@@ -101,7 +104,20 @@ export function Select(props: SelectProps) {
   }, [open])
 
   useLayoutEffect(() => {
-    if (open) panelRef.current?.focus()
+    if (!open) return
+    panelRef.current?.focus()
+    // 面板按内容自适应宽度（max-content）后可能比触发按钮宽，量一次实际宽度：
+    // 超出视口右缘就整体左移（fixed 定位不会被父容器裁剪，但要防伸出屏幕）
+    const el = panelRef.current
+    if (el) {
+      const rect = el.getBoundingClientRect()
+      if (rect.right > window.innerWidth - VIEWPORT_PAD) {
+        setCoords((c) => ({
+          ...c,
+          left: Math.max(VIEWPORT_PAD, window.innerWidth - VIEWPORT_PAD - rect.width),
+        }))
+      }
+    }
   }, [open])
 
   // 键盘移动焦点时把高亮项滚进可视区
@@ -193,9 +209,10 @@ export function Select(props: SelectProps) {
             tabIndex={-1}
             style={{
               left: coords.left,
-              width: coords.width,
+              // 至少与触发按钮对齐同宽；选项更长时按内容撑开，仍受 maxWidth 约束
               minWidth: coords.width,
-              maxWidth: 360,
+              width: 'max-content',
+              maxWidth: Math.min(PANEL_MAX_W, window.innerWidth - VIEWPORT_PAD * 2),
               ...(coords.top !== undefined ? { top: coords.top } : { bottom: coords.bottom }),
             }}
             onKeyDown={onListKey}

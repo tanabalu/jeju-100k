@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { toBlob } from 'html-to-image'
 import { useData } from '../store/DataContext'
 import { computeMetrics, formatKm, mapLineSet, routeBadgeAnchor } from '../lib/geo'
 import { useActivePlan } from '../hooks/useActivePlan'
@@ -21,6 +22,7 @@ import {
   unassignedRows,
 } from '../lib/dayPlan'
 import { OLLE_TOTAL_KM } from '../lib/seed'
+import { useIsMobile } from '../hooks/useIsMobile'
 import styles from './PlanPage.module.less'
 
 type PlanSort = 'added' | 'km'
@@ -32,7 +34,7 @@ const VIEWS: { key: PlanView; label: string }[] = [
   { key: 'days', label: '按天' },
 ]
 
-/** 记住用户上次停在哪个页签：刷新 / 重进都恢复；缓存里的值若已不存在（如旧版残留的 'map'）则回落到第一个页签 */
+/** 记住用户上次停在哪个页签：刷新 / 重进都恢复；缓存里的值不合法则回落到第一个页签 */
 const PLAN_VIEW_KEY = 'jejuolle100k.plan-view'
 function readPlanView(): PlanView {
   if (typeof localStorage === 'undefined') return VIEWS[0].key
@@ -78,6 +80,12 @@ export function PlanPage() {
   const [newName, setNewName] = useState('')
   const [newTarget, setNewTarget] = useState(100)
   const [exportOpen, setExportOpen] = useState(false)
+  /** 导出弹窗里行程单 DOM 的容器：移动端「保存为图片」时拿它来截图 */
+  const sheetRef = useRef<HTMLDivElement>(null)
+  /** 是否移动端视图：决定 footer 是竖排按钮 + 图片保存，还是横排 + 打印/PDF */
+  const isMobile = useIsMobile()
+  /** 生成图片进行中：禁用按钮，防止连点 */
+  const [saving, setSaving] = useState(false)
   /** 默认进「清单」视图 —— 老用户的习惯不能被改掉；但若本地缓存过上次选的页签则沿用 */
   const [view, setView] = useState<PlanView>(readPlanView)
   const changeView = (v: PlanView) => {
@@ -283,6 +291,71 @@ export function PlanPage() {
       toast('已复制为 Markdown', 'success')
     } catch {
       toast('复制失败，请手动选择文本', 'error')
+    }
+  }
+
+  /**
+   * 移动端版「保存行程单」：浏览器在手机上唤不起 PDF 保存的系统弹窗，
+   * 所以改成把行程单渲染成图片，再走系统分享面板存到相册。
+   *
+   * 截图用 html-to-image —— 行程单是纯文本 + 系统字体、没有任何外链图片/字体，
+   * 正好避开了这个库最容易踩的「跨域图片 / 中文字体缺失」两个坑。
+   *
+   * 存图路径优先级：
+   * 1. 系统分享（navigator.share + files）—— iOS / Android 的分享面板里能直接「存储到照片 / 保存到相册」；
+   * 2. 分享不支持或被取消 → 兜底下载到本机（Android 进「下载内容」，iOS 可长按预览图保存）。
+   */
+  const saveAsImage = async () => {
+    const node = sheetRef.current
+    if (!node || saving) return
+    setSaving(true)
+    try {
+      const blob = await toBlob(node, {
+        pixelRatio: 2,
+        skipFonts: true,
+        backgroundColor: '#ffffff',
+        cacheBust: true,
+      })
+      if (!blob) {
+        toast('生成图片失败', 'error')
+        return
+      }
+      const fileName = `${plan?.name || '行程单'}.png`
+      const file = new File([blob], fileName, { type: 'image/png' })
+
+      if (
+        typeof navigator !== 'undefined' &&
+        navigator.canShare &&
+        navigator.canShare({ files: [file] })
+      ) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: plan?.name || '行程单',
+            text: '济州偶来百公里行程单',
+          })
+          return
+        } catch (err) {
+          // 用户主动取消分享（AbortError）属于正常操作，不再兜底下载
+          if ((err as DOMException)?.name === 'AbortError') return
+        }
+      }
+
+      // 兜底：触发本机下载
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      toast('已生成图片，请在下载中查看（或长按保存）', 'success')
+    } catch (err) {
+      console.error('[export] 生成行程单图片失败', err)
+      toast('生成图片失败，请重试', 'error')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -684,30 +757,42 @@ export function PlanPage() {
           width={860}
           onClose={() => setExportOpen(false)}
           footer={
-            <>
-              <span className={`${styles['export-hint']}`}>打印时页面框架会自动隐藏，纸上只留这份行程单</span>
+            <div className={`${styles['export-foot']}`}>
+              <span className={`${styles['export-hint']}`}>
+                {isMobile
+                  ? '图片按行程单原样生成，保存到相册即可'
+                  : '打印时页面框架会自动隐藏，纸上只留这份行程单'}
+              </span>
               <span className={`${styles.spacer}`} />
-              <button className="btn btn-primary" onClick={() => window.print()}>
-                打印 / 存为 PDF
-              </button>
+              {isMobile ? (
+                <button className="btn btn-primary" onClick={saveAsImage} disabled={saving}>
+                  {saving ? '生成中…' : '保存为图片'}
+                </button>
+              ) : (
+                <button className="btn btn-primary" onClick={() => window.print()}>
+                  打印 / 存为 PDF
+                </button>
+              )}
               <button className="btn" onClick={copyMarkdown}>
                 复制 Markdown
               </button>
               <button className="btn" onClick={() => setExportOpen(false)}>
                 关闭
               </button>
-            </>
+            </div>
           }
         >
-          <PlanPrintSheet
-            plan={plan}
-            rows={dayRows}
-            days={days}
-            stays={stays}
-            prevNight={prevNight}
-            prevLabel={prevLabel}
-            metrics={metrics}
-          />
+          <div ref={sheetRef}>
+            <PlanPrintSheet
+              plan={plan}
+              rows={dayRows}
+              days={days}
+              stays={stays}
+              prevNight={prevNight}
+              prevLabel={prevLabel}
+              metrics={metrics}
+            />
+          </div>
         </Modal>
       )}
     </div>

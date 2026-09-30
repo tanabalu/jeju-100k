@@ -25,7 +25,9 @@ export function RoutesPage() {
       return (
         r.name.toLowerCase().includes(kw) ||
         r.region.toLowerCase().includes(kw) ||
-        r.tags.some((t) => t.toLowerCase().includes(kw))
+        r.tags.some((t) => t.toLowerCase().includes(kw)) ||
+        // 路面 / 地形也纳入检索：输入「海岸」「林道」「곶자왈」等能筛出对应路线
+        (r.surface ?? '').toLowerCase().includes(kw)
       )
     })
     const byCode = (a: (typeof out)[number], b: (typeof out)[number]) => {
@@ -98,11 +100,14 @@ export function RoutesPage() {
       <div className={`${styles['toolbar']}`}>
         <input
           className="input"
-          placeholder="搜索路线名 / 地区 / 标签"
+          placeholder="搜索路线名 / 地区 / 标签 / 路面地形"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
+        {/* flexShrink:0 + 定宽 200px：与最长选项「按难度排序（难→易）」的浮动面板宽度一致，
+            收起时四个筛选方式完整可见，展开时面板边缘与按钮对齐 */}
         <Select
+          style={{ flexShrink: 0, width: 200 }}
           value={sort}
           onChange={(v) => setSort(v as SortKey)}
           options={[

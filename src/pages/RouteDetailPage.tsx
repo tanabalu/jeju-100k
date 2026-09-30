@@ -7,6 +7,8 @@ import { ElevationChart } from '../components/ElevationChart'
 import { Thumb } from '../components/Thumb'
 import { computeMetrics, formatGain, formatKm, projectToRoute, trackLines } from '../lib/geo'
 import { TRIP_PLANS, TRIP_PLAN_DISCLAIMER } from '../lib/tripPlans'
+import { estimateHours, formatHours } from '../lib/dayPlan'
+import { formatDurationRange, officialDuration } from '../lib/olleDurations'
 import { resolveImageSrc } from '../lib/imageStore'
 import { useActivePlan } from '../hooks/useActivePlan'
 import { routeKindLabel } from '../lib/routeKind'
@@ -65,6 +67,7 @@ export function RouteDetailPage() {
   const next = idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] : undefined
 
   const m = useMemo(() => (route ? computeMetrics(route) : undefined), [route])
+  const official = officialDuration(route?.code)
 
   if (!route) {
     return (
@@ -115,6 +118,12 @@ export function RouteDetailPage() {
             <span>{routeKindLabel(route.kind)}</span>
             <span>·</span>
             <span>难度 {'★'.repeat(Math.max(1, Math.min(5, route.difficulty)))}</span>
+            {route.surface && (
+              <>
+                <span>·</span>
+                <span>{route.surface}</span>
+              </>
+            )}
             {route.bestSeason && (
               <>
                 <span>·</span>
@@ -138,8 +147,6 @@ export function RouteDetailPage() {
         </div>
       </div>
 
-      <p className={`${styles['detail-summary']}`}>{route.summary || '（还没有写简介）'}</p>
-
       <div className={`${styles['stat-row']}`}>
         <Stat
           label="总里程"
@@ -150,6 +157,21 @@ export function RouteDetailPage() {
               : route.manualDistanceKm
                 ? '手填里程'
                 : '按途经点估算'
+          }
+        />
+        <Stat
+          label="预估耗时"
+          value={
+            official
+              ? formatDurationRange(official)
+              : m
+                ? `约 ${formatHours(estimateHours(m.distanceKm, m.gainM))}`
+                : '—'
+          }
+          hint={
+            official
+              ? '济州偶来官方口径'
+              : '按里程 / 爬升估算（官方未公布）'
           }
         />
         <Stat
@@ -170,14 +192,6 @@ export function RouteDetailPage() {
         <section className="section">
           <h2>行程建议</h2>
           <div className={`${styles['trip-card']}`}>
-            <div className={`${styles['trip-head']}`}>
-              <b>
-                {route.code}号线 · {start?.name ?? '—'} → {end?.name ?? '—'}
-              </b>
-              <span className={`${styles['trip-head-meta']}`}>
-                {formatKm(m?.distanceKm ?? 0)} · 难度 {'★'.repeat(Math.max(1, Math.min(5, route.difficulty)))}
-              </span>
-            </div>
             <div className={`${styles['trip-rows']}`}>
               <TripRow icon="🏨" label="前夜住宿" value={plan.stay} />
               <TripRow icon="⏰" label="建议起床" value={plan.wake} />

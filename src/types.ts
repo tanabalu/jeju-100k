@@ -102,7 +102,6 @@ export interface Route {
   code?: string
   name: string
   region: string
-  summary: string
   kind: RouteKind
   /** 难度 1-5 */
   difficulty: number

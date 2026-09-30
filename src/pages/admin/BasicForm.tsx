@@ -1,5 +1,8 @@
+import type { ReactNode } from 'react'
 import type { Route } from '../../types'
 import { computeMetrics, formatKm } from '../../lib/geo'
+import { estimateHours, formatHours } from '../../lib/dayPlan'
+import { formatDurationRange, officialDuration } from '../../lib/olleDurations'
 import { routeKindLabel } from '../../lib/routeKind'
 import { Thumb } from '../../components/Thumb'
 import styles from './BasicForm.module.less'
@@ -22,16 +25,37 @@ export function BasicForm({ route }: Props) {
       ? '无海拔数据'
       : `${m.gainM} m${m.gainSource === 'profile' ? '（来自地形采样）' : ''}`
 
-  const rows: Array<{ label: string; value: string }> = [
+  // 耗时口径与详情页一致：官方 App 录入值优先，无官方数据回退公式估算
+  const official = officialDuration(route.code)
+  const duration = official
+    ? `${formatDurationRange(official)}（官方口径${official.officialKm ? ` · 官方里程 ${official.officialKm} km` : ''}）`
+    : m.distanceKm > 0
+      ? `约 ${formatHours(estimateHours(m.distanceKm, m.gainM))}（按里程 / 爬升估算）`
+      : '—'
+
+  const coverRow: { label: string; value: ReactNode } = {
+    label: '封面图',
+    value: route.cover ? (
+      <div className={`${styles['cover-preview']}`}>
+        <Thumb image={route.cover} alt="封面图" radius={8} />
+      </div>
+    ) : (
+      '—'
+    ),
+  }
+
+  const rows: Array<{ label: string; value: ReactNode }> = [
     { label: '路线编号', value: route.code ?? '—' },
     { label: '地区', value: route.region || '—' },
     { label: '类型', value: routeKindLabel(route.kind) },
     { label: '难度', value: `${route.difficulty} 级（${stars}）` },
+    { label: '预估耗时', value: duration },
     { label: '路面 / 地形', value: route.surface || '—' },
     { label: '最佳季节', value: route.bestSeason || '—' },
     { label: '标签', value: route.tags.length ? route.tags.join('、') : '—' },
     { label: '实际里程', value: distance },
     { label: '实际累计爬升', value: gain },
+    coverRow,
   ]
 
   return (
@@ -45,20 +69,6 @@ export function BasicForm({ route }: Props) {
           </div>
         ))}
       </dl>
-      {route.summary && (
-        <div className={`${styles['info-block']}`}>
-          <div className={`${styles['info-label']}`}>简介</div>
-          <p className={`${styles['info-value']}`}>{route.summary}</p>
-        </div>
-      )}
-      {route.cover && (
-        <div className={`${styles['info-block']}`}>
-          <div className={`${styles['info-label']}`}>封面图</div>
-          <div className={`${styles['cover-preview']}`}>
-            <Thumb image={route.cover} alt="封面图" radius={8} />
-          </div>
-        </div>
-      )}
     </div>
   )
 }

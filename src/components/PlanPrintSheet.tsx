@@ -18,12 +18,17 @@ export interface PlanPrintSheetProps {
 }
 
 /**
- * 行程单：给「打印 / 存 PDF」用的那一版渲染。
+ * 行程单：给「打印 / 存 PDF」以及「存为图片」共用的那一版渲染。
  *
- * ## 为什么不做图片导出
- * 少一个依赖（html-to-image / html2canvas 都要 40KB 起，且中文字体、跨域图片都是坑），
- * 浏览器自带的「打印 → 存为 PDF」出来的就是矢量文字，选中可复制、体积小、还能搜。
- * 排版交给 `@media print`（见 styles/print.less），这里只负责结构与内容。
+ * ## 两套导出路径
+ * - 桌面端：用浏览器自带的「打印 → 存为 PDF」，矢量文字、可选中复制、体积小、能搜。
+ *   排版交给 `@media print`（见 styles/print.less）。
+ * - 移动端：手机浏览器唤不起 PDF 保存的系统弹窗，所以改成把这份行程单渲染成图片、
+ *   再走系统分享面板存到相册（见 PlanPage 的 saveAsImage，截图用 html-to-image）。
+ *
+ * 行程单本身是纯文本 + 系统字体、没有任何外链图片/字体，
+ * 正好避开了 html-to-image 最容易踩的「跨域图片 / 中文字体缺失」两个坑。
+ * 这里只负责结构与内容，不关心最终是 PDF 还是图片。
  */
 export function PlanPrintSheet({
   plan,

@@ -8,7 +8,9 @@
 }
 .toolbar :global(.input) {
   width: auto;
-  min-width: 160px;
+  /* 检索框拉长：占工具栏主宽度，挤压时优先让下拉/按钮换行而不是搜索框缩没 */
+  min-width: 260px;
+  flex: 1 1 260px;
 }
 .plan-mini {
   display: flex;
@@ -18,6 +20,12 @@
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
+  /* 吸顶：下滑列表时钉在顶栏下方跟随视口。topbar 高约 57px，留 3px 缝；
+     z-index 低于顶栏的 20，滚回顶部时从顶栏底下穿过而不盖住它 */
+  position: sticky;
+  top: 60px;
+  z-index: 19;
+  box-shadow: var(--shadow);
 }
 .plan-mini-left {
   display: flex;

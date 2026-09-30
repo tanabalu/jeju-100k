@@ -1,6 +1,7 @@
 import type { ElevSample, Route, TrackPoint, TrackPointKind } from '../types'
 import { uid } from './id'
 import { OLLE_ELEVATION } from './olleeElevation'
+import { OLLE_SURFACES } from './olleSurfaces'
 import { ROUTE_WAYPOINTS, type WaypointDef } from './waypointsData'
 import olleEndpointsJson from '../data/olle-endpoints.json'
 
@@ -218,7 +219,6 @@ function buildRoute(spec: OlleSpec): Route {
   const now = Date.now()
   const s = PLACES[spec.start]
   const e = PLACES[spec.end]
-  const isLoop = spec.start === spec.end
   const tags = [...(spec.branch ? ['支线'] : ['主线']), ...(spec.tags ?? [])]
   // 地形采样序列：剖面图与爬升都从它来
   const elev = OLLE_ELEVATION[spec.code]
@@ -249,9 +249,6 @@ function buildRoute(spec: OlleSpec): Route {
   // 若轨迹确实变了，`scripts/check_endpoints.py` 会对账报警提醒重新固化。
     startPoint: start,
     endPoint: end,
-    summary: isLoop
-      ? `${s.zh}环线，官方里程 ${spec.km} km，官方难度 ${spec.difficulty}。`
-      : `${s.zh}（${s.ko}）到 ${e.zh}（${e.ko}），官方里程 ${spec.km} km，官方难度 ${spec.difficulty}。`,
     kind: 'hike',
     difficulty: DIFF_NUM[spec.difficulty],
     // 途经点：起点 → 官方命名途经点（kind:'via'，带 wpType 设施分类）→ 终点。
@@ -264,7 +261,7 @@ function buildRoute(spec: OlleSpec): Route {
     manualDistanceKm: spec.km,
     elevationProfile: samples.length >= 2 ? samples : undefined,
     elevationBasis: elev?.basis,
-    surface: '海岸步道 / 村道 / 小路',
+    surface: OLLE_SURFACES[spec.code] ?? '海岸步道 / 村道 / 小路',
     bestSeason: '3-5 月（油菜花）、9-11 月（秋高气爽）',
     tags,
     hotels: [],

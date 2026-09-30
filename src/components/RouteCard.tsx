@@ -2,14 +2,17 @@ import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import type { Route } from '../types'
 import { computeMetrics, formatKm } from '../lib/geo'
+import { estimateHours, formatHours } from '../lib/dayPlan'
 import { useData } from '../store/DataContext'
 import { Thumb } from './Thumb'
 import { routeKindLabel } from '../lib/routeKind'
 import { useActivePlan } from '../hooks/useActivePlan'
+import { formatDurationRange, officialDuration } from '../lib/olleDurations'
 import styles from './RouteCard.module.less'
 
 export function RouteCard({ route }: { route: Route }) {
   const m = useMemo(() => computeMetrics(route), [route])
+  const official = officialDuration(route.code)
   const { plans } = useData()
   const { addRoute, has } = useActivePlan()
   const added = has(route.id)
@@ -70,8 +73,15 @@ export function RouteCard({ route }: { route: Route }) {
             <em>爬升{m.gainSource === 'profile' ? '（估算）' : ''}</em>
           </div>
           <div>
-            <b>{route.points.length}</b>
-            <em>个途经点</em>
+            <b>
+              {/* 官方口径优先：录了官方耗时就不再显示公式估算值 */}
+              {official
+                ? formatDurationRange(official)
+                : m.gainM != null || m.distanceKm > 0
+                  ? formatHours(estimateHours(m.distanceKm, m.gainM))
+                  : '—'}
+            </b>
+            <em>预估耗时{official ? '' : '（估算）'}</em>
           </div>
           <div>
             <b>{route.sights.length}</b>
