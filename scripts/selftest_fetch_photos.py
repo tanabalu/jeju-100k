@@ -4,6 +4,7 @@
 抓图逻辑改之前先跑它；断言 29 条，秒级完成。
 """
 import json
+import io
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -162,6 +163,22 @@ for bad in ("File:Ganse signage jejuolle-route-16.jpg", "File:Jeju Olle 안내�
     fp._cache = {}
     fp.get_json = lambda opener, params, tries=2, _t=bad: one_page(_t, 1897, 1403)
     check(f"标识牌被排除：{bad}", fp.search(None, f"kw{abs(hash(bad))}", 1600, code="16") == [])
+
+# save_image（新增）：下载 → 落盘原图 + 封面。离线桩掉 download，喂一张内存里的 JPEG。
+import tempfile as _tf
+_buf = io.BytesIO()
+Image.new("RGB", (2000, 1333), (10, 120, 80)).save(_buf, "JPEG")
+_JPG = _buf.getvalue()
+_td = _tf.mkdtemp()
+fp.download = lambda opener, url, tries=2: _JPG
+_d, _c, _sz = fp.save_image(
+    None, {"thumb": "u"}, os.path.join(_td, "a.webp"), os.path.join(_td, "a_c.webp"),
+    1600, 82, 760, 74,
+)
+check("save_image 写原图", os.path.exists(os.path.join(_td, "a.webp")))
+check("save_image 写封面", os.path.exists(os.path.join(_td, "a_c.webp")))
+check("save_image 按宽度缩放", _sz == (1600, 1066))
+check("save_image 封面更小", _c < _d)
 
 print("\nALL PASS" if ok else "\nSOME FAILED")
 sys.exit(0 if ok else 1)

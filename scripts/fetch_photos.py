@@ -1,19 +1,21 @@
-"""Wikimedia Commons 自由授权图片抓取：按偶来小路路线地点匹配照片，出「卡片封面 + 详情页原图」两份。
+"""Wikimedia Commons 自由授权图片抓取：按偶来小路路线地点匹配照片，出「卡片封面 + 详情页原图」两份，并可额外抓多张进「默认相册」。
 
 用法：
   python3 fetch_photos.py --limit 1          # 只跑第一条，用于测速与验证
-  python3 fetch_photos.py                    # 全量（27 条）
-  python3 fetch_photos.py --dry              # 只搜索不下载，输出会选中哪张
+  python3 fetch_photos.py                    # 全量（27 条），每条额外抓 5 张进相册
+  python3 fetch_photos.py --dry              # 只搜索不下载，输出会选中哪张（封面 + 相册）
   python3 fetch_photos.py --codes 01,07,18-2 # 只补几条
+  python3 fetch_photos.py --gallery 0        # 只保封面、不新增相册图
   python3 fetch_photos.py --proxy http://127.0.0.1:7890   # 走本机代理（Wikimedia 需要）
-  python3 fetch_photos.py --force            # 已存在的图也重新下载
+  python3 fetch_photos.py --force            # 已存在的图也重新下载（含相册图）
   python3 fetch_photos.py --sleep 3          # 被 429 限流时把请求间隔调大
 
 产出：
-  public/photos/scenes/olle-<code>.webp         详情页原图：1600px 宽，q82，约 120KB
-  public/photos/scenes/cover/olle-<code>.webp   卡片封面：760px 宽，q74，约 25KB
-  public/photos/manifest.json                   { file, cover, caption, credit, source }，前端按编号自动绑定
-  public/photos/CREDITS.md                      署名清单（CC-BY 要求）
+  public/photos/scenes/olle-<code>.webp             封面原图：1600px 宽，q82，约 120KB
+  public/photos/scenes/cover/olle-<code>.webp       卡片封面：760px 宽，q74，约 25KB
+  public/photos/scenes/gallery/olle-<code>__N.webp  默认相册的额外风景照：1280px 宽，q80
+  public/photos/manifest.json                   { file, cover, caption, credit, source, gallery[] }，前端按编号自动绑定
+  public/photos/CREDITS.md                      署名清单（CC-BY 要求，含相册图）
 
 为什么出两份：卡片在列表里只渲染到 300–400px 宽，给原图纯属浪费；详情页相册/灯箱才需要大图。
 压缩在本地做（Pillow 降尺寸 + WebP 降质），不需要 API key、不上传第三方、可复现。
@@ -50,6 +52,8 @@ API = "https://commons.wikimedia.org/w/api.php"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_DIR = os.path.join(ROOT, "public", "photos", "scenes")
 COVER_DIR = os.path.join(OUT_DIR, "cover")
+# 默认相册的额外风景照：每张一个文件，命名 olle-<code>__<n>.webp（双下划线避开支线单下划线）
+GALLERY_DIR = os.path.join(OUT_DIR, "gallery")
 MANIFEST = os.path.join(ROOT, "public", "photos", "manifest.json")
 CREDITS = os.path.join(ROOT, "public", "photos", "CREDITS.md")
 
@@ -355,6 +359,27 @@ def prune(out_dir: str, keep: set) -> list:
     return removed
 
 
+def save_image(opener, result: dict, dest: str, cover_dest: str | None,
+               width: int, quality: int, cover_width: int, cover_quality: int) -> tuple:
+    """下载一张图并落盘：原图（可选）+ 封面（可选）。返回 (原图字节数, 封面字节数, (w, h))。"""
+    raw = download(opener, result["thumb"])
+    img = Image.open(io.BytesIO(raw)).convert("RGB")
+    if img.size[0] > width:
+        ratio = width / img.size[0]
+        img = img.resize((width, max(1, round(img.size[1] * ratio))), RESAMPLE)
+    data = encode_webp(img, quality)
+    with open(dest, "wb") as f:
+        f.write(data)
+    cover_bytes = 0
+    if cover_dest and img.size[0] > cover_width:
+        ratio = cover_width / img.size[0]
+        cover = img.resize((cover_width, max(1, round(img.size[1] * ratio))), RESAMPLE)
+        cover_bytes = encode_webp(cover, cover_quality)
+        with open(cover_dest, "wb") as f:
+            f.write(cover_bytes)
+    return data, cover_bytes, img.size
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=0)
@@ -369,6 +394,10 @@ def main():
     ap.add_argument("--no-prune", action="store_true")
     ap.add_argument("--sleep", type=float, default=2.0, help="API 请求间隔秒数，被限流就调大")
     ap.add_argument("--no-cache", action="store_true", help="不复用 scripts/.cache 里的检索结果")
+    ap.add_argument("--gallery", type=int, default=5,
+                    help="每条线额外抓几张进「默认相册」（不含封面那 1 张）；0 = 只保封面不新增。已存在相册图时跳过")
+    ap.add_argument("--gallery-width", type=int, default=1280, help="相册图原图宽度")
+    ap.add_argument("--gallery-quality", type=int, default=80, help="相册图 WebP 质量")
     args = ap.parse_args()
 
     global _cache_on
@@ -400,92 +429,148 @@ def main():
     used_titles = set()  # 已选中的图，避免多条线共用一张
     t_start = time.time()
 
+    gallery_dir = os.path.join(OUT_DIR, "gallery")
+    os.makedirs(gallery_dir, exist_ok=True)
+
+    n_primary = 0
+    n_gallery = 0
+
     for code in codes:
         name = f"olle-{code.replace('-', '_')}.webp"
         dest = os.path.join(OUT_DIR, name)
-        if os.path.exists(dest) and not args.force and not args.dry:
-            # 断点跳过时也要把它占的图记进去重集合，否则分批跑（--codes）
-            # 时后面那批会重新抢走这张图，出现两张一样的封面
-            prev_title = manifest.get(code, {}).get("title")
-            if prev_title:
-                used_titles.add(prev_title)
-            print(f"[{code:>5}] 已存在，跳过（--force 可重下）")
+        prev = manifest.get(code, {})
+        prev_title = prev.get("title")
+        if prev_title:
+            # 已有封面也纳入去重，避免相册里出现「封面 + 相册」撞同一张图
+            used_titles.add(prev_title)
+
+        # 已有封面 + 已有相册图：原样保留，不重复抓（想重抓用 --force）
+        if os.path.exists(dest) and prev.get("gallery") and not args.force and not args.dry:
+            print(f"[{code:>5}] 已有封面与相册图（--force 可重抓）")
             continue
 
+        keep_primary = os.path.exists(dest) and not args.force and not args.dry
+        need = args.gallery + (0 if keep_primary else 1)
+
+        if need <= 0:
+            # 既有封面、又不要新增相册图：原样写回旧 entry 即可
+            if prev:
+                manifest[code] = prev
+            print(f"[{code:>5}] 已有封面且无新增（--gallery 0）")
+            continue
+
+        # 按关键词级联累积候选，直到够数（封面 1 张 + 相册 args.gallery 张）
         t0 = time.time()
-        picked = None
-        used_kw = None
+        candidates = []  # [(result, kw)]
+        seen = set()
         for kw in queries_for(code):
             try:
                 results = search(opener, kw, args.width, code=code, used=used_titles, sleep=args.sleep)
             except Exception as e:
                 print(f"[{code}] search fail '{kw}': {e}", file=sys.stderr)
                 continue
-            if results:
-                picked = results[0]
-                used_kw = kw
-                used_titles.add(picked["title"])
+            for r in results:
+                if r["title"] in used_titles or r["title"] in seen:
+                    continue
+                seen.add(r["title"])
+                candidates.append((r, kw))
+                if len(candidates) >= need:
+                    break
+            if len(candidates) >= need:
                 break
-        if not picked:
+
+        if not candidates:
             failed.append(code)
             print(f"[{code:>5}] 无可用结果（{time.time()-t0:.1f}s）")
             continue
 
+        primary = None if keep_primary else candidates[0][0]
+        if keep_primary:
+            gallery = [c[0] for c in candidates[: args.gallery]]
+        else:
+            gallery = [c[0] for c in candidates[1: 1 + args.gallery]]
+
         if args.dry:
-            print(f"[{code:>5}] 会选：{picked['title'][:70]} | {picked['license']} | {picked['w']}x{picked['h']} | kw={used_kw}")
+            lines_out = [f"[{code:>5}] 会选 {len(gallery) + (0 if keep_primary else 1)} 张："]
+            if keep_primary:
+                lines_out.append(f"        封面（保留已有）：{prev_title or '?'}")
+            else:
+                lines_out.append(f"        封面：{primary['title'][:68]} | {primary['license']} | kw={candidates[0][1]}")
+            for i, g in enumerate(gallery, 1):
+                lines_out.append(f"        相册{i}：{g['title'][:68]} | {g['license']}")
+            print("\n".join(lines_out))
             continue
 
-        try:
-            raw = download(opener, picked["thumb"])
-        except Exception as e:
-            failed.append(code)
-            print(f"[{code:>5}] 下载失败：{e}", file=sys.stderr)
-            continue
+        entry = dict(prev) if keep_primary else {}
+        recs = []  # 本线条目写入 CREDITS 的记录（封面 + 相册）
 
-        try:
-            img = Image.open(io.BytesIO(raw)).convert("RGB")
-        except Exception as e:
-            failed.append(code)
-            print(f"[{code:>5}] 解码失败：{e}", file=sys.stderr)
-            continue
-
-        if img.size[0] > args.width:
-            ratio = args.width / img.size[0]
-            img = img.resize((args.width, max(1, round(img.size[1] * ratio))), RESAMPLE)
-
-        data = encode_webp(img, args.quality)
-        with open(dest, "wb") as f:
-            f.write(data)
-        full_total += len(data)
-
-        entry = {
-            "file": f"photos/scenes/{name}",
-            "title": picked["title"],  # 断点续跑时靠它把已下载的图也纳入去重
-            "caption": f"偶来 {code} {CODE_LABEL.get(code, '')} 一带风景（Wikimedia Commons 自由授权，非官方摄影）",
-            "credit": " / ".join(x for x in [picked["artist"], picked["license"]] if x) or picked["license"],
-            "source": picked["descpage"],
-        }
-        extra = "（无单独封面）"
-        if args.cover_width and img.size[0] > args.cover_width:
-            ratio = args.cover_width / img.size[0]
-            cover = img.resize((args.cover_width, max(1, round(img.size[1] * ratio))), RESAMPLE)
-            cdata = encode_webp(cover, args.cover_quality)
-            with open(os.path.join(COVER_DIR, name), "wb") as f:
-                f.write(cdata)
+        # 1) 封面（仅在需要重下时）
+        if primary:
+            used_kw = candidates[0][1]
+            try:
+                data, cdata, size = save_image(
+                    opener, primary, dest,
+                    os.path.join(COVER_DIR, name) if args.cover_width else None,
+                    args.width, args.quality, args.cover_width, args.cover_quality,
+                )
+            except Exception as e:
+                failed.append(code)
+                print(f"[{code:>5}] 封面下载失败：{e}", file=sys.stderr)
+                continue
+            full_total += len(data)
             cover_total += len(cdata)
-            entry["cover"] = f"photos/scenes/cover/{name}"
-            extra = f"封面 {cover.size[0]}x{cover.size[1]} {len(cdata)/1024:.0f}KB"
+            entry.update({
+                "file": f"photos/scenes/{name}",
+                "title": primary["title"],  # 断点续跑时靠它把已下载的图也纳入去重
+                "caption": f"偶来 {code} {CODE_LABEL.get(code, '')} 一带风景（Wikimedia Commons 自由授权，非官方摄影）",
+                "credit": " / ".join(x for x in [primary["artist"], primary["license"]] if x) or primary["license"],
+                "source": primary["descpage"],
+            })
+            if args.cover_width:
+                entry["cover"] = f"photos/scenes/cover/{name}"
+            recs.append({
+                "file": name, "title": primary["title"], "keyword": used_kw,
+                "artist": primary["artist"], "license": primary["license"], "source": primary["descpage"],
+            })
+            used_titles.add(primary["title"])
+            n_primary += 1
+            print(f"[{code:>5}] 封面 {name} {size[0]}x{size[1]} {len(data)/1024:.0f}KB"
+                  + (f" +封面{len(cdata)/1024:.0f}KB" if cdata else "")
+                  + f" | {primary['license']} ({time.time()-t0:.1f}s)")
 
-        manifest[code] = entry
-        credits[code] = {
-            "file": name,
-            "title": picked["title"],
-            "keyword": used_kw,
-            "artist": picked["artist"],
-            "license": picked["license"],
-            "source": picked["descpage"],
-        }
-        print(f"[{code:>5}] {name} {img.size[0]}x{img.size[1]} {len(data)/1024:.0f}KB {extra} | {picked['license']} ({time.time()-t0:.1f}s)")
+        # 2) 相册额外风景照
+        gallery_entries = []
+        for i, g in enumerate(gallery, 1):
+            gname = f"olle-{code.replace('-', '_')}__{i}.webp"
+            gdest = os.path.join(gallery_dir, gname)
+            try:
+                data, _, size = save_image(opener, g, gdest, None,
+                                           args.gallery_width, args.gallery_quality, 0, 0)
+            except Exception as e:
+                print(f"[{code:>5}] 相册{i}下载失败：{e}", file=sys.stderr)
+                continue
+            full_total += len(data)
+            used_titles.add(g["title"])
+            n_gallery += 1
+            gentry = {
+                "file": f"photos/scenes/gallery/{gname}",
+                "caption": f"偶来 {code} {CODE_LABEL.get(code, '')} 一带风景（Wikimedia Commons 自由授权，非官方摄影）",
+                "credit": " / ".join(x for x in [g["artist"], g["license"]] if x) or g["license"],
+                "source": g["descpage"],
+            }
+            gallery_entries.append(gentry)
+            recs.append({
+                "file": gname, "title": g["title"], "keyword": None,
+                "artist": g["artist"], "license": g["license"], "source": g["descpage"],
+            })
+            print(f"[{code:>5}] 相册{i} {gname} {size[0]}x{size[1]} {len(data)/1024:.0f}KB | {g['license']}")
+        if gallery_entries:
+            entry["gallery"] = gallery_entries
+
+        if entry:
+            manifest[code] = entry
+        if recs:
+            credits[code] = recs
 
     if args.dry:
         print("\n--dry：未下载任何文件")
@@ -506,12 +591,13 @@ def main():
         "| --- | --- | --- | --- | --- |",
     ]
     for code in sorted(manifest, key=lambda x: (len(x), x)):
-        c = credits.get(code)
-        if not c:
-            e = manifest[code]
-            lines.append(f"| {code} | {os.path.basename(e['file'])} | （上一轮抓取，见 manifest.json） | — | {e.get('source', '—')} |")
+        recs = credits.get(code)
+        if recs:
+            for r in recs:
+                lines.append(f"| {code} | {r['file']} | {r['artist'] or '—'} | {r['license'] or '—'} | {r['source'] or '—'} |")
             continue
-        lines.append(f"| {code} | {c['file']} | {c['artist'] or '—'} | {c['license'] or '—'} | {c['source'] or '—'} |")
+        e = manifest[code]
+        lines.append(f"| {code} | {os.path.basename(e['file'])} | （上一轮抓取，见 manifest.json） | — | {e.get('source', '—')} |")
     lines += [
         "",
         "移除某张图：删掉 `public/photos/scenes/` 下对应文件与 `manifest.json` 里的条目，站点会自动回退到官方路线图封面。",
@@ -524,13 +610,17 @@ def main():
 
     if not args.limit and not args.codes and not args.no_prune:
         keep = {f"olle-{c.replace('-', '_')}.webp" for c in manifest}
-        stale = prune(OUT_DIR, keep) + (prune(COVER_DIR, keep) if args.cover_width else [])
+        keep_gallery = set()
+        for c in manifest.values():
+            for g in (c.get("gallery") or []):
+                keep_gallery.add(os.path.basename(g["file"]))
+        stale = prune(OUT_DIR, keep) + (prune(COVER_DIR, keep) if args.cover_width else []) + prune(gallery_dir, keep_gallery)
         if stale:
             print(f"清理陈图：{', '.join(stale)}")
 
     print(
-        f"\ndone: {len(manifest)} 条有封面（本次新抓 {len(credits)}），"
-        f"原图 {full_total/1024/1024:.1f}MB + 封面 {cover_total/1024/1024:.1f}MB，耗时 {time.time()-t_start:.1f}s"
+        f"\ndone: {len(manifest)} 条有封面；本次新抓封面 {n_primary} 张、相册图 {n_gallery} 张；"
+        f"体积 原图 {full_total/1024/1024:.1f}MB + 封面 {cover_total/1024/1024:.1f}MB，耗时 {time.time()-t_start:.1f}s"
     )
     print(f"-> {OUT_DIR}")
     if failed:

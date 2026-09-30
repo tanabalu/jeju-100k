@@ -24,6 +24,21 @@ export interface PhotoEntry {
    * 列表里的封面只渲染到 ~300–400px 宽，用原图纯属浪费流量。
    */
   cover?: string
+  /**
+   * 该路线「默认相册」的额外风景照（scripts/fetch_photos.py --gallery 抓取）。
+   * 仅进相册（灯箱 / 详情页相册网格），**不**当作卡片封面。
+   * 与 `file` 同源（Wikimedia Commons 自由授权），须带署名。
+   */
+  gallery?: GalleryPhoto[]
+}
+
+/** 默认相册里的一张额外风景照（与 PhotoEntry 同源，但无独立封面） */
+export interface GalleryPhoto {
+  /** 相对站点根目录的路径，如 photos/scenes/gallery/olle-01__2.webp */
+  file: string
+  caption?: string
+  credit?: string
+  source?: string
 }
 
 export type PhotoManifest = Record<string, PhotoEntry>
@@ -93,6 +108,18 @@ function mergeAssets(route: Route, photos: PhotoManifest, maps: PhotoManifest): 
       image: photoImage,
       caption: [photoEntry.caption, photoEntry.credit].filter(Boolean).join(' · '),
     })
+  }
+  // 默认相册的额外风景照：每张作为独立的系统相册项（id 带 _g<n>，仍属「系统」不可删）
+  for (let i = 0; i < (photoEntry.gallery?.length ?? 0); i++) {
+    const g = photoEntry.gallery![i]
+    const gImage = resolveAsset(g.file)
+    if (!inAlbum(gImage)) {
+      prepend.push({
+        id: `photo_${code}_g${i}`,
+        image: gImage,
+        caption: [g.caption, g.credit].filter(Boolean).join(' · '),
+      })
+    }
   }
   if (mapImage && !inAlbum(mapImage)) {
     prepend.push({ id: `map_${code}`, image: mapImage, caption: `${mapEntry.caption} · ${mapEntry.credit}` })
