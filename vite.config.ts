@@ -12,5 +12,16 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     chunkSizeWarningLimit: 1200,
+    rollupOptions: {
+      output: {
+        // 大体积第三方库各自独立成 chunk：不参与业务代码的变更缓存，
+        // 库版本不变时浏览器可长期命中缓存。
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+          leaflet: ['leaflet'],
+          echarts: ['echarts/core', 'echarts/charts', 'echarts/components', 'echarts/renderers'],
+        },
+      },
+    },
   },
 })

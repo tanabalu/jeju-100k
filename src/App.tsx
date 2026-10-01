@@ -1,15 +1,22 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { HashRouter, Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { FeedbackProvider } from './components/Feedback'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { DataProvider, useData, type PhotoManifest } from './store/DataContext'
 import { RoutesPage } from './pages/RoutesPage'
-import { RouteDetailPage } from './pages/RouteDetailPage'
-import { PlanPage } from './pages/PlanPage'
-import { PrepPage } from './pages/PrepPage'
-import { AdminPage } from './pages/AdminPage'
-import { SettingsPage } from './pages/SettingsPage'
 import styles from './App.module.less'
+
+// 首页（路线列表）保持首屏同步加载；其余页面按路由懒加载，
+// 各自连同独有依赖（地图/echarts/html-to-image 等）拆成独立 chunk。
+const RouteDetailPage = lazy(() =>
+  import('./pages/RouteDetailPage').then((m) => ({ default: m.RouteDetailPage })),
+)
+const PlanPage = lazy(() => import('./pages/PlanPage').then((m) => ({ default: m.PlanPage })))
+const PrepPage = lazy(() => import('./pages/PrepPage').then((m) => ({ default: m.PrepPage })))
+const AdminPage = lazy(() => import('./pages/AdminPage').then((m) => ({ default: m.AdminPage })))
+const SettingsPage = lazy(() =>
+  import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
+)
 
 const NAV = [
   { to: '/', label: '路线' },
@@ -118,15 +125,17 @@ function PageRoutes() {
   }, [location.pathname])
   return (
     <ErrorBoundary key={location.pathname} scope="page">
-      <Routes>
-        <Route path="/" element={<RoutesPage />} />
-        <Route path="/routes/:id" element={<RouteDetailPage />} />
-        <Route path="/plan" element={<PlanPage />} />
-        <Route path="/prep" element={<PrepPage />} />
-        <Route path="/admin" element={<AdminPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+      <Suspense fallback={<div className="empty">加载中…</div>}>
+        <Routes>
+          <Route path="/" element={<RoutesPage />} />
+          <Route path="/routes/:id" element={<RouteDetailPage />} />
+          <Route path="/plan" element={<PlanPage />} />
+          <Route path="/prep" element={<PrepPage />} />
+          <Route path="/admin" element={<AdminPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
     </ErrorBoundary>
   )
 }
