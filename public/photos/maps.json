@@ -4,181 +4,233 @@
     "caption": "偶来 01 官方路线图（始兴 → 广峙其（城山日出峰一带））",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-01.webp"
+    "cover": "photos/maps/cover/olle-01.webp",
+    "width": 1432,
+    "height": 1012
   },
   "01-1": {
     "file": "photos/maps/olle-01_1.webp",
     "caption": "偶来 01-1 官方路线图（牛岛）",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-01_1.webp"
+    "cover": "photos/maps/cover/olle-01_1.webp",
+    "width": 1432,
+    "height": 1012
   },
   "02": {
     "file": "photos/maps/olle-02.webp",
     "caption": "偶来 02 官方路线图（广峙其 → 温坪）",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-02.webp"
+    "cover": "photos/maps/cover/olle-02.webp",
+    "width": 1432,
+    "height": 1012
   },
   "03": {
     "file": "photos/maps/olle-03.webp",
     "caption": "偶来 03 官方路线图（温坪 → 表善）",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-03.webp"
+    "cover": "photos/maps/cover/olle-03.webp",
+    "width": 1432,
+    "height": 1012
   },
   "04": {
     "file": "photos/maps/olle-04.webp",
     "caption": "偶来 04 官方路线图（表善 → 南元）",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-04.webp"
+    "cover": "photos/maps/cover/olle-04.webp",
+    "width": 1432,
+    "height": 1012
   },
   "05": {
     "file": "photos/maps/olle-05.webp",
     "caption": "偶来 05 官方路线图（南元 → 牛沼河口）",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-05.webp"
+    "cover": "photos/maps/cover/olle-05.webp",
+    "width": 1432,
+    "height": 1012
   },
   "06": {
     "file": "photos/maps/olle-06.webp",
     "caption": "偶来 06 官方路线图（牛沼河口 → 偶来旅客中心）",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-06.webp"
+    "cover": "photos/maps/cover/olle-06.webp",
+    "width": 1432,
+    "height": 1012
   },
   "07": {
     "file": "photos/maps/olle-07.webp",
     "caption": "偶来 07 官方路线图（偶来旅客中心 → 西归浦巴士总站）",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-07.webp"
+    "cover": "photos/maps/cover/olle-07.webp",
+    "width": 1432,
+    "height": 1012
   },
   "07-1": {
     "file": "photos/maps/olle-07_1.webp",
     "caption": "偶来 07-1 官方路线图（西归浦巴士总站 → 偶来旅客中心）",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-07_1.webp"
+    "cover": "photos/maps/cover/olle-07_1.webp",
+    "width": 1432,
+    "height": 1012
   },
   "08": {
     "file": "photos/maps/olle-08.webp",
     "caption": "偶来 08 官方路线图（月坪 → 大坪（中文一带））",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-08.webp"
+    "cover": "photos/maps/cover/olle-08.webp",
+    "width": 1432,
+    "height": 1012
   },
   "09": {
     "file": "photos/maps/olle-09.webp",
     "caption": "偶来 09 官方路线图（大坪 → 和顺（山房山一带））",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-09.webp"
+    "cover": "photos/maps/cover/olle-09.webp",
+    "width": 1432,
+    "height": 1012
   },
   "10": {
     "file": "photos/maps/olle-10.webp",
     "caption": "偶来 10 官方路线图（和顺 → 摹瑟浦（松岳山一带））",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-10.webp"
+    "cover": "photos/maps/cover/olle-10.webp",
+    "width": 1432,
+    "height": 1012
   },
   "10-1": {
     "file": "photos/maps/olle-10_1.webp",
     "caption": "偶来 10-1 官方路线图（加波岛）",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-10_1.webp"
+    "cover": "photos/maps/cover/olle-10_1.webp",
+    "width": 1432,
+    "height": 1012
   },
   "11": {
     "file": "photos/maps/olle-11.webp",
     "caption": "偶来 11 官方路线图（摹瑟浦 → 武陵）",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-11.webp"
+    "cover": "photos/maps/cover/olle-11.webp",
+    "width": 1432,
+    "height": 1012
   },
   "12": {
     "file": "photos/maps/olle-12.webp",
     "caption": "偶来 12 官方路线图（武陵 → 龙水）",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-12.webp"
+    "cover": "photos/maps/cover/olle-12.webp",
+    "width": 1432,
+    "height": 1012
   },
   "13": {
     "file": "photos/maps/olle-13.webp",
     "caption": "偶来 13 官方路线图（龙水 → 楮旨）",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-13.webp"
+    "cover": "photos/maps/cover/olle-13.webp",
+    "width": 1432,
+    "height": 1012
   },
   "14": {
     "file": "photos/maps/olle-14.webp",
     "caption": "偶来 14 官方路线图（楮旨 → 翰林（挟才海水浴场一带））",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-14.webp"
+    "cover": "photos/maps/cover/olle-14.webp",
+    "width": 1432,
+    "height": 1012
   },
   "14-1": {
     "file": "photos/maps/olle-14_1.webp",
     "caption": "偶来 14-1 官方路线图（楮旨 → 西广）",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-14_1.webp"
+    "cover": "photos/maps/cover/olle-14_1.webp",
+    "width": 1432,
+    "height": 1012
   },
   "15": {
     "file": "photos/maps/olle-15.webp",
     "caption": "偶来 15 官方路线图（翰林 → 高内（涯月一带））",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-15.webp"
+    "cover": "photos/maps/cover/olle-15.webp",
+    "width": 1432,
+    "height": 1012
   },
   "16": {
     "file": "photos/maps/olle-16.webp",
     "caption": "偶来 16 官方路线图（高内 → 广宁）",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-16.webp"
+    "cover": "photos/maps/cover/olle-16.webp",
+    "width": 1432,
+    "height": 1012
   },
   "17": {
     "file": "photos/maps/olle-17.webp",
     "caption": "偶来 17 官方路线图（广宁 → 金万德纪念馆（济州市））",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-17.webp"
+    "cover": "photos/maps/cover/olle-17.webp",
+    "width": 1432,
+    "height": 1012
   },
   "18": {
     "file": "photos/maps/olle-18.webp",
     "caption": "偶来 18 官方路线图（金万德纪念馆 → 朝天（咸德一带））",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-18.webp"
+    "cover": "photos/maps/cover/olle-18.webp",
+    "width": 1432,
+    "height": 1012
   },
   "18-1": {
     "file": "photos/maps/olle-18_1.webp",
     "caption": "偶来 18-1 官方路线图（上楮子岛）",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-18_1.webp"
+    "cover": "photos/maps/cover/olle-18_1.webp",
+    "width": 1432,
+    "height": 1012
   },
   "19": {
     "file": "photos/maps/olle-19.webp",
     "caption": "偶来 19 官方路线图（朝天 → 金宁）",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-19.webp"
+    "cover": "photos/maps/cover/olle-19.webp",
+    "width": 1432,
+    "height": 1012
   },
   "20": {
     "file": "photos/maps/olle-20.webp",
     "caption": "偶来 20 官方路线图（金宁 → 下道）",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-20.webp"
+    "cover": "photos/maps/cover/olle-20.webp",
+    "width": 1432,
+    "height": 1012
   },
   "21": {
     "file": "photos/maps/olle-21.webp",
     "caption": "偶来 21 官方路线图（下道 → 终达）",
     "credit": "© Jeju Olle Foundation",
     "source": "Jeju Olle Foundation《Route Map》官方路线图（UPDATE 2017.10）",
-    "cover": "photos/maps/cover/olle-21.webp"
+    "cover": "photos/maps/cover/olle-21.webp",
+    "width": 1432,
+    "height": 1012
   }
 }

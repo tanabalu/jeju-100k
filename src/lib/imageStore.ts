@@ -21,9 +21,9 @@ function openDB(): Promise<IDBDatabase> {
   return dbPromise
 }
 
-/** 上传本地文件：压缩后存入 IndexedDB，返回 ImageRef */
+/** 上传本地文件：压缩后存入 IndexedDB，返回 ImageRef（附带原图宽高，供相册 loading 卡片按比例占位） */
 export async function putImageFile(file: File, maxWidth = 1600): Promise<ImageRef> {
-  const blob = await compressImage(file, maxWidth)
+  const { blob, width, height } = await compressImage(file, maxWidth)
   const key = uid('img')
   const db = await openDB()
   await new Promise<void>((resolve, reject) => {
@@ -32,7 +32,7 @@ export async function putImageFile(file: File, maxWidth = 1600): Promise<ImageRe
     tx.oncomplete = () => resolve()
     tx.onerror = () => reject(tx.error)
   })
-  return { kind: 'local', value: key }
+  return { kind: 'local', value: key, width, height }
 }
 
 const urlCache = new Map<string, string>()
@@ -56,26 +56,29 @@ export async function resolveImageSrc(ref: ImageRef | undefined): Promise<string
   return url
 }
 
-function compressImage(file: File, maxWidth: number): Promise<Blob> {
+function compressImage(file: File, maxWidth: number): Promise<{ blob: Blob; width: number; height: number }> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     const objectUrl = URL.createObjectURL(file)
     img.onload = () => {
       URL.revokeObjectURL(objectUrl)
-      const scale = Math.min(1, maxWidth / img.width)
-      const w = Math.round(img.width * scale)
-      const h = Math.round(img.height * scale)
+      // 原图宽高（用于相册 loading 卡片按比例占位，存的是原始尺寸而非压缩后）
+      const width = img.width
+      const height = img.height
+      const scale = Math.min(1, maxWidth / width)
+      const w = Math.round(width * scale)
+      const h = Math.round(height * scale)
       const canvas = document.createElement('canvas')
       canvas.width = w
       canvas.height = h
       const ctx = canvas.getContext('2d')
       if (!ctx) {
-        resolve(file)
+        resolve({ blob: file, width, height })
         return
       }
       ctx.drawImage(img, 0, 0, w, h)
       canvas.toBlob(
-        (blob) => resolve(blob ?? file),
+        (blob) => resolve({ blob: blob ?? file, width, height }),
         'image/jpeg',
         0.82,
       )

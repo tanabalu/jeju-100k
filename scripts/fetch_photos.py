@@ -528,6 +528,9 @@ def main():
             })
             if args.cover_width:
                 entry["cover"] = f"photos/scenes/cover/{name}"
+            # 原图宽高：供前端详情页相册的 loading 卡片按真实比例预留高度（与脚本导出文件一致）
+            entry["width"] = size[0]
+            entry["height"] = size[1]
             recs.append({
                 "file": name, "title": primary["title"], "keyword": used_kw,
                 "artist": primary["artist"], "license": primary["license"], "source": primary["descpage"],
@@ -557,6 +560,8 @@ def main():
                 "caption": f"偶来 {code} {CODE_LABEL.get(code, '')} 一带风景（Wikimedia Commons 自由授权，非官方摄影）",
                 "credit": " / ".join(x for x in [g["artist"], g["license"]] if x) or g["license"],
                 "source": g["descpage"],
+                "width": size[0],
+                "height": size[1],
             }
             gallery_entries.append(gentry)
             recs.append({

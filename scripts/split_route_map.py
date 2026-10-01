@@ -133,6 +133,8 @@ def main():
             "caption": f"偶来 {code} 官方路线图{f'（{CODE_LABEL[code]}）' if CODE_LABEL.get(code) else ''}",
             "credit": CREDIT,
             "source": SOURCE,
+            "width": img.size[0],
+            "height": img.size[1],
         }
 
         if args.cover_width and img.size[0] > args.cover_width:

@@ -65,9 +65,13 @@ export function Thumb({ image, alt = '', fit = 'cover', radius = 8, autoHeight =
     return <div className={`${styles['thumb-empty']}`} style={{ borderRadius: radius }}>无图</div>
   }
 
-  // autoHeight：用 aspect-ratio 预留高度（已知真实比例最好，未知先用默认），避免加载时塌陷 / 瀑布流回流
+  // autoHeight：用 aspect-ratio 预留高度。
+  // 优先级：图片原始宽高（已在数据里存好，加载前就能算对）→ 加载后读到的真实比例 → 默认兜底。
+  // 这样每张相册 loading 卡片都按自己照片的真实比例占位，而不是全都是同一个 4:5，
+  // 图片真正解码完成时才只是内容替换、不产生高度回流。
+  const assetRatio = image?.width && image?.height ? image.width / image.height : undefined
   const wrapStyle: CSSProperties = autoHeight
-    ? { aspectRatio: ratio ?? DEFAULT_RATIO }
+    ? { aspectRatio: assetRatio ?? ratio ?? DEFAULT_RATIO }
     : { height: '100%' }
 
   return (
