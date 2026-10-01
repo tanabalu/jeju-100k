@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "description": "偶然小路百公里攻略 - 徒步/越野跑路线规划与素材管理",
+  "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
