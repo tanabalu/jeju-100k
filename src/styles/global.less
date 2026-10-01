@@ -500,7 +500,7 @@ textarea.input {
 .editor-list {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 18px;
 }
 .editor-card {
   border: 1px solid var(--line);
@@ -509,7 +509,13 @@ textarea.input {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: #fcfdfd;
+  /* 头亮尾暗的纵向渐变 + 轻阴影：让相邻卡片的收尾与开头一眼可分 */
+  background: linear-gradient(180deg, #ffffff 0%, #f3f5f8 100%);
+  box-shadow: 0 1px 4px rgba(16, 24, 40, 0.06);
+  transition: box-shadow 0.15s ease;
+}
+.editor-card:hover {
+  box-shadow: 0 2px 10px rgba(16, 24, 40, 0.1);
 }
 .editor-card-head {
   display: flex;
