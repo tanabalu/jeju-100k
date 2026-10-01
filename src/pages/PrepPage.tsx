@@ -1,7 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useData } from '../store/DataContext'
 import { useConfirm, useToast } from '../components/Feedback'
-import { BUDGET_HINTS, GUIDE_SECTIONS, PREP_GROUPS, PREP_PRESETS, normItemText, type PrepGroup, type PrepItem, type PrepPreset } from '../lib/prep'
+import {
+  BUDGET_HINTS,
+  GUIDE_SECTIONS,
+  PREP_GROUPS,
+  PREP_PRESETS,
+  normItemText,
+  tutorialOf,
+  type PrepGroup,
+  type PrepItem,
+  type PrepPreset,
+} from '../lib/prep'
+import { TutorialBody } from '../components/Tutorial'
 import styles from './PrepPage.module.less'
 
 /** 条目来源说明（「已放弃」区块用来标注这条原本属于哪） */
@@ -37,6 +48,36 @@ export function PrepPage() {
   const onlyTodo = ui.prepOnlyTodo
   const setOnlyTodo = (v: boolean) => updateUi({ prepOnlyTodo: v })
   const [draft, setDraft] = useState('')
+
+  /**
+   * 折叠状态同样存在 ui（本机视图偏好），刷新后保持。
+   * 两组极性相反是刻意的：分组默认展开（存「折叠的」），备选卡片默认收起（存「展开的」）——
+   * 备选清单是候选池，默认不该占满整屏。
+   */
+  const collapsedGroups = ui.prepGroupsCollapsed
+  const openPresets = ui.prepPresetsOpen
+  const collapsedSet = useMemo(() => new Set(collapsedGroups), [collapsedGroups])
+  const openPresetSet = useMemo(() => new Set(openPresets), [openPresets])
+  const setGroupCollapsed = (id: string, collapsed: boolean) =>
+    updateUi({
+      prepGroupsCollapsed: collapsed
+        ? Array.from(new Set([...collapsedGroups, id]))
+        : collapsedGroups.filter((x) => x !== id),
+    })
+  const setPresetOpen = (id: string, open: boolean) =>
+    updateUi({
+      prepPresetsOpen: open ? Array.from(new Set([...openPresets, id])) : openPresets.filter((x) => x !== id),
+    })
+
+  /** 条目图文教程：就地展开的条目 id（默认收起，展开状态同样本机记住） */
+  const openTutorials = ui.prepTutorialsOpen
+  const openTutorialSet = useMemo(() => new Set(openTutorials), [openTutorials])
+  const setTutorialOpen = (id: string, open: boolean) =>
+    updateUi({
+      prepTutorialsOpen: open
+        ? Array.from(new Set([...openTutorials, id]))
+        : openTutorials.filter((x) => x !== id),
+    })
 
   const checked = useMemo(() => new Set(checklist.checked), [checklist.checked])
   const skipped = useMemo(() => new Set(checklist.skipped), [checklist.skipped])
@@ -200,7 +241,9 @@ export function PrepPage() {
         <h1 className="detail-title">行前准备 · 济州岛</h1>
         <p className="muted">
           出发前逐项打勾，进度保存在本机浏览器。政策与价格会变，标「<span className={`${styles['verify-tag']}`}>临行复核</span>」
-          的项目请自己再确认一遍。装备、性别、拍摄设备这些因人而异的，到下面「<b>徒步装备 / 女士常用 / 男士常用 / 大疆 / 相机 / 无人机</b>」
+          的项目请自己再确认一遍。光看一行字不知道怎么动手的条目（比如便利店充值 T-money），右侧有
+          「<b>图文教程</b>」，点一下就在条目下方展开分步骤图解，再点收起。分组点标题即可折叠，折叠状态会记住。
+          装备、性别、拍摄设备这些因人而异的，到下面「<b>徒步装备 / 女士常用 / 男士常用 / 大疆 / 相机 / 无人机</b>」
           几份备选清单里挑着加入 —— 徒步装备也在里面，按你要走的季节和路段挑。
         </p>
       </div>
@@ -221,6 +264,9 @@ export function PrepPage() {
                 1200,
               )
               setActiveId(t.id)
+              // 跳到折叠中的分组时顺手展开 —— 否则滚过去了却是一片空标题
+              const groupId = t.id.startsWith('prep-g-') ? t.id.slice('prep-g-'.length) : ''
+              if (groupId && collapsedSet.has(groupId)) setGroupCollapsed(groupId, false)
               const el = document.getElementById(t.id)
               if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
             }}
@@ -278,18 +324,48 @@ export function PrepPage() {
             重置清单
           </button>
         </div>
+        <div className="btn-row">
+          <span className="muted">分组显示</span>
+          <button
+            className="btn btn-sm"
+            disabled={collapsedGroups.length === 0}
+            onClick={() => updateUi({ prepGroupsCollapsed: [] })}
+          >
+            全部展开
+          </button>
+          <button
+            className="btn btn-sm"
+            disabled={groups.length === 0 || collapsedGroups.length >= groups.length}
+            onClick={() => updateUi({ prepGroupsCollapsed: groups.map((g) => g.id) })}
+          >
+            全部折叠
+          </button>
+          <span className="muted">点分组标题即可折叠 / 展开</span>
+        </div>
       </section>
 
       {/* ---------- checklist ---------- */}
       {groups.map((g) => {
+        const collapsed = collapsedSet.has(g.id)
         return (
           <section id={`prep-g-${g.id}`} className="section" key={g.id}>
             <div className="section-head">
-              <h2>
-                {g.title}
-                <span className="count">
-                  {g.done} / {g.total}
-                </span>
+              {/* 整块标题做成折叠按钮：点标题任意处都能收起 / 展开这一组 */}
+              <h2 className={`${styles['group-title']}`}>
+                <button
+                  type="button"
+                  className={`${styles['group-toggle']}`}
+                  aria-expanded={!collapsed}
+                  onClick={() => setGroupCollapsed(g.id, !collapsed)}
+                >
+                  <span className={`${styles['chev']}${collapsed ? '' : ` ${styles['is-open']}`}`} aria-hidden="true">
+                    ▸
+                  </span>
+                  <span>{g.title}</span>
+                  <span className="count">
+                    {g.done} / {g.total}
+                  </span>
+                </button>
               </h2>
               <button
                 className="btn btn-sm"
@@ -303,68 +379,101 @@ export function PrepPage() {
                 本组全选
               </button>
             </div>
-            {g.desc && <p className="muted">{g.desc}</p>}
-            <ul className={`${styles['check-list']}`}>
-              {g.items.map((item) => {
-                const isDone = checked.has(item.id)
-                const isSkipped = skipped.has(item.id)
+            {collapsed ? null : (
+              <>
+              {g.desc && <p className="muted">{g.desc}</p>}
+              <ul className={`${styles['check-list']}`}>
+                {g.items.map((item) => {
+                  const isDone = checked.has(item.id)
+                  const isSkipped = skipped.has(item.id)
+                const tutorial = tutorialOf(item.id)
+                const tutorialOpen = tutorial ? openTutorialSet.has(item.id) : false
                 return (
-                  <li
-                    key={item.id}
-                    className={`check-item${isDone ? ' is-done' : ''}${isSkipped ? ' is-skipped' : ''}`}
-                  >
-                    <div className={`${styles['check-main']}`}>
-                      <label>
-                        <input type="checkbox" checked={isDone} onChange={() => toggleCheck(item.id)} />
-                        <span className={`${styles['check-text']}`}>
-                          {item.text}
-                          {item.verify && <span className={`${styles['verify-tag']}`}>临行复核</span>}
-                          {g.id === 'extras' && (
-                            <span className={`${styles['src-tag']}`}>{extraTagById.get(item.id) ?? '备选'}</span>
+                    <li
+                      key={item.id}
+                      className={`check-item${isDone ? ' is-done' : ''}${isSkipped ? ' is-skipped' : ''}`}
+                    >
+                      <div className={`${styles['check-main']}`}>
+                        <label>
+                          <input type="checkbox" checked={isDone} onChange={() => toggleCheck(item.id)} />
+                          <span className={`${styles['check-text']}`}>
+                            {item.text}
+                            {item.verify && <span className={`${styles['verify-tag']}`}>临行复核</span>}
+                            {g.id === 'extras' && (
+                              <span className={`${styles['src-tag']}`}>{extraTagById.get(item.id) ?? '备选'}</span>
+                            )}
+                            {isSkipped && <span className={`${styles['skip-tag']}`}>已放弃</span>}
+                          </span>
+                        </label>
+                        <div className={`${styles['check-actions']}`}>
+                        {tutorial && (
+                          <button
+                            className={`btn-link ${styles['tut-btn']}`}
+                            aria-expanded={tutorialOpen}
+                            onClick={() => setTutorialOpen(item.id, !tutorialOpen)}
+                          >
+                            <span
+                              className={`${styles['tut-chev']}${tutorialOpen ? ` ${styles['is-open']}` : ''}`}
+                              aria-hidden="true"
+                            >
+                              ▸
+                            </span>
+                            图文教程
+                          </button>
+                        )}
+                          {isSkipped ? (
+                            <button className="btn-link" onClick={() => toggleSkip(item.id)}>
+                              恢复
+                            </button>
+                          ) : (
+                            <button className="btn-link" onClick={() => toggleSkip(item.id)}>
+                              放弃
+                            </button>
                           )}
-                          {isSkipped && <span className={`${styles['skip-tag']}`}>已放弃</span>}
-                        </span>
-                      </label>
-                      <div className={`${styles['check-actions']}`}>
-                        {isSkipped ? (
-                          <button className="btn-link" onClick={() => toggleSkip(item.id)}>
-                            恢复
-                          </button>
-                        ) : (
-                          <button className="btn-link" onClick={() => toggleSkip(item.id)}>
-                            放弃
-                          </button>
-                        )}
-                        {g.id === 'extras' && (
-                          <button
-                            className="btn-link"
-                            onClick={() => {
-                              removeExtraItem(item.id)
-                              toast('已移出总清单', 'success')
-                            }}
-                          >
-                            移除
-                          </button>
-                        )}
-                        {g.id === 'custom' && (
-                          <button
-                            className="btn-link"
-                            onClick={async () => {
-                              if (await confirm({ title: '删除条目', message: `删除「${item.text}」？`, confirmText: '删除', danger: true })) {
-                                removeCustomItem(item.id)
-                              }
-                            }}
-                          >
-                            删除
-                          </button>
-                        )}
+                          {g.id === 'extras' && (
+                            <button
+                              className="btn-link"
+                              onClick={() => {
+                                removeExtraItem(item.id)
+                                toast('已移出总清单', 'success')
+                              }}
+                            >
+                              移除
+                            </button>
+                          )}
+                          {g.id === 'custom' && (
+                            <button
+                              className="btn-link"
+                              onClick={async () => {
+                                if (await confirm({ title: '删除条目', message: `删除「${item.text}」？`, confirmText: '删除', danger: true })) {
+                                  removeCustomItem(item.id)
+                                }
+                              }}
+                            >
+                              删除
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
                     {item.note && <p className={`${styles['check-note']}`}>{item.note}</p>}
+                    {/* 图文教程就地展开：展开在条目下方，再点一次收起 */}
+                    {tutorial && tutorialOpen && (
+                      <div className={`${styles['tut-inline']}`}>
+                        <div className={`${styles['tut-inline-head']}`}>
+                          <b>{tutorial.title}</b>
+                          <button className="btn-link" onClick={() => setTutorialOpen(item.id, false)}>
+                            收起
+                          </button>
+                        </div>
+                        <TutorialBody tutorial={tutorial} />
+                      </div>
+                    )}
                   </li>
                 )
               })}
-            </ul>
+              </ul>
+              </>
+            )}
           </section>
         )
       })}
@@ -412,14 +521,26 @@ export function PrepPage() {
           {PREP_PRESETS.map((p) => {
             const addedCount = checklist.extras.filter((e) => e.from === p.id).length
             const pending = presetPending.get(p.id) ?? []
+            const open = openPresetSet.has(p.id)
             return (
               <div className={`${styles['preset-card']}`} id={`prep-p-${p.id}`} key={p.id}>
-                <div className={`${styles['preset-head']}`}>
-                  <h3>{p.title}</h3>
-                  <span className={`${styles['preset-count']}`}>
-                    已加入 {addedCount} / {p.items.length}
-                  </span>
-                </div>
+                {/* 备选卡片默认收起：它们是候选池，展开才逐条挑 */}
+                <h3>
+                  <button
+                    type="button"
+                    className={`${styles['preset-toggle']}`}
+                    aria-expanded={open}
+                    onClick={() => setPresetOpen(p.id, !open)}
+                  >
+                    <span className={`${styles['chev']}${open ? ` ${styles['is-open']}` : ''}`} aria-hidden="true">
+                      ▸
+                    </span>
+                    <span>{p.title}</span>
+                    <span className={`${styles['preset-count']}`}>
+                      已加入 {addedCount} / {p.items.length}
+                    </span>
+                  </button>
+                </h3>
                 <p className="muted">{p.desc}</p>
                 {p.warn && <p className={`${styles['guide-warn']}`}>{p.warn}</p>}
                 {p.sources && p.sources.length > 0 && (
@@ -463,43 +584,49 @@ export function PrepPage() {
                     全部移出
                   </button>
                 </div>
-                <ul className={`${styles['preset-list']}`}>
-                  {p.items.map((it) => {
-                    const owned = extraIds.has(it.id)
-                    const taken = !owned && takenTexts.has(normItemText(it.text))
-                    return (
-                      <li className={`preset-item${owned ? ' is-added' : ''}`} key={it.id}>
-                        <div className={`${styles['preset-main']}`}>
-                          <span className={`${styles['preset-text']}`}>{it.text}</span>
-                          {owned ? (
-                            <button
-                              className="btn-link"
-                              onClick={() => {
-                                removeExtraItem(it.id)
-                                toast('已移出总清单', 'success')
-                              }}
-                            >
-                              移除
-                            </button>
-                          ) : taken ? (
-                            <span className={`${styles['preset-own']}`}>已在清单</span>
-                          ) : (
-                            <button
-                              className="btn-link"
-                              onClick={() => {
-                                addPresetItems(p.id, [it.id])
-                                toast('已加入总清单', 'success')
-                              }}
-                            >
-                              加入
-                            </button>
-                          )}
-                        </div>
-                        {it.note && <p className={`${styles['check-note']}`}>{it.note}</p>}
-                      </li>
-                    )
-                  })}
-                </ul>
+                {open ? (
+                  <ul className={`${styles['preset-list']}`}>
+                    {p.items.map((it) => {
+                      const owned = extraIds.has(it.id)
+                      const taken = !owned && takenTexts.has(normItemText(it.text))
+                      return (
+                        <li className={`preset-item${owned ? ' is-added' : ''}`} key={it.id}>
+                          <div className={`${styles['preset-main']}`}>
+                            <span className={`${styles['preset-text']}`}>{it.text}</span>
+                            {owned ? (
+                              <button
+                                className="btn-link"
+                                onClick={() => {
+                                  removeExtraItem(it.id)
+                                  toast('已移出总清单', 'success')
+                                }}
+                              >
+                                移除
+                              </button>
+                            ) : taken ? (
+                              <span className={`${styles['preset-own']}`}>已在清单</span>
+                            ) : (
+                              <button
+                                className="btn-link"
+                                onClick={() => {
+                                  addPresetItems(p.id, [it.id])
+                                  toast('已加入总清单', 'success')
+                                }}
+                              >
+                                加入
+                              </button>
+                            )}
+                          </div>
+                          {it.note && <p className={`${styles['check-note']}`}>{it.note}</p>}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                ) : (
+                  <button className="btn btn-sm" onClick={() => setPresetOpen(p.id, true)}>
+                    展开 {p.items.length} 条
+                  </button>
+                )}
               </div>
             )
           })}

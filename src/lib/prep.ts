@@ -543,6 +543,150 @@ export const PREP_PRESETS: PrepPreset[] = [
   },
 ]
 
+/** 图文教程里的内置示意图标名：纯 SVG 线条图，不依赖外部素材，缩放到任何尺寸都清晰 */
+export type TutorialIconName =
+  | 'store'
+  | 'card'
+  | 'cash'
+  | 'receipt'
+  | 'check'
+  | 'phone'
+  | 'bus'
+  | 'bell'
+  | 'nfc'
+  | 'sign'
+
+export interface TutorialStep {
+  /** 这一步做什么 */
+  text: string
+  /** 内置示意图标（缺省 image 时使用） */
+  icon?: TutorialIconName
+  /**
+   * 步骤实拍图：站点相对路径（放 `public/tutorials/` 下，如 'tutorials/tmoney-charge.jpg'）。
+   * 有图就用图，没有就退回内置示意图标 —— 宁可用示意图，也不放没核实的图。
+   */
+  image?: string
+  /** 配图说明 / 补充小字 */
+  caption?: string
+}
+
+/** 一条清单条目配一份「有图有步骤」的操作指引 */
+export interface Tutorial {
+  /** 绑定的清单条目 id（PrepItem.id） */
+  id: string
+  title: string
+  /** 弹窗顶部的一句话概括 */
+  summary?: string
+  steps: TutorialStep[]
+  /** 步骤之外的补充要点（小字列表） */
+  tips?: string[]
+  /** 红色强调的提醒 */
+  warn?: string
+  sources?: GuideSource[]
+}
+
+/**
+ * 图文教程：条目 id → 教程。
+ *
+ * 只给「光看一句话不知道怎么动手」的条目配教程，比如便利店充值 T-money ——
+ * 清单里的一行字说不清「找谁、说什么、给多少钱、怎么看结果」，这才值得展开成图文步骤。
+ * 其余条目保持一行，别把清单撑成说明书。
+ *
+ * ⚠️ 内容边界与清单条目一致：操作步骤来自公开游记与实测经验，不是官方条款；
+ *    话术、金额、机器界面都会变，教程里凡是可能变的都写进了 warn / tips，临行前自己复核。
+ */
+export const PREP_TUTORIALS: Record<string, Tutorial> = {
+  'transit.charge': {
+    id: 'transit.charge',
+    title: '便利店充值 T-money · 图文步骤',
+    summary: 'CU / GS25 / 7-Eleven 任意一家，找收银台店员办，全程不到一分钟。带现金最稳。',
+    steps: [
+      {
+        icon: 'store',
+        text: '进店后直接走到收银台排队 —— 充值是店员在收银机上办的，不是自助机，也不用找什么专用机器。',
+      },
+      {
+        icon: 'card',
+        text: '把卡递给店员，说一句「T-money, charge」就行；会韩语就说 충전이요（发音大致 "chung-jeon"）。店员都懂这套流程，不用比划。',
+      },
+      {
+        icon: 'cash',
+        text: '报充值金额并付现金：说「ten thousand」或者直接递 ₩10,000 / ₩20,000 纸币最省事。现金基本都能充，国际信用卡常被拒。',
+        caption: '按天估：单人一天公交大致 ₩3,000–6,000，先充 ₩20,000 看着花。',
+      },
+      {
+        icon: 'nfc',
+        text: '店员会让你把卡放到读卡器上（或他自己刷），滴一声就充好了。充完他会递回卡和小票。',
+      },
+      {
+        icon: 'check',
+        text: '当场核对余额：小票上印着充值后的余额，出门也可以到公交站牌的小黑块贴一下。数目不对立刻回头找店员 —— 离柜就说不清了。',
+      },
+    ],
+    tips: [
+      '电子卡（iPhone 的 mobile T-money）在便利店一般充不了，得在 App 里充 —— 这也是「赶时间就直接买实体卡」的原因。',
+      '开卡费 ₩4,000 是不退的，可退的只有余额；最后两天够用就行，别一次充几万韩元。',
+      '深夜小店、偏僻路段的便利店有时系统故障充不了，别把余额压到最后一次再补。',
+    ],
+    warn: '充值前先想清楚天数：退卡时只退余额、不退开卡费，多充的现金得在机场或便利店排队退。',
+    sources: [
+      { label: '小红书 · T-money 开卡及使用', url: 'https://www.xiaohongshu.com/explore/6aa10da2000000000d025f16' },
+      { label: '小红书 · 实体 T-money 查余额', url: 'https://www.xiaohongshu.com/explore/6ab8f87a000000001802bc7a' },
+    ],
+  },
+  'transit.balance': {
+    id: 'transit.balance',
+    title: '查 T-money 余额 · 三种办法',
+    summary: '不用专门跑便利店，路上顺手就能看。余额不足上车会直接刷不过。',
+    steps: [
+      {
+        icon: 'sign',
+        text: '站牌小黑块：公交站牌下方常有一块黑色小方块（一般印着 T-money 标志），把卡贴上去 1–2 秒，余额就显示在设备上或站牌屏上。',
+      },
+      {
+        icon: 'phone',
+        text: '手机 App 贴卡读：装 balance check 类读卡 App，把卡贴到手机背面（NFC 位置）即可读出余额。安卓机支持度最好。',
+        caption: 'iPhone 的 NFC 读取权限限制多，实体卡优先用前两种办法。',
+      },
+      {
+        icon: 'receipt',
+        text: '看小票：便利店充值或消费后的小票上都会打印当前余额，顺手看一眼最省事。',
+      },
+    ],
+    tips: ['电子卡直接在 mobile T-money App 里看，不用贴卡。', '偶来的起终点多在山口和村子，附近不一定有便利店 —— 上车前先看一眼。'],
+    warn: '余额不足会直接刷不过：在车门边补刷很尴尬，也耽误一车人。',
+  },
+  'transit.tapout': {
+    id: 'transit.tapout',
+    title: '上下车各刷一次 · 换乘优惠怎么拿',
+    summary: '只有上下车都刷才有换乘优惠。漏刷下车是新手最常犯的错。',
+    steps: [
+      {
+        icon: 'bus',
+        text: '上车：前门上车，把卡贴到司机旁边的读卡器。多人共用一张卡时，先跟司机说人数（"two people"），等他改好金额再刷一次。',
+      },
+      {
+        icon: 'bell',
+        text: '快到站：按车内的 STOP 铃（红色按钮，车窗边和扶手杆上都有）。在站台上等车则要向司机挥手，否则司机直接飞站。',
+      },
+      {
+        icon: 'card',
+        text: '下车：后门下车前再刷一次卡 —— 这一下决定你有没有换乘优惠，也决定会不会被按全程计费。',
+      },
+      {
+        icon: 'check',
+        text: '换乘：约 40 分钟内再坐一次公交，蓝线 / 绿线参与联程（免费或补差价），红线（急行快线）不参与。',
+      },
+    ],
+    warn: '漏刷下车 = 按单程全程计费 + 当次拿不到换乘优惠。一天坐三四趟的话，这笔钱很可观。',
+  },
+}
+
+/** 取某条清单条目的图文教程（没有就不显示入口） */
+export function tutorialOf(id: string): Tutorial | undefined {
+  return PREP_TUTORIALS[id]
+}
+
 /**
  * 条目文案归一化：用于「清单里是不是已经有这一条」的去重判断。
  * 去掉所有空白（`\s` 已含全角空格）并忽略大小写，

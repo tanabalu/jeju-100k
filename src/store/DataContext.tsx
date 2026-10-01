@@ -300,7 +300,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [rawRoutes, setRawRoutes] = useState<Route[]>([])
   const [plans, setPlans] = useState<Plan[]>([])
   const [settings, setSettings] = useState<AppSettings>({ mapStyle: 'standard' })
-  const [ui, setUi] = useState<UiState>({ prepOnlyTodo: false, planHideDone: false })
+  const [ui, setUi] = useState<UiState>({
+    prepOnlyTodo: false,
+    planHideDone: false,
+    prepGroupsCollapsed: [],
+    prepPresetsOpen: [],
+    prepTutorialsOpen: [],
+  })
   const [photoManifest, setPhotoManifest] = useState<PhotoManifest>({})
   const [routeMaps, setRouteMaps] = useState<PhotoManifest>({})
   const [trackManifest, setTrackManifest] = useState<TrackManifest>({})

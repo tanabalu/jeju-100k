@@ -55,6 +55,79 @@
   gap: 6px;
   font-size: 12px;
 }
+/* 折叠标题：标题文字包在按钮里，整块可点 */
+.group-title {
+  flex: 1;
+  min-width: 0;
+}
+.group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.group-toggle .count {
+  flex: 0 0 auto;
+}
+/* 箭头：展开时转 90°，与右侧「本组全选」不冲突（各自独立按钮） */
+.chev {
+  flex: 0 0 auto;
+  display: inline-block;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--muted);
+  transition: transform 0.18s ease;
+}
+.chev.is-open {
+  transform: rotate(90deg);
+}
+/* 「图文教程」入口：就地展开 / 收起，比普通链接显眼一点 */
+.tut-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--brand);
+  white-space: nowrap;
+}
+.tut-chev {
+  display: inline-block;
+  font-size: 11px;
+  line-height: 1;
+  transition: transform 0.18s ease;
+}
+.tut-chev.is-open {
+  transform: rotate(90deg);
+}
+/* 就地展开的教程面板：嵌在条目下方，不打断清单的阅读节奏 */
+.tut-inline {
+  margin: 8px 0 0 25px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fcfdfd;
+}
+.tut-inline-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.tut-inline-head b {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+}
+.tut-inline-head :global(.btn-link) {
+  margin-left: 0;
+}
 .switch {
   display: inline-flex;
   align-items: center;
@@ -218,6 +291,9 @@
   color: var(--brand-dark);
 }
 @media (max-width: 720px) {
+.tut-inline {
+    margin-left: 0;
+  }
 .prep-toc {
     flex-wrap: wrap;
     overflow-x: visible;
@@ -272,11 +348,23 @@
   
   scroll-margin-top: var(--anchor-offset);
 }
-.preset-head {
+/* 备选卡片标题 = 折叠按钮（默认收起条目列表） */
+.preset-card h3 {
+  font-size: 15px;
+}
+.preset-toggle {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 .preset-head h3 {
   font-size: 15px;
