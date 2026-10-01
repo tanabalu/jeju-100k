@@ -12,7 +12,7 @@ import { formatDurationRange, officialDuration } from '../lib/olleDurations'
 import { resolveImageSrc } from '../lib/imageStore'
 import { useActivePlan } from '../hooks/useActivePlan'
 import { routeKindLabel } from '../lib/routeKind'
-import type { ImageRef, RouteMetrics } from '../types'
+import type { Hotel, ImageRef, RouteMetrics } from '../types'
 import styles from './RouteDetailPage.module.less'
 
 /** 全屏查看器的条目：相册 / 景点图片统一成这个形状 */
@@ -52,6 +52,9 @@ function byCode(a: { code?: string | null }, b: { code?: string | null }): numbe
   return (a.code ?? '').localeCompare(b.code ?? '')
 }
 
+/** 详情页住宿列表默认陈列的条数；其余进「查看全部」抽屉 */
+const STAY_PREVIEW = 3
+
 export function RouteDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { getRoute, routes } = useData()
@@ -59,6 +62,8 @@ export function RouteDetailPage() {
   const { addRoute, has } = useActivePlan()
   // 全屏查看器：items 是这次要看的图片集合（相册或某个景点的多图），index 是当前看到第几张
   const [lb, setLb] = useState<{ items: LightboxItem[]; index: number } | null>(null)
+  // 住宿「查看更多」抽屉：详情页只陈列前几条，全部列表在右侧抽屉里看，不在详情页铺开
+  const [stayOpen, setStayOpen] = useState(false)
 
   // 全量路线按编号排好序，再定位当前这条，才能拿到正确的上一条 / 下一条
   const ordered = useMemo(() => [...routes].sort(byCode), [routes])
@@ -315,33 +320,20 @@ export function RouteDetailPage() {
         {hotelRows.length === 0 ? (
           <p className="muted">还没有录入住宿，去管理后台添加。</p>
         ) : (
-          <div className="list">
-            {hotelRows.map(({ hotel, atKm, offRouteKm }) => (
-              <div key={hotel.id} className="list-item">
-                <div className="list-main">
-                  <div className={`${styles['hotel-head']}`}>
-                    {hotel.cover && (
-                      <div className={`${styles['hotel-cover']}`}>
-                        <Thumb image={hotel.cover} alt={hotel.name} radius={8} />
-                      </div>
-                    )}
-                    <div className="list-main">
-                      <b>{hotel.name}</b>
-                      <span className="muted">{hotel.address || '（未填地址）'}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="list-side">
-                  <span className="pill">沿线 {formatKm(atKm)} km</span>
-                  <span className="pill">离路线 {formatKm(offRouteKm)} km</span>
-                  {hotel.priceRange && <span className="pill">¥{hotel.priceRange}</span>}
-                  {hotel.rating != null && <span className="pill">{hotel.rating} 分</span>}
-                </div>
-                {hotel.note && <p className={`${styles['list-note']}`}>{hotel.note}</p>}
-                {hotel.phone && <p className={`${styles['list-note']}`}>电话：{hotel.phone}</p>}
-              </div>
-            ))}
-          </div>
+          <>
+            {/* 详情页只陈列前 3 条，避免一长串铺满；其余在「查看全部」抽屉里看 */}
+            <div className="list">
+              {hotelRows.slice(0, STAY_PREVIEW).map(({ hotel, atKm, offRouteKm }) => (
+                <HotelCard key={hotel.id} hotel={hotel} atKm={atKm} offRouteKm={offRouteKm} />
+              ))}
+            </div>
+            {hotelRows.length > STAY_PREVIEW && (
+              <button type="button" className={styles['stay-more']} onClick={() => setStayOpen(true)}>
+                查看全部 {hotelRows.length} 家住宿
+                <span className={styles['stay-more-arrow']}>→</span>
+              </button>
+            )}
+          </>
         )}
       </section>
 
@@ -453,6 +445,7 @@ export function RouteDetailPage() {
           }
         />
       )}
+      {stayOpen && <StayDrawer rows={hotelRows} onClose={() => setStayOpen(false)} />}
     </div>
   )
 }
@@ -632,5 +625,131 @@ function SightGallery({
         ))}
       </div>
     </div>
+  )
+}
+
+/**
+ * 一条住宿卡片（详情页预览与抽屉共用）。
+ * 名称优先显示中文名 nameZh；当中文名与原文不同（音译生成）时，补一行韩文原名便于核对。
+ * 价格 / 评分：OSM 未提供时为 null，此处只在有真实数据时才渲染对应标签，绝不编造假数值。
+ */
+function HotelCard({
+  hotel,
+  atKm,
+  offRouteKm,
+}: {
+  hotel: Hotel
+  atKm: number
+  offRouteKm: number
+}) {
+  const zh = hotel.nameZh
+  const showOrig = !!zh && zh !== hotel.name
+  return (
+    <div key={hotel.id} className="list-item">
+      <div className="list-main">
+        <div className={styles['hotel-head']}>
+          {hotel.cover && (
+            <div className={styles['hotel-cover']}>
+              <Thumb image={hotel.cover} alt={hotel.name} radius={8} />
+            </div>
+          )}
+          <div className="list-main">
+            <b>{zh || hotel.name}</b>
+            {showOrig && <span className="muted">{hotel.name}</span>}
+          </div>
+        </div>
+      </div>
+      <div className="list-side">
+        <span className="pill">沿线 {formatKm(atKm)} km</span>
+        <span className="pill">离路线 {formatKm(offRouteKm)} km</span>
+        {hotel.priceRange && <span className="pill">¥{hotel.priceRange}</span>}
+        {hotel.rating != null && <span className="pill">{hotel.rating} 分</span>}
+      </div>
+      {hotel.note && <p className={styles['list-note']}>{hotel.note}</p>}
+      {hotel.phone && <p className={styles['list-note']}>电话：{hotel.phone}</p>}
+      {hotel.website && (
+        <p className={styles['list-note']}>
+          官网：
+          <a href={hotel.website} target="_blank" rel="noopener noreferrer" className={styles['list-link']}>
+            访问 ↗
+          </a>
+        </p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * 住宿「查看全部」抽屉：从右侧滑入的浮层（另一个容器），详情页本身不展开长列表。
+ * 顶部带名称搜索（中文 / 韩文皆可），Esc 或点遮罩关闭，打开时锁背景滚动。
+ */
+function StayDrawer({
+  rows,
+  onClose,
+}: {
+  rows: { hotel: Hotel; atKm: number; offRouteKm: number }[]
+  onClose: () => void
+}) {
+  const [q, setQ] = useState('')
+  const filtered = useMemo(() => {
+    const t = q.trim().toLowerCase()
+    if (!t) return rows
+    return rows.filter(
+      ({ hotel }) =>
+        (hotel.nameZh || '').toLowerCase().includes(t) || hotel.name.toLowerCase().includes(t),
+    )
+  }, [rows, q])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [onClose])
+
+  return createPortal(
+    <div
+      className={styles['stay-mask']}
+      role="presentation"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <aside className={styles['stay-drawer']} role="dialog" aria-modal="true" aria-label="附近住宿全部列表">
+        <header className={styles['stay-head']}>
+          <div className={styles['stay-title']}>
+            <b>附近住宿</b>
+            <span className={styles['stay-count']}>共 {rows.length} 家</span>
+          </div>
+          <button className={styles['stay-close']} onClick={onClose} aria-label="关闭">
+            ✕
+          </button>
+        </header>
+        <div className={styles['stay-search-wrap']}>
+          <input
+            className={styles['stay-search']}
+            placeholder="搜索名称（中文 / 韩文）"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </div>
+        <div className={styles['stay-body']}>
+          {filtered.length === 0 ? (
+            <p className="muted">没有匹配的住宿。</p>
+          ) : (
+            <div className="list">
+              {filtered.map(({ hotel, atKm, offRouteKm }) => (
+                <HotelCard key={hotel.id} hotel={hotel} atKm={atKm} offRouteKm={offRouteKm} />
+              ))}
+            </div>
+          )}
+        </div>
+      </aside>
+    </div>,
+    document.body,
   )
 }

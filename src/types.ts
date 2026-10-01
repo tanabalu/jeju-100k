@@ -37,12 +37,24 @@ export interface ImageRef {
   kind: 'url' | 'local'
   /** url 时为完整链接；local 时为 IndexedDB 的 key */
   value: string
+  /**
+   * 图片原始宽高（可选）。
+   * 用于详情页相册的 loading 卡片按真实比例预留高度，避免「全部卡片同比例、
+   * 图片加载完才突然变高」的回流抖动。
+   * - 随包分发的风景照 / 官方路线图：由 scripts/backfill_photo_dims.py 从 public/photos 回填进 manifest；
+   * - 后台本地上传：putImageFile 压缩时顺手记录原图尺寸。
+   * 缺省时 Thumb 仍回落到「加载后按真实尺寸定版」，不影响功能。
+   */
+  width?: number
+  height?: number
 }
 
 /** 附近酒店 / 住宿 */
 export interface Hotel {
   id: string
   name: string
+  /** 中文名（由韩文音译 / 借词映射生成，自动生成，待人工核对；缺省时回退 name） */
+  nameZh?: string
   lng: number
   lat: number
   address?: string
@@ -50,6 +62,8 @@ export interface Hotel {
   priceRange?: string
   phone?: string
   rating?: number
+  /** 官网 / 预订页链接（OSM 等公开源可能提供） */
+  website?: string
   note?: string
   /** 封面图（本地上传进 IndexedDB 或外链） */
   cover?: ImageRef

@@ -3,6 +3,7 @@ import { uid } from './id'
 import { OLLE_ELEVATION } from './olleeElevation'
 import { OLLE_SURFACES } from './olleSurfaces'
 import { ROUTE_WAYPOINTS, type WaypointDef } from './waypointsData'
+import { SEED_STAYS } from './seedStays'
 import olleEndpointsJson from '../data/olle-endpoints.json'
 
 /**
@@ -264,7 +265,9 @@ function buildRoute(spec: OlleSpec): Route {
     surface: OLLE_SURFACES[spec.code] ?? '海岸步道 / 村道 / 小路',
     bestSeason: '3-5 月（油菜花）、9-11 月（秋高气爽）',
     tags,
-    hotels: [],
+    // 爬来的住宿（OSM）按路线 code 回填进 seed，作为后台可编辑的一等数据。
+    // 由 scripts/build_seed_stays.py 从 public/stays.json 生成；重跑爬虫后需重跑该脚本。
+    hotels: SEED_STAYS[spec.code] ?? [],
     sights: [],
     album: [],
     createdAt: now,

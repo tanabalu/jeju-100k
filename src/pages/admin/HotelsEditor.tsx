@@ -33,12 +33,25 @@ export function HotelsEditor({ route, onPatch }: Props) {
           return (
             <div key={h.id} className="editor-card">
               <div className="editor-card-head">
-                <input
-                  className="input input-title"
-                  value={h.name}
-                  onChange={(e) => patch(h.id, { name: e.target.value })}
-                  placeholder="住宿名称"
-                />
+                <div className="field-row" style={{ flex: 1, alignItems: 'flex-end' }}>
+                  <label className="field">
+                    <span>中文名</span>
+                    <input
+                      className="input"
+                      value={h.nameZh ?? ''}
+                      onChange={(e) => patch(h.id, { nameZh: e.target.value })}
+                      placeholder="中文名（音译，待核对）"
+                    />
+                  </label>
+                  <label className="field">
+                    <span>原名 / 韩文</span>
+                    <input
+                      className="input"
+                      value={h.name}
+                      onChange={(e) => patch(h.id, { name: e.target.value })}
+                    />
+                  </label>
+                </div>
                 <button
                   className="btn btn-xs btn-danger"
                   onClick={async () => {

@@ -1,5 +1,15 @@
 /* 组件专属样式（CSS Modules + Less，局部作用域） */
 
+/* 地图住宿 tooltip 里的韩文原名（第二行），Leaflet tooltip 渲染在全局 DOM，需用 :global */
+:global(.rm-ko) {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 400;
+  color: #94a3b8;
+  opacity: 0.95;
+}
+
 .map-wrap {
   position: relative;
   

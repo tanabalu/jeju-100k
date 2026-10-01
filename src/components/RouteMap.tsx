@@ -468,8 +468,24 @@ export function RouteMap({
     })
     const hotelOk = finitePts(hotels)
     const sightOk = finitePts(sights)
-    hotelOk.forEach((h) => L.marker([h.lat, h.lng], { icon: makeIcon('hotel') }).addTo(layer))
-    sightOk.forEach((s) => L.marker([s.lat, s.lng], { icon: makeIcon('sight') }).addTo(layer))
+    // 住宿 / 看点悬停回显名称（与途经点一致）；住宿优先用中文名 nameZh
+    hotelOk.forEach((h) => {
+      const m = L.marker([h.lat, h.lng], { icon: makeIcon('hotel') }).addTo(layer)
+      // 悬停同时回显中文名与韩文原名；中文名与原名一致（无译名）时只显示一行
+      const zh = h.nameZh || ''
+      const ko = h.name || ''
+      let label: string
+      if (zh && ko && zh !== ko) {
+        label = `${esc(zh)}<br><span class="rm-ko">${esc(ko)}</span>`
+      } else {
+        label = zh || ko
+      }
+      if (label) m.bindTooltip(label, { direction: 'top', offset: [0, -26] })
+    })
+    sightOk.forEach((s) => {
+      const m = L.marker([s.lat, s.lng], { icon: makeIcon('sight') }).addTo(layer)
+      if (s.name) m.bindTooltip(s.name, { direction: 'top', offset: [0, -26] })
+    })
 
     const coords: [number, number][] = [
       ...drawSegs.flat().map((p) => [p.lat, p.lng] as [number, number]),

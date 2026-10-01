@@ -251,7 +251,7 @@ export default function App() {
             </main>
             <footer className={`${styles['footer']}`}>
               <p className={`${styles['footer-line']}`}>
-                数据仅保存在本机浏览器 · 底图服务：OpenStreetMap · 数据来源：{DATA_SOURCES}
+                数据仅保存在本机浏览器 · 底图服务：OpenStreetMap · 住宿数据：OpenStreetMap contributors（ODbL，经 Overpass API 抓取）· 数据来源：{DATA_SOURCES}
               </p>
               <FooterPhotoCredit />
               <p className={`${styles['footer-line']} ${styles['footer-friends']}`}>

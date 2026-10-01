@@ -7,11 +7,59 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { AlbumItem, AppSettings, ElevSample, ImageRef, Plan, PlanItem, Route } from '../types'
+import type { AlbumItem, AppSettings, ElevSample, Hotel, ImageRef, Plan, PlanItem, Route } from '../types'
 import { store, type ChecklistState, type UiState } from '../lib/storage'
 import { PREP_GROUPS, PREP_PRESETS, normItemText } from '../lib/prep'
 import { buildSeedRoutes } from '../lib/seed'
 import { uid } from '../lib/id'
+
+/** public/stays.json 的一条城镇住宿池（OSM 爬取，字段对齐 Hotel） */
+export interface StayTown {
+  ko: string
+  zh: string
+  /** [lng, lat] */
+  center: [number, number]
+  radiusM: number
+  count: number
+  hotels: Hotel[]
+}
+
+/** public/stays.json 顶层结构：随包分发的住宿池，刷新即生效，不落库 */
+export interface StaysManifest {
+  version: number
+  generatedAt: string
+  source: string
+  license: string
+  note?: string
+  towns: StayTown[]
+  /** 路线 code -> 建议住宿城镇（ko 名），由官方住宿建议推导 */
+  routeTowns: Record<string, string[]>
+}
+
+/**
+ * 把「官方建议住这的城镇」的住宿池合并进路线（不落库，对齐 mergeAssets 范式）。
+ * 严格按 routeTowns 映射收集；跨城镇去重按 hotel.id，避免同一家被挂多次。
+ */
+function mergeStays(
+  route: Route,
+  townsByKo: Record<string, Hotel[]>,
+  routeTowns: Record<string, string[]>,
+): Route {
+  const codes = route.code ? routeTowns[route.code] : undefined
+  if (!codes?.length) return route
+  const seen = new Set(route.hotels.map((h) => h.id))
+  const add: Hotel[] = []
+  for (const ko of codes) {
+    for (const h of townsByKo[ko] ?? []) {
+      if (!seen.has(h.id)) {
+        seen.add(h.id)
+        add.push(h)
+      }
+    }
+  }
+  if (!add.length) return route
+  return { ...route, hotels: [...route.hotels, ...add] }
+}
 
 export interface PhotoEntry {
   /** 相对站点根目录的原图路径，如 photos/olle-01.jpg */
@@ -19,6 +67,9 @@ export interface PhotoEntry {
   caption: string
   credit: string
   source?: string
+  /** 原图原始宽高（scripts/backfill_photo_dims.py 回填），用于相册 loading 卡片按比例预留高度 */
+  width?: number
+  height?: number
   /**
    * 卡片封面专用的压缩版（可选）；缺省时封面回落到 file。
    * 列表里的封面只渲染到 ~300–400px 宽，用原图纯属浪费流量。
@@ -39,6 +90,9 @@ export interface GalleryPhoto {
   caption?: string
   credit?: string
   source?: string
+  /** 原图原始宽高（scripts/backfill_photo_dims.py 回填） */
+  width?: number
+  height?: number
 }
 
 export type PhotoManifest = Record<string, PhotoEntry>
@@ -64,10 +118,16 @@ export interface TrackEntry {
 
 export type TrackManifest = Record<string, TrackEntry>
 
-/** 相对路径补成站点可用 URL；http 开头原样返回（base 为相对路径，子路径部署也能用） */
-function resolveAsset(file: string): ImageRef {
+/** 相对路径补成站点可用 URL；http 开头原样返回（base 为相对路径，子路径部署也能用）。
+ * 若已知原图宽高，一并写进 ImageRef，供详情页相册的 loading 卡片按真实比例预留高度。 */
+function resolveAsset(file: string, dims?: { width?: number; height?: number }): ImageRef {
   const base = import.meta.env.BASE_URL || './'
-  return { kind: 'url', value: file.startsWith('http') ? file : `${base}${file}` }
+  const ref: ImageRef = { kind: 'url', value: file.startsWith('http') ? file : `${base}${file}` }
+  if (dims?.width && dims?.height) {
+    ref.width = dims.width
+    ref.height = dims.height
+  }
+  return ref
 }
 
 /**
@@ -93,9 +153,9 @@ function mergeAssets(route: Route, photos: PhotoManifest, maps: PhotoManifest): 
   if (!mapEntry && !photoEntry) return route
 
   // 相册/灯箱用原图，卡片封面用压缩版
-  const mapImage = mapEntry ? resolveAsset(mapEntry.file) : undefined
+  const mapImage = mapEntry ? resolveAsset(mapEntry.file, { width: mapEntry.width, height: mapEntry.height }) : undefined
   const mapCover = mapEntry ? resolveAsset(mapEntry.cover ?? mapEntry.file) : undefined
-  const photoImage = photoEntry ? resolveAsset(photoEntry.file) : undefined
+  const photoImage = photoEntry ? resolveAsset(photoEntry.file, { width: photoEntry.width, height: photoEntry.height }) : undefined
   const photoCover = photoEntry ? resolveAsset(photoEntry.cover ?? photoEntry.file) : undefined
   const inAlbum = (image?: ImageRef) =>
     !!image && route.album.some((a) => a.image.kind === image.kind && a.image.value === image.value)
@@ -112,7 +172,7 @@ function mergeAssets(route: Route, photos: PhotoManifest, maps: PhotoManifest): 
   // 默认相册的额外风景照：每张作为独立的系统相册项（id 带 _g<n>，仍属「系统」不可删）
   for (let i = 0; i < (photoEntry.gallery?.length ?? 0); i++) {
     const g = photoEntry.gallery![i]
-    const gImage = resolveAsset(g.file)
+    const gImage = resolveAsset(g.file, { width: g.width, height: g.height })
     if (!inAlbum(gImage)) {
       prepend.push({
         id: `photo_${code}_g${i}`,
@@ -206,6 +266,8 @@ interface DataApi {
   photoManifest: PhotoManifest
   /** public/photos/maps.json 里的官方路线图表 */
   routeMaps: PhotoManifest
+  /** public/stays.json 里的住宿池（OSM 爬取，随包分发，刷新即生效） */
+  stays: StaysManifest | null
   /** 行前 checklist 的勾选状态与自定义条目 */
   checklist: ChecklistState
   toggleCheck: (id: string) => void
@@ -242,6 +304,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [photoManifest, setPhotoManifest] = useState<PhotoManifest>({})
   const [routeMaps, setRouteMaps] = useState<PhotoManifest>({})
   const [trackManifest, setTrackManifest] = useState<TrackManifest>({})
+  const [stays, setStays] = useState<StaysManifest | null>(null)
   const [checklist, setChecklist] = useState<ChecklistState>({
     checked: [],
     skipped: [],
@@ -293,26 +356,38 @@ export function DataProvider({ children }: { children: ReactNode }) {
       load<PhotoManifest>('photos/maps.json'),
       load<PhotoManifest>('photos/manifest.json'),
       load<TrackManifest>('tracks.json'),
-    ]).then(([maps, photos, tracks]) => {
+      load<StaysManifest>('stays.json'),
+    ]).then(([maps, photos, tracks, staysJson]) => {
       if (!alive) return
       if (maps) setRouteMaps(maps)
       if (photos) setPhotoManifest(photos)
       if (tracks) setTrackManifest(tracks)
+      if (staysJson) setStays(staysJson)
     })
     return () => {
       alive = false
     }
   }, [])
 
+  const townsByKo = useMemo(() => {
+    const m: Record<string, Hotel[]> = {}
+    for (const t of stays?.towns ?? []) m[t.ko] = t.hotels
+    return m
+  }, [stays])
+
   const routes = useMemo(() => {
     const hasAssets = Object.keys(photoManifest).length > 0 || Object.keys(routeMaps).length > 0
     const hasTracks = Object.keys(trackManifest).length > 0
-    if (!hasAssets && !hasTracks) return rawRoutes
+    const hasStays = !!stays && Object.keys(townsByKo).length > 0
+    if (!hasAssets && !hasTracks && !hasStays) return rawRoutes
     return rawRoutes.map((r) => {
       const withAssets = hasAssets ? mergeAssets(r, photoManifest, routeMaps) : r
-      return hasTracks ? mergeTrack(withAssets, trackManifest) : withAssets
+      const withStays = hasStays
+        ? mergeStays(withAssets, townsByKo, stays!.routeTowns)
+        : withAssets
+      return hasTracks ? mergeTrack(withStays, trackManifest) : withStays
     })
-  }, [rawRoutes, photoManifest, routeMaps, trackManifest])
+  }, [rawRoutes, photoManifest, routeMaps, trackManifest, stays, townsByKo])
 
   const upsertRoute = useCallback((route: Route) => {
     setRawRoutes((prev) => {
@@ -528,6 +603,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       reload,
       photoManifest,
       routeMaps,
+      stays,
       checklist,
       toggleCheck,
       toggleSkip,
@@ -547,6 +623,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       updateUi,
       photoManifest,
       routeMaps,
+      stays,
+      townsByKo,
       checklist,
       upsertRoute,
       removeRoute,
