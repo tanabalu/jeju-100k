@@ -1,4 +1,5 @@
-/* 行程单（打印 / 存 PDF 用） */
+/* 行程单（打印 / 存 PDF / 存图片 共用） */
+/* 桌面与移动端同一套 DOM，差异只在排版宽度；移动端通过 html-to-image 截图后分享存相册 */
 
 .sheet {
   background: #fff;
@@ -7,13 +8,14 @@
   border: 1px solid var(--line);
   border-radius: var(--radius);
   font-size: 13px;
-  line-height: 1.65;
+  line-height: 1.6;
 }
 
 .sheet h1 {
-  margin: 0 0 4px;
-  font-size: 20px;
+  margin: 0 0 6px;
+  font-size: 21px;
   color: #111827;
+  letter-spacing: 0.2px;
 }
 
 .sub {
@@ -24,101 +26,249 @@
   font-size: 12px;
   border-bottom: 2px solid #111827;
   padding-bottom: 10px;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
+.sub b {
+  color: #111827;
+}
+
+/* ---- Day 卡片：左边条按天循环换色 ---- */
 .day {
   /* 打印时不要把一天切断跨到两页 */
   break-inside: avoid;
   page-break-inside: avoid;
-  margin-bottom: 16px;
+  border-left: 4px solid var(--bar, #2f7d4f);
+  background: var(--tint, #f4faf6);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
 }
 
-/* 「出发前一晚」栏：不属于任何一天，左边条换成紫色 + 灰底，跟正经的 Day 区分开 */
+.c0 { --bar: #2f7d4f; --tint: #f3faf5; }
+.c1 { --bar: #2563eb; --tint: #f2f7ff; }
+.c2 { --bar: #d97706; --tint: #fef8ef; }
+.c3 { --bar: #db2777; --tint: #fdf2f8; }
+.c4 { --bar: #7c3aed; --tint: #f7f3ff; }
+.c5 { --bar: #0891b2; --tint: #effbfe; }
+
+/* 「出发前一晚」：紫色边条 + 浅紫底，跟正经的 Day 区分开 */
 .day-prev {
-  background: #fbfaff;
+  --bar: #6366f1;
+  --tint: #fbfaff;
   border: 1px dashed #c7d2fe;
-  border-radius: 6px;
-  padding: 8px 10px;
 }
 
-.day-prev .day-h {
-  border-left-color: #6366f1;
+.day-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin-bottom: 6px;
 }
 
-.day-h {
+.day-title {
   font-weight: 700;
-  font-size: 14px;
-  border-left: 3px solid #2f7d4f;
-  padding-left: 8px;
-  margin-bottom: 6px;
+  font-size: 15px;
+  color: #111827;
 }
 
-.day-h span {
-  font-weight: 500;
+/* Day 标题里的路线号/名称用绿色强调 */
+.day-title em {
+  font-style: normal;
+  color: #15803d;
+  font-weight: 700;
+}
+
+.day-ends {
   color: #4b5563;
-  font-size: 12px;
-  margin-left: 6px;
+  font-size: 12.5px;
 }
 
-.day-m {
-  color: #4b5563;
-  font-size: 12px;
-  margin-bottom: 6px;
-}
-
-.sheet table {
-  width: 100%;
-  border-collapse: collapse;
+.day-date {
+  margin-left: auto;
+  color: #6b7280;
   font-size: 12px;
 }
 
-.sheet th,
-.sheet td {
-  border-bottom: 1px solid #d1d5db;
-  padding: 5px 6px;
-  text-align: left;
-  vertical-align: top;
+.day-stats {
+  color: #374151;
+  font-size: 12.5px;
+  margin-bottom: 8px;
 }
 
-.sheet th {
-  background: #f3f4f6;
+.day-stats b {
+  color: #111827;
+}
+
+/* ---- 时间轴：起床 / 出发 标签 ---- */
+.timeline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.time-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 11.5px;
   font-weight: 600;
+  line-height: 1.5;
+}
+
+.time-wake {
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+}
+
+.time-go {
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  color: #166534;
+}
+
+.time-end {
+  background: #e0e7ff;
+  border: 1px solid #a5b4fc;
+  color: #3730a3;
+}
+
+/* ---- 行程胶囊 ---- */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: #374151;
+  line-height: 1.5;
+}
+
+.chip b {
+  color: #111827;
+}
+
+/* 胶囊里的时间窗：等宽数字，一眼能对上时刻 */
+.chip-time {
+  color: #1d4ed8;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  margin-left: 2px;
+  white-space: nowrap;
+}
+
+/* 离岛交通块：和步行胶囊区分开（天蓝底） */
+.chip-ferry {
+  background: #e0f2fe;
+  border: 1px solid #7dd3fc;
+  color: #075985;
+}
+
+.chip-ferry b {
+  color: #075985;
+}
+
+.chip-ferry .chip-time {
+  color: #0369a1;
+}
+
+/* 离岛额外时长提示行 */
+.island-note {
+  font-size: 12px;
+  color: #075985;
+  margin-bottom: 6px;
+}
+
+/* ---- 住宿 / 备注 / 提示 行 ---- */
+.line {
+  margin-top: 7px;
+  font-size: 12.5px;
+  color: #1f2937;
+}
+
+.line-sub {
+  margin-top: 3px;
+  padding-left: 18px;
+  color: #6b7280;
+  font-size: 11.5px;
+  line-height: 1.55;
 }
 
 .day-warn {
   margin-top: 6px;
   font-size: 12px;
   color: #9a3412;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 6px;
+  padding: 4px 8px;
 }
 
 .day-note {
   margin-top: 6px;
   font-size: 12px;
   color: #4b5563;
-}
-
-.stay {
-  margin-top: 7px;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  border-radius: 6px;
-  padding: 6px 9px;
-  font-size: 12px;
-}
-
-.stay-why,
-.stay-list {
-  color: #78350f;
-  font-size: 11.5px;
-  line-height: 1.6;
+  background: #f9fafb;
+  border-left: 3px solid #d1d5db;
+  padding: 4px 8px;
 }
 
 .foot {
-  margin-top: 14px;
+  margin-top: 16px;
   border-top: 1px solid #d1d5db;
   padding-top: 8px;
   color: #6b7280;
   font-size: 11px;
   line-height: 1.6;
+}
+
+/* ---- 移动端：卡片内元素更紧凑、保持可截图 ---- */
+@media (max-width: 720px) {
+  .sheet {
+    padding: 16px 14px;
+    font-size: 12.5px;
+  }
+
+  .sheet h1 {
+    font-size: 18px;
+  }
+
+  .sub {
+    gap: 8px 12px;
+  }
+
+  .day {
+    padding: 9px 12px;
+    margin-bottom: 12px;
+  }
+
+  .day-title {
+    font-size: 14px;
+    width: 100%;
+  }
+
+  .day-date {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .chip {
+    font-size: 11.5px;
+    padding: 3px 9px;
+  }
 }

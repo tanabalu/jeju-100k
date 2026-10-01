@@ -1,0 +1,152 @@
+/* 行程单「备用信息页」（紧急电话 + 中韩求助用语）
+   打印时单独成页，存图时作为行程单下方的第二屏一并截图。 */
+
+.help-page {
+  background: #fff;
+  color: #111827;
+  padding: 24px 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-size: 13px;
+  line-height: 1.6;
+
+  /* 打印时与行程单分页：单独占一页 */
+  break-before: page;
+  page-break-before: always;
+}
+
+.head {
+  border-bottom: 2px solid #111827;
+  padding-bottom: 10px;
+  margin-bottom: 16px;
+}
+
+.head h1 {
+  margin: 0 0 6px;
+  font-size: 21px;
+  color: #111827;
+  letter-spacing: 0.2px;
+}
+
+.sub {
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.h2 {
+  font-size: 15px;
+  margin: 18px 0 8px;
+  color: #111827;
+}
+
+.tip {
+  font-size: 11.5px;
+  color: #6b7280;
+  margin: 0 0 8px;
+}
+
+.tbl {
+  width: 100%;
+  /* 固定列宽：列宽由表格均分，内容必须换行，避免打印横向溢出 */
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  margin-bottom: 6px;
+}
+
+.tbl th,
+.tbl td {
+  border: 1px solid #e5e7eb;
+  padding: 5px 9px;
+  text-align: left;
+  vertical-align: top;
+  /* 长串（邮箱、带连字符的号码、长韩文）强制断行，杜绝表格撑破 */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.tbl th {
+  background: #f3f4f6;
+  color: #111827;
+  font-weight: 600;
+}
+
+.c-name {
+  color: #374151;
+}
+
+.c-num {
+  font-weight: 700;
+  color: #b91c1c;
+  font-variant-numeric: tabular-nums;
+}
+
+.c-note {
+  color: #6b7280;
+}
+
+.c-cn {
+  color: #374151;
+}
+
+/* 韩文：放大、加粗，方便指给韩国人看（允许换行，避免长句撑破列宽） */
+.c-ko {
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+}
+
+/* 中韩对照表：韩文列给足宽度，尽量保持整句在一行便于指给韩国人看 */
+.phrase-tbl th:nth-child(1),
+.phrase-tbl td:nth-child(1) {
+  width: 26%;
+}
+.phrase-tbl th:nth-child(2),
+.phrase-tbl td:nth-child(2) {
+  width: 42%;
+}
+.phrase-tbl th:nth-child(3),
+.phrase-tbl td:nth-child(3) {
+  width: 32%;
+}
+
+.c-rd {
+  color: #6b7280;
+  font-size: 11.5px;
+}
+
+.pgroup {
+  margin-bottom: 10px;
+}
+
+.pgroup-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #1d4ed8;
+  margin: 8px 0 4px;
+}
+
+.foot {
+  margin-top: 14px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 11px;
+  color: #6b7280;
+}
+
+/* 移动端：表格字号略收，避免窄屏溢出 */
+@media (max-width: 720px) {
+  .help-page {
+    padding: 18px 16px;
+  }
+  .tbl {
+    font-size: 11.5px;
+  }
+  .tbl th,
+  .tbl td {
+    padding: 4px 6px;
+  }
+  .c-ko {
+    font-size: 13px;
+  }
+}

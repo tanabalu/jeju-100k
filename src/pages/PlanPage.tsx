@@ -11,6 +11,7 @@ import { DayBoard, buildStays } from '../components/DayBoard'
 import { Select } from '../components/Select'
 import { DatePicker } from '../components/DatePicker'
 import { PlanPrintSheet } from '../components/PlanPrintSheet'
+import { PlanHelpSheet } from '../components/PlanHelpSheet'
 import { collectHotels, suggestPrevNight } from '../lib/stayMatch'
 import {
   DAY_HOURS_LIMIT,
@@ -86,6 +87,8 @@ export function PlanPage() {
   const isMobile = useIsMobile()
   /** 生成图片进行中：禁用按钮，防止连点 */
   const [saving, setSaving] = useState(false)
+  /** 打印 / 存图时是否附带「备用信息页」（紧急电话 + 中韩求助用语），默认不附 */
+  const [withHelp, setWithHelp] = useState(false)
   /** 默认进「清单」视图 —— 老用户的习惯不能被改掉；但若本地缓存过上次选的页签则沿用 */
   const [view, setView] = useState<PlanView>(readPlanView)
   const changeView = (v: PlanView) => {
@@ -758,11 +761,14 @@ export function PlanPage() {
           onClose={() => setExportOpen(false)}
           footer={
             <div className={`${styles['export-foot']}`}>
-              <span className={`${styles['export-hint']}`}>
-                {isMobile
-                  ? '图片按行程单原样生成，保存到相册即可'
-                  : '打印时页面框架会自动隐藏，纸上只留这份行程单'}
-              </span>
+              <label className={`${styles['export-help-check']}`}>
+                <input
+                  type="checkbox"
+                  checked={withHelp}
+                  onChange={(e) => setWithHelp(e.target.checked)}
+                />
+                <span>附上备用信息页（紧急电话 + 中韩求助用语）</span>
+              </label>
               <span className={`${styles.spacer}`} />
               {isMobile ? (
                 <button className="btn btn-primary" onClick={saveAsImage} disabled={saving}>
@@ -792,6 +798,7 @@ export function PlanPage() {
               prevLabel={prevLabel}
               metrics={metrics}
             />
+            {withHelp && <PlanHelpSheet />}
           </div>
         </Modal>
       )}

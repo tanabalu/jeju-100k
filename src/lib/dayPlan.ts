@@ -76,6 +76,44 @@ export function formatHours(h: number): string {
 }
 
 /**
+ * 当天「收工」锚定时刻（小数小时）：一天一条线按 16:00，两条及以上按 17:00。
+ * 起床时间由收工时刻倒推（见 dayWakeH），而不是像 tripPlans 那样从开走时刻倒推。
+ */
+export function dayFinishH(rowCount: number): number {
+  return rowCount <= 1 ? 16 : 17
+}
+
+/** 小数小时 + 增量 → 新的小数小时（允许超过 24，由 fmtClock 取模处理跨午夜） */
+export function addHours(baseH: number, add: number): number {
+  return baseH + add
+}
+
+/** 小数小时 → "HH:MM"（按 24h 取模，跨午夜仍尽量可读） */
+export function fmtClock(h: number): string {
+  const total = Math.round(h * 60)
+  const hh = Math.floor(((total / 60) % 24 + 24) % 24)
+  const mm = ((total % 60) + 60) % 60
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+}
+
+/** 起床 → 出发的缓冲（含早餐与去程），小时 */
+export const WAKE_BUFFER_H = 2.5
+
+/**
+ * 起床时刻 = 收工时刻 − 总步行估算时长 − 缓冲。
+ * 例：一天一条线、约 4h 步行 → 16:00 − 4h − 2.5h = 09:30 起床；
+ *     两条线、约 6h 步行 → 17:00 − 6h − 2.5h = 08:30 起床。
+ */
+export function dayWakeH(hours: number, rowCount: number): number {
+  return dayFinishH(rowCount) - hours - WAKE_BUFFER_H
+}
+
+/** 出发时刻 = 起床 + 缓冲；也等于 收工 − 总步行时长（逐段累加后最后一段正好落在收工时刻） */
+export function dayDepartureH(hours: number, rowCount: number): number {
+  return dayWakeH(hours, rowCount) + WAKE_BUFFER_H
+}
+
+/**
  * 离岛路线判定（牛岛 / 加波岛 / 楮子岛那几条分支线）。
  *
  * 必须单独识别：离岛要坐船，错过末班船当晚只能住岛上 ——
@@ -85,6 +123,58 @@ export function formatHours(h: number): string {
 export function isIslandRoute(route: Route): boolean {
   if ((route.tags ?? []).includes('离岛')) return true
   return (route.region ?? '').includes('离岛')
+}
+
+/**
+ * 离岛进出需要的「额外时间」：买票 + 排队 + 坐船岛上来回。
+ *
+ * 这些是经验估算（非官方时刻表），用于在行程单上把离岛天的总占用时长算足 ——
+ * 否则只算岛上限步会严重低估（尤其楮子岛，单程船就约 1 小时）。
+ * 各岛数值可调；船班受季节 / 潮汐影响很大，最终以出发前实际船班为准。
+ */
+export const ISLAND_TICKET_QUEUE_H = 0.5 // 买票 + 排队（一次性，不分往返）
+
+/** 各岛「坐船往返」经验时长（小时）：单程 ×2 */
+const ISLAND_FERRY_RT_H: Record<string, number> = {
+  udo: 0.5, // 牛岛：单程约 15 分钟
+  gapado: 0.7, // 加波岛：单程约 20 分钟
+  chuja: 2.5, // 楮子岛：单程约 75 分钟
+}
+const ISLAND_FERRY_RT_DEFAULT_H = 0.75 // 未知离岛的兜底往返时长
+
+/** 从 region / tags 解析离岛 key（udo / gapado / chuja） */
+export function islandKey(route: Route): string | undefined {
+  const hay = `${route.region ?? ''} ${route.tags?.join(' ') ?? ''}`
+  if (hay.includes('牛岛')) return 'udo'
+  if (hay.includes('加波')) return 'gapado'
+  if (hay.includes('楮子')) return 'chuja'
+  return undefined
+}
+
+/** 离岛中文名（用于行程单标注） */
+export function islandZh(route: Route): string {
+  const k = islandKey(route)
+  if (k === 'udo') return '牛岛'
+  if (k === 'gapado') return '加波岛'
+  if (k === 'chuja') return '楮子岛'
+  return '离岛'
+}
+
+/** 单条离岛线的「坐船往返」时长（小时） */
+export function islandFerryRtH(route: Route): number {
+  const k = islandKey(route)
+  return k ? ISLAND_FERRY_RT_H[k] ?? ISLAND_FERRY_RT_DEFAULT_H : ISLAND_FERRY_RT_DEFAULT_H
+}
+
+/** 单条离岛线的额外总时长 = 买票+排队 + 坐船往返 */
+export function islandExtraH(route: Route): number {
+  if (!isIslandRoute(route)) return 0
+  return ISLAND_TICKET_QUEUE_H + islandFerryRtH(route)
+}
+
+/** 当天所有离岛线的额外总时长 */
+export function dayIslandExtraH(rows: PlanRow[]): number {
+  return rows.reduce((s, r) => s + islandExtraH(r.route), 0)
 }
 
 /** 路线的实际起点/终点：权威起终点字段优先，其次结算出来的轨迹端点 */
