@@ -6,6 +6,9 @@ import { useConfirm, useToast } from '../components/Feedback'
 import { Select } from '../components/Select'
 import styles from './SettingsPage.module.less'
 
+/** 重载通常一两帧就跑完了，不留一档下限的话旋转只是闪一下，跟文案闪跳没区别 */
+const RELOAD_MIN_SPIN_MS = 450
+
 export function SettingsPage() {
   const { settings, updateSettings, reload, loading } = useData()
   const toast = useToast()
@@ -14,13 +17,24 @@ export function SettingsPage() {
   const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge')
   /** 「重新加载数据」按下的瞬间置真；等 context 的 loading 回落即视为完成 */
   const [reloading, setReloading] = useState(false)
+  const spinStartedAt = useRef(0)
 
   useEffect(() => {
-    if (reloading && !loading) {
+    if (!reloading || loading) return
+    const wait = Math.max(0, RELOAD_MIN_SPIN_MS - (Date.now() - spinStartedAt.current))
+    const timer = window.setTimeout(() => {
       setReloading(false)
       toast('已重新加载本机数据', 'success')
-    }
+    }, wait)
+    return () => window.clearTimeout(timer)
   }, [reloading, loading, toast])
+
+  const handleReload = () => {
+    if (reloading) return
+    spinStartedAt.current = Date.now()
+    setReloading(true)
+    reload()
+  }
 
   const setStyle = (mapStyle: MapStyle) => {
     updateSettings({ mapStyle })
@@ -118,15 +132,15 @@ export function SettingsPage() {
           />
         </div>
         <div className="btn-row">
-          <button
-            className="btn"
-            disabled={reloading}
-            onClick={() => {
-              setReloading(true)
-              reload()
-            }}
-          >
-            {reloading ? '加载中…' : '重新加载数据'}
+          <button className="btn" onClick={handleReload} aria-busy={reloading}>
+            <svg
+              className={`${styles['reload-icon']} ${reloading ? styles['is-spinning'] : ''}`}
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 0 0-8 8 8 8 0 0 0 8 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18a6 6 0 0 1-6-6 6 6 0 0 1 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35Z" />
+            </svg>
+            重新加载数据
           </button>
           <button
             className="btn btn-danger"

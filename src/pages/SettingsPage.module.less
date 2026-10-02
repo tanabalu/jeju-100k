@@ -23,6 +23,26 @@
   font-weight: 600;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
 }
+/* 「重新加载数据」按钮里的循环箭头：静止时不抢视线，跑数据时匀速转 */
+.reload-icon {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+.reload-icon.is-spinning {
+  animation: reload-spin 0.8s linear infinite;
+}
+@keyframes reload-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reload-icon.is-spinning {
+    animation-duration: 2s;
+  }
+}
 .backup-bar {
   display: flex;
   align-items: center;
