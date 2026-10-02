@@ -548,8 +548,9 @@ export function RouteMap({
               ))}
             </>
           )}
-          <span><i style={{ background: COLORS.hotel }} />住宿</span>
-          <span><i style={{ background: COLORS.sight }} />看点</span>
+          {/* 图例随实际标记走：住宿被用户收起（或本来就没有）时不留一个对不上图的空图例项 */}
+          {hotels.length > 0 && <span><i style={{ background: COLORS.hotel }} />住宿</span>}
+          {sights.length > 0 && <span><i style={{ background: COLORS.sight }} />看点</span>}
         </div>
       )}
       {!pickable && (
@@ -733,8 +734,12 @@ function FallbackSketch({
             ))}
           </>
         )}
-        <span><i style={{ background: COLORS.hotel }} />住宿</span>
-        <span><i style={{ background: COLORS.sight }} />看点</span>
+        {box.items.some((it) => it.kind === 'hotel') && (
+          <span><i style={{ background: COLORS.hotel }} />住宿</span>
+        )}
+        {box.items.some((it) => it.kind === 'sight') && (
+          <span><i style={{ background: COLORS.sight }} />看点</span>
+        )}
       </div>
     </div>
   )

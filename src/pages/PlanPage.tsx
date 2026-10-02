@@ -100,6 +100,9 @@ export function PlanPage() {
   /** 只看未完成：隐藏已勾选走完的路线。状态存在本机缓存（jejuolle100k.ui），刷新后仍然保持 */
   const hideDone = ui.planHideDone
   const setHideDone = (v: boolean) => updateUi({ planHideDone: v })
+  /** 行程位置地图上的住宿标（紫）：默认显示，勾掉就整张图不画住宿。同样存本机缓存 */
+  const showHotels = ui.planMapHotels
+  const setShowHotels = (v: boolean) => updateUi({ planMapHotels: v })
 
   const metrics = useMemo(() => new Map(routes.map((r) => [r.id, computeMetrics(r)])), [routes])
   /** 住宿候选池：跨全部路线收集，由 hotel.id 去重 */
@@ -445,12 +448,29 @@ export function PlanPage() {
           {/* 行程位置地图：常驻区块，位置和以前一样（在汇总卡之后），不参与视图切换 */}
           {rows.length > 0 && (
             <section className="section">
-              <h2>行程位置</h2>
+              <div className="section-head">
+                <h2>行程位置</h2>
+                {/* 住宿标一次能有十几个，压在线上看不清路线时用它整批收起来 */}
+                {planHotels.length > 0 && (
+                  <label
+                    className={`${styles['map-toggle']}`}
+                    title="取消勾选后，地图上不再画住宿（紫标），只看路线与编号"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={showHotels}
+                      onChange={(e) => setShowHotels(e.target.checked)}
+                    />
+                    显示住宿
+                  </label>
+                )}
+              </div>
               <p className="muted">
                 已加入行程篮的各段路线在地图上的分布（黑标=路线编号，紫=住宿，橙=看点）。
                 标识落在每段线中间，避开相邻路线共享的端点；有真实轨迹的按轨迹画线，
                 其余连途经点。<strong>虚线（灰绿）= 这条线还没有实测轨迹</strong>，
                 只是把近似坐标连起来示意，走向不作数。
+                住宿标太密时可用右上角的「显示住宿」整批收起。
                 底图加载失败时自动降级为离线示意图，位置信息不受影响。
               </p>
               <RouteMap
@@ -458,7 +478,7 @@ export function PlanPage() {
                 lines={planLines}
                 approxLines={planApprox}
                 badges={planBadges}
-                hotels={planHotels}
+                hotels={showHotels ? planHotels : []}
                 sights={planSights}
                 height={380}
                 fixedZoom={10}

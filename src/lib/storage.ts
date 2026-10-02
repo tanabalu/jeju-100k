@@ -49,6 +49,8 @@ export interface UiState {
   prepOnlyTodo: boolean
   /** 行程篮：只看未完成（隐藏已走完的路线） */
   planHideDone: boolean
+  /** 行程篮「行程位置」地图：显示住宿标（紫）。默认显示，勾掉就整图不画住宿 */
+  planMapHotels: boolean
   /** 行前清单：被折叠的分组 id（PREP_GROUPS 的 id + custom / extras），默认全展开 */
   prepGroupsCollapsed: string[]
   /** 行前清单：被展开的备选卡片 id（PREP_PRESETS 的 id），默认全折叠 */
@@ -60,6 +62,7 @@ export interface UiState {
 const EMPTY_UI: UiState = {
   prepOnlyTodo: false,
   planHideDone: false,
+  planMapHotels: true,
   prepGroupsCollapsed: [],
   prepPresetsOpen: [],
   prepTutorialsOpen: [],
@@ -71,6 +74,8 @@ function normalizeUi(raw: Partial<UiState> | undefined | null): UiState {
   return {
     prepOnlyTodo: raw.prepOnlyTodo === true,
     planHideDone: raw.planHideDone === true,
+    // 住宿标默认显示：只有明确关掉过才隐藏（布尔兜底统一走 `=== true` 会让首次进来的用户看不到住宿）
+    planMapHotels: raw.planMapHotels !== false,
     prepGroupsCollapsed: arr<string>(raw.prepGroupsCollapsed),
     prepPresetsOpen: arr<string>(raw.prepPresetsOpen),
     prepTutorialsOpen: arr<string>(raw.prepTutorialsOpen),

@@ -303,6 +303,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [ui, setUi] = useState<UiState>({
     prepOnlyTodo: false,
     planHideDone: false,
+    planMapHotels: true,
     prepGroupsCollapsed: [],
     prepPresetsOpen: [],
     prepTutorialsOpen: [],
