@@ -27,12 +27,14 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
-# 多个公共 Overpass 端点，单个 504/超时自动换下一个（环境限流时提高成功率）
+# 多个公共 Overpass 端点，单个 504/超时自动换下一个（环境限流时提高成功率）。
+# 只保留「全球数据」实例：区域镜像（如仅瑞士的 overpass.osm.ch）对济州恒返回 0 条元素，
+# 会被当成成功写入空列表，导致城镇住宿假性为 0 —— 这是 stays.json 大面积空城镇的根因。
 ENDPOINTS = [
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
-    "https://overpass.osm.ch/api/interpreter",
     "https://overpass.private.coffee/api/interpreter",
+    "https://overpass.openstreetmap.ru/api/interpreter",
 ]
 TIMEOUT = 90
 UA = "jeju-olle-stay-fetch/1.0 (Jeju Olle 100k guide; contact: local dev)"
@@ -111,7 +113,8 @@ out center tags;
 """
 
 
-def fetch_one(ep_idx, town) -> list:
+def fetch_one(ep_idx, town):
+    """返回 elements 列表；所有端点都失败时返回 None（调用方据此不落盘，留给 --resume 补）。"""
     ko, zh, lng, lat, radius = town
     ql = build_ql(lat, lng, radius)
     last_err = None
@@ -126,7 +129,7 @@ def fetch_one(ep_idx, town) -> list:
             last_err = e
             continue
     print(f"  [失败] {zh}({ko}): {last_err}", file=sys.stderr)
-    return []
+    return None
 
 
 def to_hotel(e: dict):
@@ -211,18 +214,26 @@ def main():
     here = os.path.dirname(os.path.abspath(__file__))
     dest = os.path.normpath(os.path.join(here, "..", "public", "stays.json"))
 
+    # 始终以磁盘已有数据为基底：write_partial 只输出 results 里有的城镇，
+    # 不带基底跑 --dry 会把 stays.json 覆盖成只剩一个城镇。
     results: dict = {}
-    if args.resume and os.path.exists(dest):
+    if os.path.exists(dest):
         try:
             old = json.load(open(dest, encoding="utf-8"))
             for t in old.get("towns", []):
                 if t.get("hotels"):
                     results[t["ko"]] = t["hotels"]
-            print(f"[resume] 已恢复 {len(results)} 个城镇，补抓剩余")
+            print(f"[基底] 已载入 {len(results)} 个城镇的现有住宿")
         except Exception as e:  # noqa
-            print(f"[resume] 读取失败，忽略：{e}", file=sys.stderr)
+            print(f"[基底] 读取失败，忽略：{e}", file=sys.stderr)
 
-    pending = TOWNS[:1] if args.dry else [t for t in TOWNS if t[0] not in results]
+    if args.dry:
+        pending = TOWNS[:1]
+    elif args.resume:
+        pending = [t for t in TOWNS if t[0] not in results]
+        print(f"[resume] 待补 {len(pending)} 个城镇")
+    else:
+        pending = list(TOWNS)
     if not pending:
         print("全部城镇已抓取，无需补。")
         return
@@ -236,6 +247,9 @@ def main():
         for fut in as_completed(futs):
             t = futs[fut]
             els = fut.result()
+            if els is None:  # 全端点失败：不落盘，保持"未抓取"，下次 --resume 会补
+                print(f"  {t[1]}({t[0]}): 未抓取（端点全部不可用）[{len(results)}/{len(TOWNS)}]")
+                continue
             hotels = []
             seen = set()
             for e in els:
