@@ -574,9 +574,6 @@ export function PlanPage() {
                   </div>
                 )}
               </div>
-              <p className="muted">
-                黑标=路线编号，紫=住宿，橙=看点。<strong>虚线（灰绿）= 暂无实测轨迹，仅示意走向</strong>。住宿标太密时切右上角模式到「仅路径」。底图失败会自动降级为离线示意图。
-              </p>
               {stayMode === 'confirmed' && confirmedHotels.length === 0 && (
                 <p className="muted" style={{ fontSize: 13, marginTop: -4 }}>
                   还没有确认任何住宿 —— 切到「按天」，在每晚的住宿卡上点「住这家」锁定后，这里就会出现。

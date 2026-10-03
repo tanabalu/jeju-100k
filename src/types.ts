@@ -117,19 +117,16 @@ export type { RouteKind }
 
 /**
  * 地形采样点：[lng, lat, ele?]。
- * - `olleeElevation.ts` 的 SRTM 采样点总是带 ele；
- * - `public/tracks.json` 的真实轨迹点若未录海拔，ele 缺省（此时界面显示「暂缺海拔数据」，
- *   而不是拿别的数据冒充）。
+ * 来源是 `public/tracks.json` 的真实轨迹（`olleeElevation.ts` 由它派生）；
+ * 轨迹未录海拔时 ele 缺省，此时界面显示「暂缺海拔数据」，而不是拿别的数据冒充。
  */
 export type ElevSample = [number, number, number?]
 
 /**
- * 地形数据来源：
- * - track 真实轨迹（GPX 导入或实测）
- * - line  沿起终点直线采样估算
- * - loop  环线按里程反推圆周采样估算
+ * 地形数据来源：只有「真实轨迹」一种（GPX/KML/GeoJSON 导入或实测）。
+ * 缺省表示这条路还没有轨迹数据，此时不显示剖面。
  */
-export type ElevBasis = 'track' | 'line' | 'loop'
+export type ElevBasis = 'track'
 
 /** 一条路线 */
 export interface Route {

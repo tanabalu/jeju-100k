@@ -12,6 +12,7 @@ import type {
 } from '../types'
 import type { PrepItem } from './prep'
 import { uid } from './id'
+import { DEFAULT_SIGHTS } from './sightsData'
 
 const K_ROUTES = 'jejuolle100k.routes'
 const K_PLANS = 'jejuolle100k.plans'
@@ -253,5 +254,53 @@ export function importBackup(text: string, mode: 'merge' | 'replace'): { routes:
   }
   if (parsed.settings) store.setSettings(parsed.settings)
   return { routes: routes.length, plans: store.getPlans().length }
+}
+
+/**
+ * 把「人工补充看点」(curated_sights.json → DEFAULT_SIGHTS) 按 id 幂等并入现有路线。
+ *
+ * 背景：默认种子只在「本机没有任何路线」时写入（DataContext.reload 的 length===0 分支），
+ * 老用户本地已有路线时，新补的看点永远不会自动落库。此函数让用户主动把官方默认看点
+ * 同步进本地路线。
+ * - 缺失的 id：直接补入（不重复）。
+ * - 已存在的 id：若用户这条看点还没有图片、而官方默认带图，则把图片补进已有看点
+ *   （不覆盖用户已有的图片 / 名称等其它字段）——这样后续给看点补封面后，已合并过的
+ *   老路线再点一次「合并官方默认看点」也能拿到图，不必清空数据。
+ * 不动路线/行程篮/住宿等其它数据。这是用户触发的显式合并（与「导入备份」同性质），不是自动迁移。
+ *
+ * @returns lines 命中的路线数，added 新增的看点数，updated 被补全图片的已有看点数
+ */
+export function mergeDefaultSights(): { lines: number; added: number; updated: number } {
+  const routes = store.getRoutes()
+  let lines = 0
+  let added = 0
+  let updated = 0
+  for (const r of routes) {
+    const curated = r.code ? DEFAULT_SIGHTS[r.code] : undefined
+    if (!curated || curated.length === 0) continue
+    lines++
+    const byId = new Map(r.sights.map((s) => [s.id, s]))
+    const next = [...r.sights]
+    for (const c of curated) {
+      const existing = byId.get(c.id)
+      if (!existing) {
+        next.push(c)
+        added++
+      } else if (
+        (!existing.images || existing.images.length === 0) &&
+        c.images &&
+        c.images.length > 0
+      ) {
+        const idx = next.findIndex((s) => s.id === c.id)
+        if (idx >= 0) {
+          next[idx] = { ...existing, images: c.images }
+          updated++
+        }
+      }
+    }
+    if (added > 0 || updated > 0) r.sights = next
+  }
+  store.setRoutes(routes)
+  return { lines, added, updated }
 }
 

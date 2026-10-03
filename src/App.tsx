@@ -202,7 +202,7 @@ export default function App() {
                 <span className={`${styles['brand-mark']}`}>100K</span>
                 <span className={`${styles['brand-text']}`}>
                   偶来小路 · 百公里攻略
-                  <em>济州岛 Jeju Olle Trail · 27 条路线凑里程</em>
+                  <em>济州岛 Jeju Olle Trail · 29 条路线凑里程（3 / 15 号线各分 A 山线 · B 海线）</em>
                 </span>
               </Link>
               <button

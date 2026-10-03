@@ -58,8 +58,9 @@ def parse_seed(path):
         names[m.group(1)] = (m.group(2), m.group(3))
 
     specs = []
+    # ⚠️ 编号里现在带 A/B（3 号线、15 号线各分山线 / 海线两条走法），字符集要放开到字母
     for m in re.finditer(
-        r"\{\s*code:\s*'([\d-]+)',\s*start:\s*'(\w+)',\s*end:\s*'(\w+)',\s*"
+        r"\{\s*code:\s*'([\d\-AB]+)',\s*start:\s*'(\w+)',\s*end:\s*'(\w+)',\s*"
         r"km:\s*([\d.]+),\s*difficulty:\s*'(\w+)'([^}]*)\}",
         src,
     ):
@@ -91,8 +92,10 @@ def parse_seed(path):
 
 
 # --- 官方 App 快照口径 ------------------------------------------------------
-# App 把 3 号线和 15 号线各列成 A/B 两条走法；本项目把 A 线记作主线，故做归一。
-APP_TO_SPEC = {"03-A": "03", "15-A": "15"}
+# App 把 3 号线和 15 号线各列成 A/B 两条走法（A 山线 / B 海线）。
+# 2026-10-03 起站内编号与 App **逐个对齐**（`03-A`/`03-B`、`15-A`/`15-B`），
+# 所以这里不再需要任何别名换算 —— 一旦又要归一，说明编号口径又退回了「只记 A 线」，
+# 那会让 B 线永远以「App 有、seed 缺」的 ⚠️ 混在报表里，看不出是真缺还是别名没配。
 APP_BASELINE = os.path.join(HERE, "data", "olle-app-routes.json")
 
 
@@ -110,7 +113,7 @@ def check_app(places, specs, names, app_path):
     routes = json.load(open(app_path, encoding="utf-8"))["routes"]
     by_code = {}
     for r in routes:
-        by_code.setdefault(APP_TO_SPEC.get(r["code"], r["code"]), []).append(r)
+        by_code.setdefault(r["code"], []).append(r)
 
     spec_by = {s["code"]: s for s in specs}
 

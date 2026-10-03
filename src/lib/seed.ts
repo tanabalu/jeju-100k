@@ -3,11 +3,12 @@ import { uid } from './id'
 import { OLLE_ELEVATION } from './olleeElevation'
 import { OLLE_SURFACES } from './olleSurfaces'
 import { ROUTE_WAYPOINTS, type WaypointDef } from './waypointsData'
+import { DEFAULT_SIGHTS } from './sightsData'
 import { SEED_STAYS } from './seedStays'
 import olleEndpointsJson from '../data/olle-endpoints.json'
 
 /**
- * 27 条线的**权威起终点**（钉死值，不再靠运行时推导）。
+ * 29 条线的**权威起终点**（钉死值，不再靠运行时推导）。
  *
  * ⚠️ 为什么不再用 `PLACES` 的坐标当起终点：那是「城镇/地点级近似坐标」，
  *    实测 23/27 偏差 >1km、最大 6.7km。起终点已在此文件钉死为权威值，seed 时直接写入
@@ -100,9 +101,10 @@ const PLACES: Record<PlaceKey, { zh: string; ko: string; lng: number; lat: numbe
 //       「제주올레 16코스 종점 루트 변경(2025-06-24)」「17코스 시작점 루트 변경(2025-06-24)」
 //       「7코스 법환포구 구간 변경(2026-07-01)」。**判断口径有冲突时，一律以官网当前值为准。**
 //    ⭐ 2026-09-29 再拿**官方 Olle App 的路线列表**逐条核过（用户截图，快照固化在
-//       `scripts/data/olle-app-routes.json`）：本文件 27 条的**里程与起终点全部一致**。
-//       两边仅有的差别是 App 把 3 号线、15 号线各列成 A/B 两条走法（3-B 14.6km、15-B 13.0km），
-//       而本项目把 A 线记作主线（`03`=3A 20.9km、`15`=15A 15.5km）。
+//       `scripts/data/olle-app-routes.json`）：本文件的**里程与起终点全部一致**。
+//       ⭐ 2026-10-03 起按官方口径把 3 号线、15 号线拆成 A/B 两条走法（`03-A`/`03-B`、
+//       `15-A`/`15-B`，编号与 App 完全对齐，共 29 条）：**A = 山线**（内陆/中山间、翻岳穿林），
+//       **B = 海线**（海岸、基本无爬升）。两条起终点相同，是同一段路的二选一走法。
 //       ⚠️ 爬升**不在这两份官方基准里**（App 只给海拔剖面小图、不给数字），
 //       界面上的爬升一律来自轨迹点 + SRTM 30m 地形。
 //       `python3 scripts/check_official_consistency.py` 可复现这层核对（先对 App，再对轨迹）。
@@ -165,14 +167,28 @@ interface OlleSpec {
   branch?: boolean
   tags?: string[]
   region?: string
+  /**
+   * **A/B 两种走法**（官方只把 3 号线和 15 号线拆开列，编号带 `-A` / `-B`）：
+   * - `山线` = A 线：内陆 / 中山间走向，翻岳穿林，里程长、爬升大；
+   * - `海线` = B 线：海岸走向（官方称 바당올레），基本无台阶，里程短、难度低。
+   *
+   * 两条起终点相同、是同一段路的二选一，走完任意一条都算走完该号。
+   * 不带这个字段的路线就是没有 A/B 之分（其余 25 条）。
+   */
+  variant?: '山线' | '海线'
 }
 
-/** 官方公布的 27 条路线（21 主线 + 6 支线），里程与难度取自 jejuolle.org */
+/**
+ * 官方公布的 29 条路线（21 主线 + 6 支线 + 3 号线 / 15 号线各多一条 A/B 替代走法），
+ * 里程与难度取自 jejuolle.org 与官方 Olle App。
+ */
 const SPECS: OlleSpec[] = [
   { code: '01', start: 'siheung', end: 'gwangchigi', km: 15.1, difficulty: 'Medium', region: '东海岸 · 城山' },
   { code: '01-1', start: 'udo', end: 'udo', km: 13.2, difficulty: 'Medium', branch: true, region: '离岛 · 牛岛', tags: ['离岛', '需坐船'] },
   { code: '02', start: 'gwangchigi', end: 'onpyeong', km: 14.8, difficulty: 'Medium', region: '东海岸' },
-  { code: '03', start: 'onpyeong', end: 'pyoseon', km: 20.9, difficulty: 'High', region: '东南海岸' },
+  // 3 号线：A 山线（内陆·翻桶岳与独子峰）/ B 海线（바당올레·沿海岸，两线在 신풍신천바다목장 汇合）
+  { code: '03-A', start: 'onpyeong', end: 'pyoseon', km: 20.9, difficulty: 'High', region: '东南 · 内陆', variant: '山线' },
+  { code: '03-B', start: 'onpyeong', end: 'pyoseon', km: 14.6, difficulty: 'Low', region: '东南海岸', variant: '海线' },
   { code: '04', start: 'pyoseon', end: 'namwon', km: 19.0, difficulty: 'Medium', region: '南海岸' },
   { code: '05', start: 'namwon', end: 'soesokkak', km: 13.4, difficulty: 'Medium', region: '南海岸' },
   { code: '06', start: 'soesokkak', end: 'olleCenter', km: 10.1, difficulty: 'Low', region: '西归浦' },
@@ -187,7 +203,9 @@ const SPECS: OlleSpec[] = [
   { code: '13', start: 'yongsu', end: 'jeoji', km: 16.2, difficulty: 'Medium', region: '西海岸' },
   { code: '14', start: 'jeoji', end: 'hallim', km: 19.9, difficulty: 'Medium', region: '西北海岸' },
   { code: '14-1', start: 'jeoji', end: 'seogwang', km: 9.3, difficulty: 'Low', branch: true, region: '西北部' },
-  { code: '15', start: 'hallim', end: 'gonae', km: 15.5, difficulty: 'Medium', region: '北海岸' },
+  // 15 号线：A 山线（锦山公园·纳邑林道·과오름）/ B 海线（翰林港经郭支·汉潭海岸散步路到高内浦口）
+  { code: '15-A', start: 'hallim', end: 'gonae', km: 15.5, difficulty: 'Medium', region: '北海岸 · 山林', variant: '山线' },
+  { code: '15-B', start: 'hallim', end: 'gonae', km: 13.0, difficulty: 'Low', region: '北海岸', variant: '海线' },
   { code: '16', start: 'gonae', end: 'gwangnyeong', km: 14.8, difficulty: 'Medium', region: '北海岸' },
   { code: '17', start: 'gwangnyeong', end: 'kimmanduk', km: 19.5, difficulty: 'Medium', region: '济州市' },
   { code: '18', start: 'kimmanduk', end: 'jocheon', km: 17.1, difficulty: 'Medium', region: '东北海岸' },
@@ -199,12 +217,17 @@ const SPECS: OlleSpec[] = [
 ]
 
 /**
- * 27 条官方里程的**逐条合计**（计划页「全程」快捷目标用它）。
+ * 29 条官方里程的**逐条合计**（计划页「全程」快捷目标用它）。
  *
  * ⚠️ 官网首页另外写着「꼬닥꼬닥 걸어, 함께 만든 제주올레 길 437km 27코스」——
- *    那是**宣传口径**，与它自己逐条列出的里程加起来（≈403km）对不上，两个数都不算错。
+ *    那是**宣传口径**，与它自己逐条列出的里程加起来（≈430km）对不上，两个数都不算错。
  *    这里**从 SPECS 推导**而不是写死：写死就会出现「选『437 全程』，
- *    把 27 条全加进来却只有 403km，永远差一截」这种自相矛盾。
+ *    把 29 条全加进来却只有 430km，永远差一截」这种自相矛盾。
+ *
+ * ⚠️ 03-A / 03-B、15-A / 15-B 各是同一段路的二选一走法，实际只能走一条，
+ *    所以这里的合计数**比真正走完一圈的里程多算了 27.6km**（14.6 + 13.0）。
+ *    仍按 29 条全计，是为了和官方 App 列出的 29 个编号一一对应 —— 想凑「实际走完」的
+ *    里程，把目标设成 403（只算 A 线）即可。
  */
 export const OLLE_TOTAL_KM = Math.round(SPECS.reduce((sum, s) => sum + s.km, 0))
 
@@ -220,8 +243,14 @@ function buildRoute(spec: OlleSpec): Route {
   const now = Date.now()
   const s = PLACES[spec.start]
   const e = PLACES[spec.end]
-  const tags = [...(spec.branch ? ['支线'] : ['主线']), ...(spec.tags ?? [])]
-  // 地形采样序列：剖面图与爬升都从它来
+  // A/B 走法直接进标签：路线卡、检索（「山线」「海线」）都靠它区分两条同起终点的线
+  const tags = [
+    ...(spec.branch ? ['支线'] : ['主线']),
+    ...(spec.variant ? [spec.variant] : []),
+    ...(spec.tags ?? []),
+  ]
+  // 高程序列 = 真实轨迹点（由 public/tracks.json 派生），剖面图与爬升都从它来。
+  // 与运行时 DataContext.mergeTrack 同源同值，所以加载完不会出现剖面跳变。
   const elev = OLLE_ELEVATION[spec.code]
   const samples = elev?.samples ?? []
   const start = tp(spec.start, 'start')
@@ -244,7 +273,8 @@ function buildRoute(spec: OlleSpec): Route {
   return {
     id: `olle_${spec.code.replace(/-/g, '_')}`,
     code: spec.code,
-    name: `偶来 ${spec.code} · ${s.zh} → ${e.zh}`,
+    // A/B 两条起终点完全一样，光看「温坪 → 表善」分不出是哪条，故把走法写进名字
+    name: `偶来 ${spec.code} · ${s.zh} → ${e.zh}${spec.variant ? `（${spec.variant}）` : ''}`,
     region: `韩国 · 济州岛 · ${spec.region ?? ''}`,
   // 起终点标记一律钉在固化的权威坐标上（startPoint/endPoint）。tracks.json 后续被校正时标记不会被带走；
   // 若轨迹确实变了，`scripts/check_endpoints.py` 会对账报警提醒重新固化。
@@ -269,14 +299,17 @@ function buildRoute(spec: OlleSpec): Route {
     // 住宿 seed 由 src/lib/seedStays.ts 从 src/data/stays.json 实时派生（import），
     // 改住宿后只需重新构建、无需重跑脚本。
     hotels: SEED_STAYS[spec.code] ?? [],
-    sights: [],
+    // 看点（路边景色）默认数据：由 scripts/build_sights_data.py 从
+    // scripts/data/curated_sights.json 生成（src/lib/sightsData.ts）。
+    // 只补官方航点漏掉的标志性景点，坐标为估算；后台 SightsEditor 可继续增删改。
+    sights: DEFAULT_SIGHTS[spec.code] ?? [],
     album: [],
     createdAt: now,
     updatedAt: now,
   }
 }
 
-/** 首次打开时写入：27 条偶来小路骨架（坐标/住宿/看点/相册留给你在后台补） */
+/** 首次打开时写入：29 条偶来小路骨架（坐标/住宿/看点/相册） */
 export function buildSeedRoutes(): Route[] {
   return SPECS.map(buildRoute)
 }

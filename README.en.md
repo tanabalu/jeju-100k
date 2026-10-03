@@ -6,7 +6,7 @@
 
 ## Overview
 
-Turn Jeju Island's 27 Olle trails (올레길) into your own itinerary: automatically calculate distance, see whether you've pieced together a 100 km, and manage start/end points, roadside lodging, scenery, and a photo album.
+Turn Jeju Island's 29 Olle trails (올레길) into your own itinerary: automatically calculate distance, see whether you've pieced together a 100 km, and manage start/end points, roadside lodging, scenery, and a photo album.
 
 Pure front-end. Data is saved in the local browser (localStorage + IndexedDB). Dependencies are managed with npm; end users use the static site produced by `npm run build`.
 
@@ -24,53 +24,73 @@ Pure front-end. Data is saved in the local browser (localStorage + IndexedDB). D
 
 ## 1. What's preloaded
 
-On first open, the **official 27 Olle trails** (source: jejuolle.org) are written automatically:
+On first open, the **official 29 Olle trails** (source: jejuolle.org + the official Olle App) are written automatically:
 
 - **21 main routes + 6 branch routes** (1-1 Udo Island, 7-1, 10-1 Gapado, 14-1, 18-1 Sangchujado, 18-2 Hajuchado)
 - Official distances are filled into "actual distance", so **distance uses official values**, not straight-line estimates
 - Official difficulty Low / Medium / High mapped to 2 / 3 / 4 stars
-- Main routes are 10.1–20.9 km each; **27 routes total 402.8 km** (`OLLE_TOTAL_KM` is derived from `SPECS`, not hard-coded — the homepage's "437km 27코스" is a marketing figure; both numbers are valid, don't reconcile one to the other)
+- **Route 3 and route 15 each carry one extra A/B variant** (`03-A`/`03-B`, `15-A`/`15-B` — see below)
+- Main routes are 10.1–20.9 km each; **29 routes total 430 km** (`OLLE_TOTAL_KM` is derived from `SPECS`, not hard-coded — the homepage's "437km 27코스" is a marketing figure; both numbers are valid, don't reconcile one to the other)
+  — A/B are either/or for the same stretch, so the sum counts that stretch twice (+27.6 km). Set the target to 403 to count each number once.
 
 | Data | Status |
 | --- | --- |
 | Route numbers, start/end names, official distance, official difficulty | Official website (jejuolle.org), directly usable |
-| Route geometry (shape, start/end coordinates) | **Measured tracks for all 27 routes** — see below |
-| Elevation & cumulative climb | Calculated from tracks or sampled along them — see below; **`06` / `07` have no elevation data, climb shows "—"** |
+| Route geometry (shape, start/end coordinates) | **Tracks for all 29 routes** (28 measured + `15-B` inferred from the OSM network) — see below |
+| Elevation & cumulative climb | Calculated from tracks or sampled along them — see below; **all 29 routes have elevation** |
 | Lodging | Preloaded with 239 places from OSM (matched to 12 routes), editable in `/admin` |
 | Card cover | Scenic photo of the route area (Wikimedia Commons free license — run `scripts/fetch_photos.py` first); falls back to the official Route Map if you haven't |
 | Sights, album | Preloaded empty, enter in `/admin` |
 
 ### How climb is calculated (important)
 
-The preset routes' elevation series are fetched by `scripts/fetch_elevation.py` from opentopodata.org's public **SRTM 30m** dataset, landing in `src/lib/olleeElevation.ts` (bundled at build time, no network at runtime).
+All 29 preset routes carry a real track (`public/tracks.json`, read at runtime via `fetch`, **not** stored in localStorage — replace the file to swap tracks). The elevation series in `src/lib/olleeElevation.ts` is **derived from those same track points** by `scripts/build_elevation_from_tracks.py`, so the bundled seed data and the runtime overlay are identical and the profile never jumps from an approximation to the real thing.
 
-- **Non-loop routes**: uniform sampling along the "start → end" line (20–43 points each)
-- **Loop routes** (Udo / Gapado / Sang/Hajuchado): circular sampling inferred from official distance
-- Climb uses a **3m hysteresis threshold** on adjacent differences to suppress terrain-data jitter
+- 4 routes carry elevation in the track itself (`09 / 14-1 / 18-1 / 18-2`); the other 25 were backfilled from SRTM 30m sampled along the track
+- Climb uses a **3 m hysteresis threshold** on adjacent differences to suppress terrain-data jitter
+- Total climb across all 29 routes: **6504 m**
 
-⚠️ This is an **estimate, not official measured climb**: the real route winds along the coast and climbs small coastal hills that straight-line sampling can't capture, so actual climb is usually larger than shown. 27 routes total ~2230 m — fine for ranking "which is harder", but for pacing and resupply planning use real tracks (see next section; after import, climb auto-switches to track-based).
+⚠️ Backfilled elevation is still an **estimate, not an official measured climb**: SRTM 30m has ~30 m ground resolution, so small coastal steps get smoothed out. Fine for reading the profile shape and ranking "which is harder"; for pacing and resupply planning treat it as an order of magnitude.
 
 To refresh this data:
 
 ```bash
-python3 scripts/fetch_elevation.py            # refetch all (has local cache, only fills missing)
-python3 scripts/fetch_elevation.py --limit 2  # try 2 first to see effect
-python3 scripts/fetch_elevation.py --force    # ignore cache, refetch all
+python3 scripts/fill_track_elevation.py         # backfill elevation for tracks already in tracks.json (cached, new points only)
+python3 scripts/build_elevation_from_tracks.py  # re-derive the seed elevation series from tracks.json
 ```
 
 Routes you create yourself have no sampled data; fill elevation per point in `/admin` "Waypoints"; **with fewer than 2 points having elevation, climb shows "—" not 0** (0 would falsely imply the route is flat).
 
-### Real tracks & coordinate accuracy (as of 2026-10-01)
+### Route 3 & route 15: A (mountain) / B (sea)
 
-All **27 routes have measured tracks** (`public/tracks.json`, fetched at runtime — **not stored in localStorage**; replace the file to swap tracks).
+The official trail splits each of these two numbers into **A = mountain** and **B = sea** — same start and
+end, pick one; finishing either counts as finishing that number:
+
+| Route | Variant | Distance | Time | Difficulty | Where it goes |
+| --- | --- | --- | --- | --- | --- |
+| `03-A` | Mountain | 20.9 km | 6~7h | ★★★★ | Inland / mid-mountain, via Tong Oreum & Dokja-bong |
+| `03-B` | Sea | 14.6 km | 4~5h | ★★ | Coast (바당올레); rejoins A at Sinpung Sincheon seaside ranch; **measured track: 14.75 km** |
+| `15-A` | Mountain | 15.5 km | 5~6h | ★★★ | Forest roads via Geumsan Park, Nabeup & Gwa Oreum |
+| `15-B` | Sea | 13.0 km | 4~5h | ★★ | Coast: Hallim Port → Gwakji → Handam walkway → Aewol → Gonae Port |
+
+Each is a **separate entry** in the route list and trip basket: the badge carries `-A` / `-B`, the card tag
+shows 山线 (mountain) / 海线 (sea), and searching those two words filters them out.
+
+### Real tracks & coordinate accuracy (as of 2026-10-03)
+
+**All 29 routes have tracks** (`public/tracks.json`, fetched at runtime — **not stored in localStorage**; replace the file to swap tracks). **28 are measured**; the sea route `15-B` is the only one **inferred from the OSM footway network** (see below). Routes you create yourself are still drawn as a dashed approximation between start and end, with climb showing "—".
+
+`03-B` got its track on 2026-10-03: the OSM relation `올레길3` has two child relations `올레길3A` / `올레길3B` that share **no way at all** (`A∩B=0`), while the parent itself carries 32 ways used by both as common start/end segments. Stitching "parent's 32 + 3B's 25" yields one continuous 14.88 km sea line (official 14.6 km, coverage 1.02). An independent community KML (`Jeju Olle 3B`, 14.84 km) matches its endpoints — two sources agree.
+
+`15-B` has no measured track available — OSM carries **no route relation** for route 15 (none of the island's 22 올레 relations), and the official page `jejuolle.org/trail#/road/15_B` only ships a **raster route map** (`assets/Road-*.js` references `road_15-B_map_pc.jpg`, no vector coordinates), while the community site's `JejuOlle15a/15b` both 404. So it is **inferred from the network**: the walkable OSM ways plus the coastline between Hallim Port and Gonae Port were loaded, then Dijkstra was run on a "**shortest path hugging the coast**" cost (segment length × road-class factor × distance-from-coast penalty), giving a continuous **12.26 km / 45 m climb** shape (official 13.0 km, coverage 0.955). Evidence the shape is right: all four landmarks the official text names — Unryongdok lighthouse, the Haesupool haenyeo school, Geumsungri sea and Gwakji beach — fall **within 80 m of the track**, and the 45 m climb matches the official "flat the whole way, no steps, low difficulty". This is an inference, not a survey, and it runs 5.7% short of the official distance — take the official figure when budgeting the day.
 Routes with a track are drawn as a **solid line** (white casing + green core); start/end snap to the track endpoints, and climb accumulates point by point along the track.
 
 | Item | Status |
 | --- | --- |
 | Track source | OSM route relations / OSM standalone ways / full-course Olle GPX, compared per route number (`tracks/osm/*.geojson`) |
-| Official ↔ track deviation | 15 routes within ±5%; **12 exceed it**, with `15` (+19.0%) and `08` (−11.9%) flagged ⛔ |
-| Elevation source | 4 routes carry elevation in the track; 21 are sampled along the track from SRTM 30m; `06` / `07` have no elevation |
-| Total climb | 25 routes have data, **5807 m** combined |
+| Official ↔ track deviation | 16 routes within ±5%; **13 exceed it**, with `15` (+19.0%) and `08` (−11.9%) flagged ⛔ |
+| Elevation source | 4 routes carry elevation in the track (`09 / 14-1 / 18-1 / 18-2`); the other 25 are sampled along the track from SRTM 30m. **All 29 have elevation** |
+| Total climb | all 29 routes have data, **6504 m** combined |
 
 ⚠️ **Second-hand geometry**: all of it comes from OSM / GPX, and **OSM does not follow official route changes**.
 Distance shown in the UI always takes the official `SPECS` value, with "track measures X km" shown alongside for comparison,
@@ -81,20 +101,18 @@ so the deviations above never make the page contradict itself — but treat **cl
 ### How elevation & climb are calculated
 
 Priority: **manual "actual climb"** > **elevation carried in the track** (`elevSource: track`) > **SRTM 30m sampling along the track**
-> **preset approximation profile** (`src/lib/olleeElevation.ts`, also SRTM 30m, bundled at build time, no network at runtime)
 > **manual waypoint elevations** > otherwise **"—"**.
 
+- The elevation series *is* the track points in `public/tracks.json` (`src/lib/olleeElevation.ts` is derived from it by `scripts/build_elevation_from_tracks.py`), so it is the same data the runtime overlays — the profile never jumps from an approximation to the real thing.
 - Accumulation uses a **3 m hysteresis threshold** on adjacent differences to suppress jitter in the terrain data.
-- **Fewer than 2 points with elevation shows "—", not 0** (0 would falsely imply the route is flat) — that's the case for `06` / `07`.
-- The preset profile samples straight lines between endpoints (or circles inferred from official distance for loops); real climb is usually larger. It is only a fallback when there is no track.
+- **Fewer than 2 points with elevation shows "—", not 0** (0 would falsely imply the route is flat) — only possible on routes you create yourself without a track.
 
 To refresh the data:
 
 ```bash
 python3 scripts/check_official_consistency.py            # official vs actual geometry, per route (run after any change)
-python3 scripts/fetch_elevation.py                       # refetch the approximate profile (cached, fills missing only)
-python3 scripts/fetch_elevation.py --limit 2             # try 2 first
-python3 scripts/fetch_elevation.py --force               # ignore cache
+python3 scripts/fill_track_elevation.py                  # backfill elevation for tracks already in tracks.json (cached, new points only)
+python3 scripts/build_elevation_from_tracks.py           # re-derive the seed elevation series from tracks.json
 ```
 
 ### Re-importing / adding tracks
@@ -147,16 +165,16 @@ python3 scripts/import_tracks.py --src ~/tracks --strict     # exit if any file 
 
 | Module | Page | Capabilities |
 | --- | --- | --- |
-| Route list | `/` | 27 routes listed by number; search (name/region/tag, supports "올레 07"/"Seogwipo"), filter by type, sort by number/distance/updated/name; top trip basket toggles directly; one-click add to basket from card |
+| Route list | `/` | 29 routes listed by number (routes 3 & 15 each split into A mountain / B sea); search (name/region/tag, supports "올레 07"/"Seogwipo"), filter by type, sort by number/distance/updated/name; top trip basket toggles directly; one-click add to basket from card |
 | Route detail | `/routes/:id` | Map shows start/end, elevation profile, roadside lodging (auto "N km along route / N km from route"), roadside scenery, photo lightbox |
-| Trip basket | `/plan` | Add routes (each counted once; added button disabled), custom target distance (quick 100 or 437 full), live cumulative +达标 check; suggests fill routes by gap; **default order by adding sequence** (switchable to "by distance"), Markdown copy follows current order; per-route "done" checkbox shows progress (X/Y + distance), supports "unfinished only" |
+| Trip basket | `/plan` | Add routes (each counted once; added button disabled), custom target distance (quick 100 or 430 full — 430 = all 29 routes summed, A/B variants included), live cumulative +达标 check; suggests fill routes by gap; **default order by adding sequence** (switchable to "by distance"), Markdown copy follows current order; per-route "done" checkbox shows progress (X/Y + distance), supports "unfinished only" |
 | Pre-trip | `/prep` | Jeju checklist (5 groups 35 items, checkable, manually skip/restore, unfinished-only, add own; skipped items gathered under "my own items" for review/restore) + **hiking gear / women's / men's / DJI / camera / drone preset lists** (gear 10, women's/men's 11/10 each; add per-item or whole list, brings source tag, removable anytime) + transport/lodging/food cheat-sheet (T-money card/riding notes, nav app comparison, taxi payment) + rough budget |
 | Asset management | `/admin` | Route CRUD (incl. number); waypoints support map point-pick + reorder; lodging, sights (multi-image), album (local upload auto-compress or external link); JSON import/export |
 | Settings | `/settings` | Basemap style, clear data |
 
 > Footer credit: basemap OpenStreetMap, data source **jejuolletrailguide.net** (Jeju Olle Trail official English guide); also listed in footer "friend links" (external links always new tab + `rel="noopener noreferrer"`). Friend links live in `src/App.tsx`'s `FRIEND_LINKS`; add one line to add.
 
-Typical 100K usage: main routes average 15–20 km, **pick ~6 routes to reach 100 km**; to walk the whole island set target to 437.
+Typical 100K usage: main routes average 15–20 km, **pick ~6 routes to reach 100 km**; to walk the whole island set target to 430.
 
 ## 3. Where data is stored
 
@@ -174,7 +192,7 @@ Data is not uploaded to any server. Before switching devices or clearing the bro
 | --- | --- |
 | Preset Olle routes | Official distance (`manualDistanceKm`) first, no estimate |
 | Routes you create, not manually filled | Adjacent waypoint straight-line sum × 1.2 (detour factor) |
-| Climb | Priority explained in §1 "How elevation & climb are calculated" (track elevation > sampled along track > preset profile > manual waypoint elevation > manual climb highest; "—" if none) |
+| Climb | Priority explained in §1 "How elevation & climb are calculated" (track elevation > sampled along track > manual waypoint elevation > manual climb highest; "—" if none) |
 
 Trip basket: each route counted once, sum of all distances compared to target, directly gives "reached / N km short", and suggests fillable routes by gap size.
 
@@ -191,7 +209,7 @@ Style switches with one click in "Settings", takes effect immediately, choice st
 
 - Tiles need network to load; **offline the map area is blank**, other functions unaffected.
 - **Two line types** (`src/lib/geo.ts`'s `mapLineSet()` → `MapLine.approx`):
-  **Solid line (white border + green core)** = measured track in `public/tracks.json` (all 27 main and branch routes);
+  **Solid line (white border + green core)** = measured track in `public/tracks.json` (the 28 routes that have tracks);
   **gray-green dashed** = no measured track (usually routes you created yourself), just connecting waypoints as a
   **schematic line** — don't treat it as the real route.
   Detail page and trip basket page both point this out in their descriptions.
@@ -239,7 +257,7 @@ Conventions:
 Images from Xiaohongshu etc. have copyright and are forbidden to scrape, **do not** bulk-download them into the project. This project uses Wikimedia Commons freely-licensed works (CC0 / CC-BY / public domain) instead.
 
 ```bash
-# download illustrations for 27 routes (needs network access to commons.wikimedia.org)
+# download illustrations for 29 routes (needs network access to commons.wikimedia.org)
 python3 scripts/fetch_photos.py            # full
 python3 scripts/fetch_photos.py --limit 2  # try 2 first
 python3 scripts/fetch_photos.py --dry      # search only, no download
@@ -251,6 +269,10 @@ The script outputs:
 | --- | --- |
 | `public/photos/olle-<number>.jpg` | illustration (max edge 1600px) |
 | `public/photos/manifest.json` | number → image mapping, read at frontend startup and bound to corresponding route (not in localStorage, replace file to swap) |
+
+> The mapping key is the **route number** — rename a number and you must rename the key too (when routes 3 / 15 were split into A/B and the keys were not updated, both covers and official maps silently vanished).
+> Currently **29 routes share 27 photos**: `03-A`/`03-B` and `15-A`/`15-B` share the same start/end and the same area, so each pair points at the same single image (the caption names mountain vs sea). The B routes carry no gallery, so the A route's photos do not show up twice in the album.
+> The official route-map PDF is the 2017 edition (before 3 / 15 were split), so **`03-B` / `15-B` have no official route map** at all.
 | `public/photos/CREDITS.md` | attribution list (author / license / source page), satisfies CC-BY attribution requirement, distribute with the project |
 
 When the script isn't run the album is empty, interface shows "no image" placeholder, no error.
@@ -355,10 +377,10 @@ docker run --rm -p 8080:80 jeju-olle-100k
 src/
   types.ts               data model (Route with code route number)
   lib/geo.ts             Haversine distance, climb (with noise threshold), POI projection to route
-  lib/olleeElevation.ts  27 routes' terrain sampling series (script-generated, do not hand-edit)
+  lib/olleeElevation.ts  29 routes' elevation series derived from the real tracks in public/tracks.json (script-generated, do not hand-edit)
   lib/storage.ts         localStorage repository + import/export
   lib/imageStore.ts      IndexedDB image storage and compression
-  lib/seed.ts            27 Olle trails preset data
+  lib/seed.ts            29 Olle trails preset data (routes 3 & 15 split into A mountain / B sea)
   lib/prep.ts            pre-trip checklist & transport/lodging/food cheat-sheet data (policy items marked verify)
   store/DataContext.tsx  global data + assets (official route map / photos / real tracks) overlay + checklist state
   hooks/useActivePlan.ts trip basket operations
@@ -369,26 +391,27 @@ public/photos/           official route map (maps/ + maps/cover/ + maps.json) an
 public/tracks.json       real tracks (import_tracks.py generated, fetched at runtime)
 scripts/fetch_photos.py  Commons free-license image scrape script
 scripts/split_route_map.py  official Route Map PDF split by route into card cover (compressed) + detail original
-scripts/fetch_elevation.py  SRTM 30m elevation scrape script (generates olleeElevation.ts)
+scripts/fill_track_elevation.py  backfill SRTM 30m elevation for tracks already in tracks.json (patches just that entry)
 scripts/fetch_olle_osm.py    from OSM (relation + loose way) and whole GPX **three-source comparison**, grab each route's real direction (→ tracks/osm/*.geojson)
 scripts/selftest_fetch_osm.py  stitcher regression self-test (no network, 52 assertions, run this first after changing stitcher logic)
 scripts/import_tracks.py    GPX / KML / GeoJSON track import (recognize number, correct direction, simplify, calculate distance/climb → tracks.json)
 scripts/selftest_import_tracks.py  importer regression self-test (no network, run this first after changing direction correction/import logic)
 scripts/check_official_consistency.py  per-route reconciliation "seed.ts official caliber ↔ tracks.json actual geometry" (must run after changing SPECS or re-import)
 scripts/check-elevation.ts  verify tracks.json elevation and climb self-consistency
+scripts/build_elevation_from_tracks.py  derive the seed elevation series (olleeElevation.ts) from tracks.json
 ```
 
 ## 11. Known boundaries
 
-- **Tracks are second-hand geometry**: all 27 come from OSM / GPX, and **OSM does not follow official route changes**.
+- **Tracks are second-hand geometry**: all of them come from OSM / GPX, and **OSM does not follow official route changes**.
   Distance shown in the UI always takes the official `SPECS` value, with "track measures X km" alongside.
-  12 routes deviate more than ±5%, of which **`15` (+19.0%) and `08` (−11.9%) exceed ±10%** — treat their
-  **climb figures and map shape with a grain of salt**; the other 10 (`01-1 / 03 / 05 / 06 / 07 / 13 / 14 / 17 / 18 / 21`) land between 5% and 10%.
-- **`06` / `07` lack elevation data**: no elevation in the track and none backfilled, so climb shows "—"
-  (showing 0 would falsely imply the route is flat).
-- **Official marketing figure 437km vs per-route sum 402.8km**: both are valid, the ~34km gap is unexplained
-  (official probably counts connecting segments in 437). The target distance uses the derived **402.8**;
-  **437 is only shown as the "full island" quick preset**.
+  13 routes deviate more than ±5%, of which **`15-A` (+19.0%) and `08` (−11.9%) exceed ±10%** — treat their
+  **climb figures and map shape with a grain of salt**; the other 11 (`01-1 / 03-A / 05 / 06 / 07 / 13 / 14 / 15-B / 17 / 18 / 21`) land between 5% and 10%.
+- **Elevation comes in two flavours**: 4 routes carry it in the GPX track (`09 / 14-1 / 18-1 / 18-2`), the other 25 were backfilled from SRTM 30m along the track.
+  Backfilled values will never match official measured climb exactly — use them for profile shape and magnitude, not as official figures.
+- **Official marketing figure 437km vs per-route sum 430km**: both are valid, the ~7km gap is unexplained
+  (official probably counts connecting segments in 437). The target distance uses the derived **430**,
+  which is also what the "full island" quick preset sets. Set **403** to count each route number once (A/B are either/or on the same stretch).
 - **Routes you create yourself have no track**: drawn as a **gray-green dashed line** (`mapLineSet()`'s `approx: true`),
   just connecting your waypoints — correct the geometry in the admin panel, or import your own GPX.
 - **Lodging has no ratings or prices**: OSM doesn't provide them, so the page omits what's missing instead of inventing it.

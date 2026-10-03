@@ -9,11 +9,11 @@
 | --- | --- | --- | --- | --- |
 | 01 | olle-01.webp | （上一轮抓取，见 manifest.json） | — | https://commons.wikimedia.org/wiki/File:Hydrangea_macrophylla_in_front_of_Seongsan_Ilchulbong_volcano_at_blue_hour_in_Jeju_Island_South_Korea.jpg |
 | 02 | olle-02.webp | （上一轮抓取，见 manifest.json） | — | https://commons.wikimedia.org/wiki/File:Jeju_Island_20141127_25_(15892738751).jpg |
-| 03 | olle-03__1.webp | song songroov | CC BY 3.0 | https://commons.wikimedia.org/wiki/File:Seongeupjeonguihyeon-ro,_Pyoseon-myeon,_Seogwipo-si,_Jeju-do,_South_Korea_-_panoramio.jpg |
-| 03 | olle-03__2.webp | song songroov | CC BY 3.0 | https://commons.wikimedia.org/wiki/File:Seongeupjeonguihyeon-ro,_Pyoseon-myeon,_Seogwipo-si,_Jeju-do,_South_Korea_-_panoramio_(1).jpg |
-| 03 | olle-03__3.webp | song songroov | CC BY 3.0 | https://commons.wikimedia.org/wiki/File:Seongeupjeonguihyeon-ro,_Pyoseon-myeon,_Seogwipo-si,_Jeju-do,_South_Korea_-_panoramio_(2).jpg |
-| 03 | olle-03__4.webp | song songroov | CC BY 3.0 | https://commons.wikimedia.org/wiki/File:Seongeupjeonguihyeon-ro,_Pyoseon-myeon,_Seogwipo-si,_Jeju-do,_South_Korea_-_panoramio_-_song_songroov.jpg |
-| 03 | olle-03__5.webp | song songroov | CC BY 3.0 | https://commons.wikimedia.org/wiki/File:Seongeupjeonguihyeon-ro,_Pyoseon-myeon,_Seogwipo-si,_Jeju-do,_South_Korea_-_panoramio_-_song_songroov_(1).jpg |
+| 03-A | olle-03__1.webp | song songroov | CC BY 3.0 | https://commons.wikimedia.org/wiki/File:Seongeupjeonguihyeon-ro,_Pyoseon-myeon,_Seogwipo-si,_Jeju-do,_South_Korea_-_panoramio.jpg |
+| 03-A | olle-03__2.webp | song songroov | CC BY 3.0 | https://commons.wikimedia.org/wiki/File:Seongeupjeonguihyeon-ro,_Pyoseon-myeon,_Seogwipo-si,_Jeju-do,_South_Korea_-_panoramio_(1).jpg |
+| 03-A | olle-03__3.webp | song songroov | CC BY 3.0 | https://commons.wikimedia.org/wiki/File:Seongeupjeonguihyeon-ro,_Pyoseon-myeon,_Seogwipo-si,_Jeju-do,_South_Korea_-_panoramio_(2).jpg |
+| 03-A | olle-03__4.webp | song songroov | CC BY 3.0 | https://commons.wikimedia.org/wiki/File:Seongeupjeonguihyeon-ro,_Pyoseon-myeon,_Seogwipo-si,_Jeju-do,_South_Korea_-_panoramio_-_song_songroov.jpg |
+| 03-A | olle-03__5.webp | song songroov | CC BY 3.0 | https://commons.wikimedia.org/wiki/File:Seongeupjeonguihyeon-ro,_Pyoseon-myeon,_Seogwipo-si,_Jeju-do,_South_Korea_-_panoramio_-_song_songroov_(1).jpg |
 | 04 | olle-04__1.webp | Jeju Olle Foundation | CC BY-SA 4.0 | https://commons.wikimedia.org/wiki/File:Jejuolle-route-04(2).jpg |
 | 05 | olle-05__1.webp | David Lee from Redmond, WA, USA | CC BY 2.0 | https://commons.wikimedia.org/wiki/File:Jeju_Island_(53854664004).jpg |
 | 05 | olle-05__2.webp | Jeju Olle Foundation | CC BY-SA 4.0 | https://commons.wikimedia.org/wiki/File:Jejuolle-route-05(1).jpg |
@@ -61,9 +61,9 @@
 | 14 | olle-14__3.webp | Lcarrion88 | CC BY-SA 4.0 | https://commons.wikimedia.org/wiki/File:Hyeopjae.jpg |
 | 14 | olle-14__4.webp | Republic of Korea from Seoul, Republic of Korea | CC BY-SA 2.0 | https://commons.wikimedia.org/wiki/File:Jeju_Island_20141128_08_(15895780681).jpg |
 | 14 | olle-14__5.webp | Republic of Korea from Seoul, Republic of Korea | CC BY-SA 2.0 | https://commons.wikimedia.org/wiki/File:Jeju_Island_20141128_10_(15278129803).jpg |
-| 15 | olle-15__1.webp | SEUNGMIN WOO | CC BY-SA 3.0 | https://commons.wikimedia.org/wiki/File:%EC%A0%9C%EC%A3%BC_%EC%95%A0%EC%9B%94.jpg |
-| 15 | olle-15__2.webp | Jeju Olle Foundation | CC BY-SA 4.0 | https://commons.wikimedia.org/wiki/File:Jeju_Olle_Route_15-B.jpg |
-| 15 | olle-15__3.webp | Jeju Olle Foundation | CC BY-SA 4.0 | https://commons.wikimedia.org/wiki/File:Jeju_Olle_Route_15-B_(1).jpg |
+| 15-A | olle-15__1.webp | SEUNGMIN WOO | CC BY-SA 3.0 | https://commons.wikimedia.org/wiki/File:%EC%A0%9C%EC%A3%BC_%EC%95%A0%EC%9B%94.jpg |
+| 15-A | olle-15__2.webp | Jeju Olle Foundation | CC BY-SA 4.0 | https://commons.wikimedia.org/wiki/File:Jeju_Olle_Route_15-B.jpg |
+| 15-A | olle-15__3.webp | Jeju Olle Foundation | CC BY-SA 4.0 | https://commons.wikimedia.org/wiki/File:Jeju_Olle_Route_15-B_(1).jpg |
 | 16 | olle-16__1.webp | Jeju Olle Foundation | CC BY-SA 4.0 | https://commons.wikimedia.org/wiki/File:Jeju_Olle_Route_16_(2).jpg |
 | 16 | olle-16__2.webp | Republic of Korea from Seoul, Republic of Korea | CC BY-SA 2.0 | https://commons.wikimedia.org/wiki/File:Jeju_Island_20141128_42_(15734640599).jpg |
 | 17 | olle-17__1.webp | Bohao Zhao | CC BY 3.0 | https://commons.wikimedia.org/wiki/File:%EC%A0%9C%EC%A3%BC_%ED%95%B4%EC%95%88_Yongduam_Rock_-_panoramio.jpg |

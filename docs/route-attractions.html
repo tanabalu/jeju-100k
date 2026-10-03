@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>济州偶来小路 · 每条线经过的景点（官方数据 + 人工补充看点）</title>
+<style>
+  :root {
+    --bg:#fafafa; --card:#ffffff; --ink:#1f2933; --sub:#52606d;
+    --line:#e4e7eb; --accent:#0f7b6c; --vp:#0f7b6c; --info:#2563eb;
+    --tr:#b45309; --ra:#0e7490; --nm:#64748b;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    line-height:1.55; }
+  .wrap { max-width:920px; margin:0 auto; padding:28px 20px 60px; }
+  h1 { font-size:24px; margin:0 0 4px; }
+  .sub { color:var(--sub); font-size:13px; margin:0 0 6px; }
+  .stat { display:flex; gap:18px; flex-wrap:wrap; margin:14px 0 22px; }
+  .stat .box { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 16px; }
+  .stat .n { font-size:22px; font-weight:700; color:var(--accent); }
+  .stat .l { font-size:12px; color:var(--sub); }
+  .note { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412;
+    border-radius:10px; padding:10px 14px; font-size:13px; margin-bottom:22px; }
+  .route { background:var(--card); border:1px solid var(--line); border-radius:12px;
+    padding:16px 18px; margin-bottom:14px; }
+  .rhead { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+  .rcode { background:var(--accent); color:#fff; font-weight:700; font-size:14px; padding:2px 10px; border-radius:6px; }
+  .rzh { font-weight:600; font-size:17px; }
+  .rmeta { color:var(--sub); font-size:13px; }
+  .loop { background:#fde68a; color:#92400e; font-size:12px; padding:1px 8px; border-radius:6px; font-weight:600; }
+  .vpblock { background:#f0fdfa; border:1px solid #99f6e4; border-radius:10px; padding:10px 14px; margin-bottom:10px; }
+  .vpblock h4 { margin:0 0 8px; font-size:14px; color:var(--vp); }
+  .vplist { margin:0; padding-left:18px; }
+  .vplist li { margin:3px 0; }
+  .vplist .km { color:var(--nm); font-size:12px; margin-right:6px; }
+  .vplist .muted { color:var(--nm); list-style:none; margin-left:-18px; }
+  .curblock { background:#fffbeb; border:1px dashed #f59e0b; border-radius:10px; padding:10px 14px; margin-bottom:10px; }
+  .curblock h4 { margin:0 0 8px; font-size:14px; color:#b45309; }
+  .curlist { list-style:none; margin:0; padding:0; }
+  .curlist li { display:flex; gap:8px; align-items:flex-start; margin:6px 0; }
+  .citem { flex:1; }
+  .citem b { font-size:14px; }
+  .cloc { display:block; color:var(--nm); font-size:11px; margin:1px 0 2px; }
+  .cdesc { margin:0; font-size:12px; color:var(--sub); }
+  details { font-size:14px; }
+  summary { cursor:pointer; color:var(--accent); font-size:13px; user-select:none; }
+  .wptable { width:100%; border-collapse:collapse; margin-top:10px; font-size:13px; }
+  .wptable th, .wptable td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); }
+  .wptable th { color:var(--sub); font-weight:600; }
+  .wptable .wd { color:var(--nm); white-space:nowrap; width:80px; }
+  .wptable .vrow { background:#f0fdfa; }
+  .badge { display:inline-block; font-size:11px; padding:1px 8px; border-radius:6px; color:#fff; white-space:nowrap; }
+  .badge.vp { background:var(--vp); }
+  .badge.info { background:var(--info); }
+  .badge.tr { background:var(--tr); }
+  .badge.ra { background:var(--ra); }
+  .badge.nm { background:var(--nm); }
+  .badge.sv { background:#0f7b6c; }
+  .badge.sw { background:#0369a1; }
+  .badge.sf { background:#15803d; }
+  .badge.sva { background:#7c3aed; }
+  .badge.sr { background:#a16207; }
+  .badge.so { background:#475569; }
+  .none { color:var(--sub); font-size:13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>济州偶来小路 · 每条线经过的景点</h1>
+  <p class="sub">数据源：官方 Olle App 航点 <code>olle-waypoints.json</code> + 官方路线总表 <code>olle-app-routes.json</code>（官方口径，2026-09 抓取）；看点补充 <code>curated_sights.json</code>。</p>
+  <div class="stat">
+    <div class="box"><div class="n">27</div><div class="l">路线（含支线）</div></div>
+    <div class="box"><div class="n">33</div><div class="l">官方标注观景点</div></div>
+    <div class="box"><div class="n">12</div><div class="l">人工补充看点</div></div>
+  </div>
+  <div class="note">说明：
+    ① “核心景点”以官方航点中 <b>type = viewpoint（观景点）</b> 为准；
+    ② <b>✚ 人工补充看点</b>：官方航点漏掉的标志性景点（如涉地可支），由 <code>curated_sights.json</code> 补入，<b>坐标为估算、非官方勘测</b>，仅定位参考；
+    ③ 折叠区给出该线<b>全部官方航点</b>（含途经村庄/海滩/港口/休息区）；
+    ④ 03、15 在官方 App 分 A/B 两条但航点合并展示；18-2（下楸子）无航点明细。
+  </div>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">01</span>
+      <span class="rzh">始兴 - 广峙其</span>
+      <span class="rmeta">15.1 km · 4-5h</span>
+      
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 3 处）</h4>
+      <ul class="vplist"><li><span class="km">@ 1.8 km</span> Malmi Oreum</li><li><span class="km">@ 2.9 km</span> Top of Al Oreum</li><li><span class="km">@ 13.3 km</span> Seongsan Ilchul-bong(peak)</li></ul>
+    </div>
+    <div class="curblock">
+      <h4>✚ 人工补充看点（1 处 · 非官方，坐标为估算）</h4>
+      <ul class="curlist"><li><span class="badge sv">观景/风景</span><div class="citem"><b>涉地可支 Seopjikoji</b><span class="cloc">📍 126.942, 33.4554（估算）</span><p class="cdesc">城山半岛北侧的火山岬角，草原、白色灯塔与油菜花田，是 1 号线（始兴→城山）沿线最著名的拍照点，紧邻城山日出峰。</p></div></li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（13 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=""><td class="wd">1.0</td><td class="wn">Jeju Olle Information Center</td><td><span class="badge info">起点/终点·信息中心</span></td></tr>
+<tr class=" vrow"><td class="wd">1.8</td><td class="wn">Malmi Oreum</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=" vrow"><td class="wd">2.9</td><td class="wn">Top of Al Oreum</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=""><td class="wd">4.3</td><td class="wn">Jongdal-ri Three-way Junction</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">5.9</td><td class="wn">Jongdal 1-ri Crossroad</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">6.4</td><td class="wn">Jongdal-ri Village Office</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">6.5</td><td class="wn">Jongdal-ri Old Salt Flat</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">8.1</td><td class="wn">Mokhwa Rest Area</td><td><span class="badge ra">休息区</span></td></tr>
+<tr class=""><td class="wd">8.9</td><td class="wn">Siheung Haenyeo House (congee restaurant)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">10.1</td><td class="wn">Osopo Beacon Fire Station</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">10.9</td><td class="wn">Ojo Haenyeo House (congee restaurant)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">12.1</td><td class="wn">Seongsanpo-hang(harbor)</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=" vrow"><td class="wd">13.3</td><td class="wn">Seongsan Ilchul-bong(peak)</td><td><span class="badge vp">观景点 ★</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">01-1 / 01-1</span>
+      <span class="rzh">牛岛（下牛目洞港号路线）</span>
+      <span class="rmeta">13.2 km · 4-5h</span>
+      <span class="loop">环线</span>
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 0 处）</h4>
+      <ul class="vplist"><li class="muted">（官方未单独标注观景点）</li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（7 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=""><td class="wd">2.1</td><td class="wn">Hongjodangoe Haebin White Coral Sand Beach</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">2.6</td><td class="wn">Doksaengi Koji(cape)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">4.4</td><td class="wn">Sanmultong Entrance</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">5.9</td><td class="wn">Bangsa-tap(tower)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">6.3</td><td class="wn">Hagosudong Beach</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">7.0</td><td class="wn">Joil-ri Five-way Intersection</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">7.8</td><td class="wn">Yeonjama (milstone)</td><td><span class="badge nm">途经点</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">02</span>
+      <span class="rzh">广峙其 - 温坪</span>
+      <span class="rmeta">14.8 km · 4-5h</span>
+      
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 2 处）</h4>
+      <ul class="vplist"><li><span class="km">@ 2.2 km</span> Siksan-bong(peak)</li><li><span class="km">@ 7.8 km</span> Top of Daesusan-bong(peak)</li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（7 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=""><td class="wd">0.1</td><td class="wn">Gwangchigi Beach (Start Point of Detour at high tide)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=" vrow"><td class="wd">2.2</td><td class="wn">Siksan-bong(peak)</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=""><td class="wd">5.0</td><td class="wn">Seongsan Sewage Disposal Plant (Finish Point of Detour at high tide) Dongnam Elementary School</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">5.6</td><td class="wn">Hong Mart in Seongsan Seongsan Crossroad</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">6.2</td><td class="wn">Goseong-ri Senior Citizens Hall</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=" vrow"><td class="wd">7.8</td><td class="wn">Top of Daesusan-bong(peak)</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=""><td class="wd">11.1</td><td class="wn">Hoorse Rangeland</td><td><span class="badge nm">途经点</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">03-A / 03-B</span>
+      <span class="rzh">温坪 - 表善</span>
+      <span class="rmeta">20.9 km · 6-7h</span>
+      
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 5 处）</h4>
+      <ul class="vplist"><li><span class="km">@ 6.8 km</span> Entrance to Tong Oreum</li><li><span class="km">@ 7.3 km</span> Top of Tong Oreum</li><li><span class="km">@ 7.7 km</span> Exit from Tong Oreum</li><li><span class="km">@ 8.1 km</span> Dokja-bong(peak)</li><li><span class="km">@ 9.1 km</span> Exit from Dokja-bong(peak)</li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（13 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=""><td class="wd">0.5</td><td class="wn">Ddeodolee Sikgaek Forked Road of Route A and B</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">4.8</td><td class="wn">Sinsan-pogu(port)</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">5.5</td><td class="wn">Nansan-ri Go, Jeong-hwa Grandma&#x27;s Homestay</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">5.7</td><td class="wn">Sinsan-ri Village Cafe</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">6.2</td><td class="wn">Nong-gye</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">6.5</td><td class="wn">Jueodong-pogu(port)</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=" vrow"><td class="wd">6.8</td><td class="wn">Entrance to Tong Oreum</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=" vrow"><td class="wd">7.3</td><td class="wn">Top of Tong Oreum</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=" vrow"><td class="wd">7.7</td><td class="wn">Exit from Tong Oreum</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=""><td class="wd">7.7</td><td class="wn">Sinpung-pogu(port) Regathering Place of Route A and B A 14.4km / B 8km Sinpung Sincheon Bada Mokjang (livestock farm) A 14.8km / B</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=" vrow"><td class="wd">8.1</td><td class="wn">Dokja-bong(peak)</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=" vrow"><td class="wd">9.1</td><td class="wn">Exit from Dokja-bong(peak)</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=""><td class="wd">11.7</td><td class="wn">Gallery of Kim, Young-gap</td><td><span class="badge nm">途经点</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">04</span>
+      <span class="rzh">表善 - 南原</span>
+      <span class="rmeta">19.0 km · 5-6h</span>
+      
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 0 处）</h4>
+      <ul class="vplist"><li class="muted">（官方未单独标注观景点）</li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（8 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=""><td class="wd">4.9</td><td class="wn">Pyoseon Haenyeo House</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">10.8</td><td class="wn">Song-cheon (stream)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">12.4</td><td class="wn">Sinheung-ri Pogu(port)</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">13.5</td><td class="wn">Dukdol-pogu(port) Dongbu Sewage Disposal Plant</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">14.2</td><td class="wn">Taeheung-ri Pogu(port)</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">15.0</td><td class="wn">Taeheung 2-ri Sports Park</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">16.4</td><td class="wn">Bulpo Yeondae</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">19.0</td><td class="wn">Namwon-pogu(port) (Jeju Olle Information Center)</td><td><span class="badge info">起点/终点·信息中心</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">05</span>
+      <span class="rzh">南原 - 牛沼端</span>
+      <span class="rmeta">13.4 km · 4-5h</span>
+      
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 1 处）</h4>
+      <ul class="vplist"><li><span class="km">@ 1.2 km</span> Entrance Keun-ung(hill)</li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（9 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=" vrow"><td class="wd">1.2</td><td class="wn">Entrance Keun-ung(hill)</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=""><td class="wd">2.3</td><td class="wn">Seongwang-sa (temple)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">4.2</td><td class="wn">National Fisheries Research &amp; Development Institute</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">4.9</td><td class="wn">Camellia Habitat in Wimi-ri</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">6.6</td><td class="wn">Jobae Meodeul Koji (cape)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">8.0</td><td class="wn">Wimi 1-ri Welfare Center</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">10.7</td><td class="wn">Sinrye 2-ri Welfare Center</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">12.2</td><td class="wn">Yechonmang</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">13.4</td><td class="wn">Soesokkak-dari (bridge) Soesokkak</td><td><span class="badge nm">途经点</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">06</span>
+      <span class="rzh">牛沼端 - 济州偶来旅行者中心</span>
+      <span class="rmeta">10.1 km · 3-4h</span>
+      
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 1 处）</h4>
+      <ul class="vplist"><li><span class="km">@ 3.4 km</span> Top of Jejigi Oreum</li></ul>
+    </div>
+    <div class="curblock">
+      <h4>✚ 人工补充看点（1 处 · 非官方，坐标为估算）</h4>
+      <ul class="curlist"><li><span class="badge sw">瀑布/水景</span><div class="citem"><b>正房瀑布 Jeongbang-pokpo</b><span class="cloc">📍 126.5617, 33.2475（估算）</span><p class="cdesc">济州三大瀑布之一，也是韩国唯一直接落入海中的瀑布；位于西归浦，6 号线（牛沼端→旅行者中心）终点附近。</p></div></li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（13 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=""><td class="wd">1.9</td><td class="wn">Sengyidol</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">2.8</td><td class="wn">Entrance to Jejigi</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=" vrow"><td class="wd">3.4</td><td class="wn">Top of Jejigi Oreum</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=""><td class="wd">4.0</td><td class="wn">Bomok-pogu(port)</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">4.1</td><td class="wn">Finish Point of Wheelchair Accessible Area</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">5.3</td><td class="wn">Gudumi-pogu(port)</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">6.2</td><td class="wn">Bomok Sewage Disposal Plant</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">8.8</td><td class="wn">Sojeongbang-pokpo (waterfall)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">9.2</td><td class="wn">Information Center of Jeongbang-pokpo (waterfall)</td><td><span class="badge info">起点/终点·信息中心</span></td></tr>
+<tr class=""><td class="wd">9.8</td><td class="wn">Soam Memorial Center</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">10.7</td><td class="wn">Lee, Jung-seop Street</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">11.1</td><td class="wn">Entrance to Seogwipo Maeil Olle Market</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">11.6</td><td class="wn">Jeju Olle Tourist Center</td><td><span class="badge nm">途经点</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">07</span>
+      <span class="rzh">济州偶来旅行者中心 - 西归浦公交客运站</span>
+      <span class="rmeta">12.9 km · 3-4h</span>
+      
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 2 处）</h4>
+      <ul class="vplist"><li><span class="km">@ 2.6 km</span> Seogwipo Chilsimni Sammae-bong(peak) Octagonal Pavillion</li><li><span class="km">@ 3.7 km</span> Oedolgae Observatory</li></ul>
+    </div>
+    <div class="curblock">
+      <h4>✚ 人工补充看点（1 处 · 非官方，坐标为估算）</h4>
+      <ul class="curlist"><li><span class="badge sw">瀑布/水景</span><div class="citem"><b>天地渊瀑布 Cheonjiyeon-pokpo</b><span class="cloc">📍 126.5556, 33.2494（估算）</span><p class="cdesc">西归浦市区著名瀑布与亚热带溪谷步道，7 号线（旅行者中心→西归浦）起点一带。</p></div></li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（8 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=" vrow"><td class="wd">2.6</td><td class="wn">Seogwipo Chilsimni Sammae-bong(peak) Octagonal Pavillion</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=" vrow"><td class="wd">3.7</td><td class="wn">Oedolgae Observatory</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=""><td class="wd">5.5</td><td class="wn">Dombenang-gil (pathway)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">7.0</td><td class="wn">Sokgol</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">8.5</td><td class="wn">Beophwan-pogu(port)</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">10.7</td><td class="wn">Seogeon-do(island)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">12.1</td><td class="wn">Gangjeong-cheon Seaside Post Office of Kensington Resort</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">12.5</td><td class="wn">(stream)</td><td><span class="badge nm">途经点</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">07-1</span>
+      <span class="rzh">西归浦公交客运站 - 济州偶来旅行者中心</span>
+      <span class="rmeta">15.7 km · 4-5h</span>
+      
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 2 处）</h4>
+      <ul class="vplist"><li><span class="km">@ 6.8 km</span> Top of Gogeun-san (mountain)</li><li><span class="km">@ 12.6 km</span> Hanon Craters</li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（11 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=""><td class="wd">1.3</td><td class="wn">Daeshin Middle School</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">3.9</td><td class="wn">Entrance to Ungtto-pokpo (waterfall)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">4.2</td><td class="wn">Ungtto-pokpo(waterfall)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">6.5</td><td class="wn">Gogeun-san(mountain) Walkway</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=" vrow"><td class="wd">6.8</td><td class="wn">Top of Gogeun-san (mountain)</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=""><td class="wd">8.4</td><td class="wn">Seoho Village Gateball Court</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">9.3</td><td class="wn">Jenam Child Welfare Center</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">10.8</td><td class="wn">Seoho Elementary School</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">12.4</td><td class="wn">Bongrim-sa(temple)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=" vrow"><td class="wd">12.6</td><td class="wn">Hanon Craters</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=""><td class="wd">15.0</td><td class="wn">Geolmae Ecological Park</td><td><span class="badge nm">途经点</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">08</span>
+      <span class="rzh">月坪 - 大坪</span>
+      <span class="rmeta">19.3 km · 5-6h</span>
+      
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 0 处）</h4>
+      <ul class="vplist"><li class="muted">（官方未单独标注观景点）</li></ul>
+    </div>
+    <div class="curblock">
+      <h4>✚ 人工补充看点（1 处 · 非官方，坐标为估算）</h4>
+      <ul class="curlist"><li><span class="badge sv">观景/风景</span><div class="citem"><b>柱状节理带 Daepo Jusangjeolli</b><span class="cloc">📍 126.428, 33.237（估算）</span><p class="cdesc">火山熔岩遇海水急速冷却形成的六棱柱状玄武岩海岸绝壁，8 号线（月坪→大坪）大浦一带的地标。</p></div></li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（11 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=""><td class="wd">1.5</td><td class="wn">Yakcheon-sa(temple)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">3.5</td><td class="wn">Daepo-pogu(port) Jungmun Complex Soccer Field</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">7.7</td><td class="wn">Gwangmyeong-sa(temple)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">9.1</td><td class="wn">Pacific Land</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">9.5</td><td class="wn">Jungmun Sekdal Beach</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">10.3</td><td class="wn">Hayatt Hotel</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">11.8</td><td class="wn">Jungmun Tourism Complex Information Center</td><td><span class="badge info">起点/终点·信息中心</span></td></tr>
+<tr class=""><td class="wd">13.9</td><td class="wn">Yerae Eco Park</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">16.2</td><td class="wn">Nonjinmul</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">17.8</td><td class="wn">Haye-pogu(port)</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">19.8</td><td class="wn">Daepyeong-pogu (port)</td><td><span class="badge tr">交通·港口</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">09</span>
+      <span class="rzh">大坪 - 和顺</span>
+      <span class="rmeta">12.3 km · 3-4h</span>
+      
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 1 处）</h4>
+      <ul class="vplist"><li><span class="km">@ 3.1 km</span> Weolla-bong(peak)</li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（7 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=""><td class="wd">1.3</td><td class="wn">Baksu-gijeong (pathway on the cliffs)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=" vrow"><td class="wd">3.1</td><td class="wn">Weolla-bong(peak)</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=""><td class="wd">3.4</td><td class="wn">Jinji Cave</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">3.5</td><td class="wn">Weolla-bong(peak) Observatory and Rest Area</td><td><span class="badge ra">休息区</span></td></tr>
+<tr class=""><td class="wd">5.2</td><td class="wn">Jinmoru Dongsan(mound)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">7.2</td><td class="wn">Coastal Police Station</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">7.6</td><td class="wn">Hwasun Golden Sand Beach 7km (Jeju Olle Information Center)</td><td><span class="badge info">起点/终点·信息中心</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">10</span>
+      <span class="rzh">和顺 - 摹瑟浦</span>
+      <span class="rmeta">15.6 km · 5-6h</span>
+      
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 1 处）</h4>
+      <ul class="vplist"><li><span class="km">@ 13.0 km</span> Sut-al Oreum(small extinct volcano) April 3 Victims Memorials</li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（8 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=""><td class="wd">2.3</td><td class="wn">Bodeok-sa(temple)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">4.2</td><td class="wn">The Mumum Resort</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">5.9</td><td class="wn">Sagye-pogu(port)</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">8.0</td><td class="wn">Sagye Fossil Site</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">8.8</td><td class="wn">Songak-san(mountain) Parking Lot</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=" vrow"><td class="wd">13.0</td><td class="wn">Sut-al Oreum(small extinct volcano) April 3 Victims Memorials</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=""><td class="wd">15.7</td><td class="wn">Hamo Beach</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">17.5</td><td class="wn">Hamo Sports Park (Jeju Olle Information Center)</td><td><span class="badge info">起点/终点·信息中心</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">10-1</span>
+      <span class="rzh">加波岛</span>
+      <span class="rmeta">4.2 km · 1-2h</span>
+      <span class="loop">环线</span>
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 0 处）</h4>
+      <ul class="vplist"><li class="muted">（官方未单独标注观景点）</li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（5 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=""><td class="wd">0.7</td><td class="wn">Gazebo</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">2.0</td><td class="wn">Gapa Elementary School</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">2.9</td><td class="wn">Gaeumjoori Koji(cape)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">3.7</td><td class="wn">Gapa Village Altar</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">4.1</td><td class="wn">Gapa Community Security Center</td><td><span class="badge nm">途经点</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">11</span>
+      <span class="rzh">摹瑟浦 - 武陵</span>
+      <span class="rmeta">17.3 km · 5-6h</span>
+      
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 2 处）</h4>
+      <ul class="vplist"><li><span class="km">@ 5.5 km</span> Top of Moseul-bong(peak)</li><li><span class="km">@ 6.7 km</span> Exit from Moseul-bong(peak)</li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（7 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=" vrow"><td class="wd">5.5</td><td class="wn">Top of Moseul-bong(peak)</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=" vrow"><td class="wd">6.7</td><td class="wn">Exit from Moseul-bong(peak)</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=""><td class="wd">8.1</td><td class="wn">Churchyard</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">11.2</td><td class="wn">Sinpyeong Crossroads</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">14.1</td><td class="wn">Jeonggaewat Plaza</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">16.1</td><td class="wn">Inhyang-dong Village Community Center</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">17.3</td><td class="wn">Murung Farm</td><td><span class="badge nm">途经点</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">12</span>
+      <span class="rzh">武陵 - 龙水</span>
+      <span class="rmeta">17.5 km · 5-6h</span>
+      
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 1 处）</h4>
+      <ul class="vplist"><li><span class="km">@ 12.7 km</span> Suweol-bong(peak) Hexagonal Pavillion</li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（5 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=""><td class="wd">10.9</td><td class="wn">Seogwipo-Jeju City Border</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=" vrow"><td class="wd">12.7</td><td class="wn">Suweol-bong(peak) Hexagonal Pavillion</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=""><td class="wd">14.4</td><td class="wn">Jagunae-pogu(port)</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">16.1</td><td class="wn">Sengyi Gijeong-gil (pathway on the cliff)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">17.5</td><td class="wn">Yongsu-pogu(port)</td><td><span class="badge tr">交通·港口</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">13</span>
+      <span class="rzh">龙水 - 低地</span>
+      <span class="rmeta">16.2 km · 4-5h</span>
+      
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 1 处）</h4>
+      <ul class="vplist"><li><span class="km">@ 13.7 km</span> Entrance to Jeoji Oreum 12.1km Top End of Jeoji Oreum Byroad</li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（11 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=""><td class="wd">0.6</td><td class="wn">Jugu-dongsan(mound)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">2.1</td><td class="wn">1.8km Church</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">2.7</td><td class="wn">Yongsu Reservoir</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">4.4</td><td class="wn">Special Forces 7km Forest Trail</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">6.1</td><td class="wn">Gomok(old tree) Forest Path</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">8.2</td><td class="wn">Nakcheon-ri Village Chair Park</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">8.7</td><td class="wn">Nakcheon Stonewall Pathway</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">11.0</td><td class="wn">Back Hill Arirang-gil(pathway)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">13.5</td><td class="wn">Jeoji</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=" vrow"><td class="wd">13.7</td><td class="wn">Entrance to Jeoji Oreum 12.1km Top End of Jeoji Oreum Byroad</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=""><td class="wd">14.6</td><td class="wn">Exit from Jeoji</td><td><span class="badge nm">途经点</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">14</span>
+      <span class="rzh">低地 - 翰林</span>
+      <span class="rmeta">19.9 km · 6-7h</span>
+      
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 0 处）</h4>
+      <ul class="vplist"><li class="muted">（官方未单独标注观景点）</li></ul>
+    </div>
+    <div class="curblock">
+      <h4>✚ 人工补充看点（2 处 · 非官方，坐标为估算）</h4>
+      <ul class="curlist"><li><span class="badge sf">森林/公园</span><div class="citem"><b>翰林公园 Hallim Park</b><span class="cloc">📍 126.267, 33.398（估算）</span><p class="cdesc">集亚热带植物园、盆景园、溶洞（ 협재동굴/쌍용굴）于一体的综合公园，14 号线（低地→翰林）终点翰林一带。</p></div></li><li><span class="badge sv">观景/风景</span><div class="citem"><b>飞扬岛 Biyang-do</b><span class="cloc">📍 126.258, 33.415（估算）</span><p class="cdesc">由翰林港乘船可达的离岛，火山地貌与环岛步道；14 号线终点翰林港正是前往飞扬岛的乘船点。</p></div></li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（9 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=""><td class="wd">8.6</td><td class="wn">Saemot-gyo(bridge)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">10.3</td><td class="wn">Entrance to Wolryeong-ri Cactus Habitat</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">10.7</td><td class="wn">Wolryeong-pogu(port)</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">11.7</td><td class="wn">Haenyeo Bean Habitat</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">13.1</td><td class="wn">Geumneung-pogu(port)</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">14.1</td><td class="wn">Geumneung Beach</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">16.7</td><td class="wn">Ongpo-pogu(port)</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">17.3</td><td class="wn">Yongsu-sa(temple)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">19.2</td><td class="wn">Hallim-hang(harbor), Biyang-do(island) Ferry waiting room Cafe Bien</td><td><span class="badge tr">交通·港口</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">14-1</span>
+      <span class="rzh">低地 - 西光</span>
+      <span class="rmeta">9.3 km · 3-4h</span>
+      
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 2 处）</h4>
+      <ul class="vplist"><li><span class="km">@ 4.8 km</span> Entrance to Mundoji Oreum</li><li><span class="km">@ 5.1 km</span> Top of Mundoji Oreum</li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（7 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=""><td class="wd">1.1</td><td class="wn">Al-mot(pond)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">2.7</td><td class="wn">Gangjeong Dongsan(mound)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">4.0</td><td class="wn">Jeoji Gotjawal (dense forest)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=" vrow"><td class="wd">4.8</td><td class="wn">Entrance to Mundoji Oreum</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=" vrow"><td class="wd">5.1</td><td class="wn">Top of Mundoji Oreum</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=""><td class="wd">8.7</td><td class="wn">Jeoji Drinking Water Resource</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">9.2</td><td class="wn">O&#x27;Sulloc Green Tea Fields</td><td><span class="badge nm">途经点</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">15-A / 15-B</span>
+      <span class="rzh">翰林 - 高内</span>
+      <span class="rmeta">15.5 km · 5-6h</span>
+      
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 0 处）</h4>
+      <ul class="vplist"><li class="muted">（官方未单独标注观景点）</li></ul>
+    </div>
+    <div class="curblock">
+      <h4>✚ 人工补充看点（1 处 · 非官方，坐标为估算）</h4>
+      <ul class="curlist"><li><span class="badge sv">观景/风景</span><div class="citem"><b>挟才海滩 Hyeopjae Beach</b><span class="cloc">📍 126.311, 33.396（估算）</span><p class="cdesc">济州西线最具代表性的白沙碧海海滩，与翰林公园相邻，15 号线（翰林→高内）途经。</p></div></li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（13 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=""><td class="wd">2.8</td><td class="wn">Kensington Resort in Hallim</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">3.9</td><td class="wn">Gwideok Crossroad Yeongsaesaengmul (pond)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">5.6</td><td class="wn">Geumseong-cheon(stream) Gwideok 1-ri Fishing Village Co-op Welfare Center</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">6.8</td><td class="wn">Geumseong-gyo(bridge)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">7.2</td><td class="wn">Gazebo at</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">7.4</td><td class="wn">Gwakji Beach Yongmun-sa(temple)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">7.8</td><td class="wn">Gwakji Beach</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">8.3</td><td class="wn">Handam Seaside Walkway</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">11.1</td><td class="wn">Napeup Elementary</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">11.2</td><td class="wn">Toilet in front of Napeup Elementary School</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">11.6</td><td class="wn">Napeup-ri Village</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">13.0</td><td class="wn">Gonae-pogu(port)</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">15.1</td><td class="wn">Entrance</td><td><span class="badge nm">途经点</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">16</span>
+      <span class="rzh">高内 - 光令</span>
+      <span class="rmeta">14.8 km · 5-6h</span>
+      
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 1 处）</h4>
+      <ul class="vplist"><li><span class="km">@ 6.6 km</span> Top of Susan-bong(peak)</li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（13 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=""><td class="wd">0.4</td><td class="wn">Darak Rest Area</td><td><span class="badge ra">休息区</span></td></tr>
+<tr class=""><td class="wd">1.5</td><td class="wn">Sineom-pogu(port) CU Convenient Store - Jeju Gonae Olle Gonae-pogu(port)</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">2.8</td><td class="wn">Namdoo Yeondae (signal smoke tower)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">3.8</td><td class="wn">Jungeomsaemul</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">4.6</td><td class="wn">Rocky Salt Field in Gueom-ri</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">4.8</td><td class="wn">Gueom Fishing Village</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">5.4</td><td class="wn">Gueom-ri Village</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=" vrow"><td class="wd">6.6</td><td class="wn">Top of Susan-bong(peak)</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=""><td class="wd">7.1</td><td class="wn">Susan Resevoir (Start Point of Detour at high tide)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">7.4</td><td class="wn">Susan-gyo(bridge) (End Point of Detour at high tide)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">9.7</td><td class="wn">Yewon-dong Welfare Center</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">11.7</td><td class="wn">Gazebo at Hangpaduri</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">15.5</td><td class="wn">Gwangnyeong Elementary</td><td><span class="badge nm">途经点</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">17</span>
+      <span class="rzh">光令 - 金万德纪念馆</span>
+      <span class="rmeta">19.5 km · 6-7h</span>
+      
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 2 处）</h4>
+      <ul class="vplist"><li><span class="km">@ 10.8 km</span> Entrance to Dodu-bong(peak) Walkway</li><li><span class="km">@ 11.1 km</span> Top of Dodu-bong(peak) Street fo Memories in Dodu-dong</li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（13 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=""><td class="wd">1.1</td><td class="wn">Meokdolsaegi Three-say Junction</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">3.4</td><td class="wn">Airport Hill</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">6.9</td><td class="wn">Oedo-pogu(port)</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">7.1</td><td class="wn">Aljakji(pebbles) Seaside</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">8.5</td><td class="wn">Iho Tewoo Beach</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=" vrow"><td class="wd">10.8</td><td class="wn">Entrance to Dodu-bong(peak) Walkway</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=" vrow"><td class="wd">11.1</td><td class="wn">Top of Dodu-bong(peak) Street fo Memories in Dodu-dong</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=""><td class="wd">12.3</td><td class="wn">Sasu-dong Mineral Spring</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">13.8</td><td class="wn">Eoyeongso Park</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">16.2</td><td class="wn">Yongduam (rock)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">16.6</td><td class="wn">Yongyeon-dari (bridge)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">18.0</td><td class="wn">Gwandeok-jeong(pavillion)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">18.6</td><td class="wn">Ganse Lounge</td><td><span class="badge nm">途经点</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">18</span>
+      <span class="rzh">金万德纪念馆 - 朝天</span>
+      <span class="rmeta">17.1 km · 5-6h</span>
+      
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 1 处）</h4>
+      <ul class="vplist"><li><span class="km">@ 11.2 km</span> Entrance to Wondang-bong(peak)</li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（8 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=""><td class="wd">5.8</td><td class="wn">Goneul-dong April 4 Historical Site</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">7.0</td><td class="wn">Hwabuk-pogu(port)</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">10.0</td><td class="wn">Gazebo at Samyang Beach</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=" vrow"><td class="wd">11.2</td><td class="wn">Entrance to Wondang-bong(peak)</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=""><td class="wd">11.6</td><td class="wn">Bultap-sa(temple)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">13.4</td><td class="wn">Sibi-koji(cape)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">15.0</td><td class="wn">Sinchon-pogu(port)</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">16.2</td><td class="wn">Dae-seom(island)</td><td><span class="badge nm">途经点</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">18-1</span>
+      <span class="rzh">上楸子</span>
+      <span class="rmeta">11.4 km · 4-5h</span>
+      <span class="loop">环线</span>
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 1 处）</h4>
+      <ul class="vplist"><li><span class="km">@ 13.2 km</span> Top of Dondae-san(mountain)</li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（13 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=""><td class="wd">0.2</td><td class="wn">Chuja-myeon Village Office</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">0.4</td><td class="wn">Shrine of Feneral Choi, Yeong</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">1.2</td><td class="wn">Entrance to Bongeulle-san(mountain)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">1.8</td><td class="wn">Exit from Bongeulle-san(mountain)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">4.2</td><td class="wn">Muk-ri Goget-gil (hilltop pathway)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">5.9</td><td class="wn">Mukri Supermarket</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">8.2</td><td class="wn">Sinyang-hang(harbor), CU Convenience Store</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">9.3</td><td class="wn">Grave</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">11.4</td><td class="wn">Yecho-pogu(port)</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">12.4</td><td class="wn">Entrance to Dondae-san(mountain)</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=" vrow"><td class="wd">13.2</td><td class="wn">Top of Dondae-san(mountain)</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=""><td class="wd">15.8</td><td class="wn">Chuja-gyo(bridge) 4km,16km</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">16.7</td><td class="wn">Yeongheung Rest Area</td><td><span class="badge ra">休息区</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">18-2</span>
+      <span class="rzh">下楸子</span>
+      <span class="rmeta">9.7 km · 3-4h</span>
+      <span class="loop">环线</span>
+    </header>
+    <p class="none">该路线在官方 App 路线总表中存在，但本仓库的官方航点文件（olle-waypoints.json）无逐段明细（如 18-2 下楸子）。</p>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">19</span>
+      <span class="rzh">朝天 - 金宁</span>
+      <span class="rmeta">19.4 km · 6-7h</span>
+      
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 2 处）</h4>
+      <ul class="vplist"><li><span class="km">@ 7.4 km</span> Seowoo-bong(peak) Sunset Spot</li><li><span class="km">@ 9.1 km</span> Seowoo-bong(peak) Neobeunsoongee April 3 Memorial Hall</li></ul>
+    </div>
+    <div class="curblock">
+      <h4>✚ 人工补充看点（4 处 · 非官方，坐标为估算）</h4>
+      <ul class="curlist"><li><span class="badge sv">观景/风景</span><div class="citem"><b>咸德海水浴场 Hamdeok Beach</b><span class="cloc">📍 126.671945, 33.544521（估算）</span><p class="cdesc">济州东部最有名的海水浴场之一，白沙浅滩、水色清澈，紧邻犀牛峰；19 号线（朝天→金宁）6.3 km 处途经。</p></div></li><li><span class="badge sv">观景/风景</span><div class="citem"><b>犀牛峰 Seowoo-bong</b><span class="cloc">📍 126.677494, 33.550134（估算）</span><p class="cdesc">咸德海边的小火山丘，登顶可俯瞰咸德海岸线，官方航点标注为 viewpoint（日落观赏点）；19 号线 7.4 km 处。</p></div></li><li><span class="badge sr">遗迹</span><div class="citem"><b>4·3 纪念馆（너븐숭이） Neobeunsoongee April 3 Memorial</b><span class="cloc">📍 126.690399, 33.548344（估算）</span><p class="cdesc">犀牛峰一带 너븐숭이 的济州 4·3 事件纪念设施，官方航点标注为 viewpoint；19 号线 9.1 km 处。</p></div></li><li><span class="badge sva">村落</span><div class="citem"><b>北村村落 Bukchon</b><span class="cloc">📍 126.695768, 33.550758（估算）</span><p class="cdesc">北村（북촌리）渔村与北村港一带，保留济州传统石墙与渔村风貌；19 号线 10.1 km 处途经。</p></div></li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（10 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=""><td class="wd">3.4</td><td class="wn">Sinheung-ri White Sand Beach</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">4.1</td><td class="wn">Sinheung-ri Village Office Jeju Memorial Hall of Resistance to Japan</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">4.8</td><td class="wn">Jeju National University Marine and Nature Istitute</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">6.3</td><td class="wn">Hamdeok Beach</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=" vrow"><td class="wd">7.4</td><td class="wn">Seowoo-bong(peak) Sunset Spot</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=""><td class="wd">8.5</td><td class="wn">Haedong-pogu(port)</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=" vrow"><td class="wd">9.1</td><td class="wn">Seowoo-bong(peak) Neobeunsoongee April 3 Memorial Hall</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=""><td class="wd">10.1</td><td class="wn">Bukchon-pogu(port)</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">12.6</td><td class="wn">Church</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">13.5</td><td class="wn">Dongbok-ri Village Playground</td><td><span class="badge nm">途经点</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">20</span>
+      <span class="rzh">金宁 - 下道</span>
+      <span class="rmeta">17.4 km · 5-6h</span>
+      
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 0 处）</h4>
+      <ul class="vplist"><li class="muted">（官方未单独标注观景点）</li></ul>
+    </div>
+    <div class="curblock">
+      <h4>✚ 人工补充看点（1 处 · 非官方，坐标为估算）</h4>
+      <ul class="curlist"><li><span class="badge sv">观景/风景</span><div class="citem"><b>万丈窟 Manjanggul Cave</b><span class="cloc">📍 126.7716, 33.5266（估算）</span><p class="cdesc">联合国教科文世界自然遗产济州火山岛溶岩洞窟的一部分，长达数公里的熔岩隧道；位于 20 号线（金宁→下道）金宁一带。</p></div></li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（8 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=""><td class="wd">1.4</td><td class="wn">Jjokkeullak Cafe</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">1.6</td><td class="wn">Gimnyeong Beach</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">3.4</td><td class="wn">Wind Power Generation Complex</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">6.9</td><td class="wn">Woljeong Beach</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">8.3</td><td class="wn">Haengwon-pogu(port), Gwanghaegun Sojourn Monument</td><td><span class="badge tr">交通·港口</span></td></tr>
+<tr class=""><td class="wd">11.2</td><td class="wn">Gujwa Industrial Complex</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">12.2</td><td class="wn">Handong Seaside Road</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">13.5</td><td class="wn">Gyeryong-dong Village</td><td><span class="badge nm">途经点</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="route">
+    <header class="rhead">
+      <span class="rcode">21</span>
+      <span class="rzh">下道 - 终达</span>
+      <span class="rmeta">11.3 km · 3-4h</span>
+      
+    </header>
+    <div class="vpblock">
+      <h4>🏞 核心景点（官方标注观景点 2 处）</h4>
+      <ul class="vplist"><li><span class="km">@ 8.3 km</span> Entrance to Jimi-bong(peak)</li><li><span class="km">@ 9.0 km</span> Top of Jimi-bong(peak)</li></ul>
+    </div>
+    <details>
+      <summary>查看全部官方航点（5 处，含途经点/港口/休息区）</summary>
+      <table class="wptable">
+        <thead><tr><th>距起点 km</th><th>名称（官方）</th><th>类型</th></tr></thead>
+        <tbody><tr class=""><td class="wd">0.8</td><td class="wn">Myeonsoo-dong Village Community Center</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">3.0</td><td class="wn">Byeolbangjin</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=""><td class="wd">6.7</td><td class="wn">Hado Beach</td><td><span class="badge nm">途经点</span></td></tr>
+<tr class=" vrow"><td class="wd">8.3</td><td class="wn">Entrance to Jimi-bong(peak)</td><td><span class="badge vp">观景点 ★</span></td></tr>
+<tr class=" vrow"><td class="wd">9.0</td><td class="wn">Top of Jimi-bong(peak)</td><td><span class="badge vp">观景点 ★</span></td></tr></tbody>
+      </table>
+    </details>
+  </section>
+</div>
+</body>
+</html>

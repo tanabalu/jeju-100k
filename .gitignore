@@ -13,6 +13,8 @@ dist/
 # python / script 本地缓存
 **/__pycache__/
 scripts/.cache/
+# 脚本按 cwd 解析路径时会在仓库根留下的缓存（fetch_olle_osm.py 的 OSM 原始数据）
+.cache/
 
 # vite 构建时生成的临时配置（异常退出会残留）
 vite.config.ts.timestamp-*

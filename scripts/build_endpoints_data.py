@@ -62,7 +62,9 @@ def parse_places(seed_text: str) -> dict[str, dict[str, object]]:
 
 def parse_specs(seed_text: str) -> dict[str, tuple[str, str]]:
     out: dict[str, tuple[str, str]] = {}
-    for m in re.finditer(r"code:\s*'([\d-]+)',\s*start:\s*'(\w+)',\s*end:\s*'(\w+)'", seed_text):
+    # 编号要认得带 A/B 的（`03-A` / `15-B`）—— 只匹配 `[\d-]+` 会把这几条整条漏掉，
+    # 表现为 olle-endpoints.json 少 4 个键、这几条线退回 PLACES 的城镇级近似坐标。
+    for m in re.finditer(r"code:\s*'([\d\-AB]+)',\s*start:\s*'(\w+)',\s*end:\s*'(\w+)'", seed_text):
         out[m.group(1)] = (m.group(2), m.group(3))
     return out
 

@@ -2,7 +2,238 @@
 
 > **README 只留「现在该怎么用」的最终结论**；本文件记录过程 —— 为什么这么改、试错过什么、每个时间点的历史数据快照。
 >
+
+## 2026-10-03（续·9）
+
+### 删掉「近似剖面」：`olleeElevation.ts` 改为由真实轨迹派生
+
+**结论**：那张沿「起终点直线 / 环线圆周」采样 SRTM 的**估算表彻底不用了**。29 条线已全部有真实轨迹（见续·8），
+高程序列直接取轨迹点本身 —— `scripts/build_elevation_from_tracks.py` 从 `public/tracks.json` 派生 `src/lib/olleeElevation.ts`，
+`basis` 只有 `'track'` 一种，`scripts/fetch_elevation.py` 与 `scripts/.cache/elevation.json` 一并删除。
+
+**为什么值得做**：此前 seed 用估算表、运行时 `DataContext.mergeTrack` 用真实轨迹覆盖，两者口径不同，
+首屏会看到「估算剖面 → 被真实剖面换掉」的跳变；`basis` 也有 `line` / `loop` 两个估算口径要维护文案与分支。
+现在 seed 与运行时**同源同值**，跳变消失，`ElevBasis` 收窄为 `'track'`（`types.ts`），
+`RouteDetailPage` 的「环线圆周采样估算 / 直线采样估算」两条文案随之删除。
+
+**顺带修的两个数据问题**：
+
+1. **`06` / `07` 的轨迹点整条 `ele: null`**（当年导入时没加 `--elevation`），爬升一直显示「—」。
+   新脚本 `scripts/fill_track_elevation.py` 就地补采（复用 `import_tracks.py` 的 `fill_elevations` + 缓存 + 限速）：
+   06 = 爬升 213 m / 最高 71 m，07 = 爬升 391 m / 最高 144 m。
+   ⚠️ `tracks.json` 是**单行**紧凑 JSON，`json.dump` 重写会让整行变成 diff 噪声，
+   所以脚本做**字符串感知的花括号配平**、只替换 `"<code>":{...}` 那一块，其余字节不动（已校验：只有 06/07 两块变化）。
+2. **`src/data/olle-endpoints.json` 缺 `03-A` / `03-B` / `15-A` / `15-B` 四条**（`check_endpoints.py` 报的 ❌）。
+   根因是 `build_endpoints_data.py` 的 `parse_specs()` 正则 `([\d-]+)` **认不出带字母的编号**，
+   拆 A/B 后重跑就把这 4 条整体漏掉（`tracks.json` 当时也没有 `03-B`/`15-B`，于是旧键也消失了），
+   结果这 4 条线的权威起终点退回了 `PLACES` 的**城镇级近似坐标**。正则放开为 `([\d\-AB]+)` 后重跑，
+   29 条齐了，且已有 25 条**一字未变**；`check_endpoints.py` 现在 ✅ 三向对账通过。
+   交叉验证：03-A 与 03-B 的端点相距 10~30 m、15-A 与 15-B 相距 40~80 m，两条走法独立吻合。
+
+**生成时的精度坑**：GPX 自带海拔是 0.1 m 级小数（`09 / 14-1 / 18-1 / 18-2`），一开始统一 `int(round())` 取整，
+导致这 4 条的累计爬升少算 2~6 m（如 18-1 记 525 m、算出 523 m）。改成保留原始精度后与 `tracks.json` 完全对齐。
+
+**现在的数字**（口径：`tracks.json`，`npx tsc scripts/check-elevation.ts` 逐条核对）：
+29 条全部 `profile/track`、爬升缺失 0 条，合计爬升 **6504 m**；海拔来源 4 条轨迹自带 + 25 条 SRTM 沿轨迹补采。
+四语种 README 的「海拔与爬升怎么算」优先级链、偏差条数（16 条 ±5% 内 / 13 条超出）、
+爬升合计、目录结构与脚本清单已同步。
+
+**验证**：`npm run build` ✅（exit 0）；`check_official_consistency.py` ✅ 29/29 有轨迹；
+`check_endpoints.py` ✅ 三向对账通过；`check-elevation.ts` ✅ 爬升缺失 0 条。
+
+## 2026-10-03（续·8）
+
+### 15-B 轨迹到手：29 条全部有轨迹（28 实测 + 1 路网推断）
+
+**结论**：`15-B` = 12.26 km / 爬升 45 m，**由 OSM 步行路网按「贴海最短路」缝合**，不是 GPS 实测。
+`check_official_consistency.py` 现在报「29 条官方路线；有轨迹 29 条，**缺轨迹 0 条**」，15-B 偏差 -5.7%（⚠️ 复核级，与 08/14 同档）。
+
+**前面那三个源为什么全灭（补记，别再重复试）**：
+
+| 源 | 结果 |
+| --- | --- |
+| OSM route 关系 | 全岛 22 个 올레 관계 里**没有 15 号线**。bbox (33.39,126.23,33.49,126.37) 内 `rel[route]` 只有 8 个关系，含 `올레길 16코스`（`r cn`），无 15 |
+| 官网 `jejuolle.org/trail#/road/15_B` | 只能拿到**图片版路线图**。`assets/trail-*.js` → `trail_ko_router-*.js` → `Road-*.js`（522 KB）逐层跟下来，路线数据是一堆 `road_15-B_map_pc.jpg` / `_level_2025.jpg` 之类的**位图 URL**，没有矢量坐标 |
+| 社区站 `pamnjeff.com` | `JejuOlle15a/15b` 全 404（上一轮已记） |
+
+**改成路网推断**。这条路能走通，靠的是三件事：
+
+1. **bbox 内沿海路网其实是连通的**。翰林港→高内浦口之间 `highway=*` 有 1702 条 way（residential 746 / unclassified 286 / **footway 225** / tertiary 123 / secondary 112 / **path 27** / cycleway 19）+ 7 条 `natural=coastline`（2361 点）。沿海岸采样查「最近路网距离」，>250m 的缺口只有 2 处（翰林港西侧 365m、金城里东 316m），**主走廊连续**。
+2. **有一条现成的沿海长 cycleway**：`way 1200721740`（5.39 km → 修正 haversine 后 **10.8 km**，`离海 2m`）从 (126.3109,33.4589) 一路贴海到 (126.3994,33.4813)，**高内浦口距它最近仅 6m**。这就是「한림해안산책로（翰林海岸散步路）」的骨架。
+3. **官方途经点可以拿来验走向**。visitjeju 韩文页点名 4 个：`운용곶 무인등대`（云龙岬无人灯塔）、`제주 해수풀해녀학교`（济州海水浴场海女学校）、`금성리 바다`（金城里大海）、`곽지해수욕장`（郭支海水浴场）。Dijkstra 出来的路径到这 4 点的最近距离分别是 **60m / 10m / 79m** —— 4 个全中，说明走向不是随便一条沿海路。
+
+**代价函数**（`/tmp` 里的一次性脚本，没进仓库，因为是一次性取数）：`cost = 段长 × 道路类型系数 × (离海距离惩罚)`。
+调了 6 组参数，长度在 11.4~15.4 km 之间摆，最终取「严类型系数 + 幂 1.5 海距惩罚」那组：
+`HW_PEN`（cycleway/footway/path 1.0 … tertiary 3.5 … secondary 5.0）× `1 + (min(离海,1500)/80)^1.5`。
+**12.41 km / 平均离海 54 m**。选这组而不是更长的 15.38 km 那组，是因为类型占比更合理（tertiary 5.5 + cycleway 2.3 + footway 2.1 + residential 1.8），官方原文说的是「**해안도로를 따라**（沿着海岸道路）走」，tertiary 占比高是符合的；15.38 km 那组 cycleway 占 5.2km，形状反而更像在骑自行车道。
+
+**⚠️ 踩到的坑（重要）**：
+
+- **haversine 少乘了 2**，一度把 5.39 km 的 way 算成 2.7 km、Dijkstra 结果 5.41 km（比直线距离还短，一眼假）。
+  正确写法是 `2*R*asin(√h)`，我写成了 `R*asin(√h)`。**任何距离算出来小于起终点直线距离，就是公式错了**，别去怀疑数据。
+- **Overpass 会间歇性返回 HTML 错误页**（`Dispatcher_Client::request_read_and_idx::timeout`）而**不是 4xx**，脚本里不判 `Content-Type` 就 `json.load` 会炸。`overpass-api.de` 挂了可换 `overpass.kumi.systems`（本机实测 kumi 更慢，大 bbox 会超时）。
+- **大 bbox + 无索引正则容易 504**。`way(bbox)["name"~"해안|산책|..."]` 直接超时；换成 `way(bbox)["highway"]["name"]`（两个有索引的 tag）拉回来 446 条再本地过滤，7 秒就完了。
+
+**顺带确认的官方起终点**（`Road-*.js` 里 `15_B` 的字面量，可信度高于任何二手资料）：
+`15_B` start `33.41915303841233,126.26240096054971` / end `33.46695997752249,126.3382369838655`；
+`15_A` start **同一点**，end `33.467186372727156,126.33876127190888`。
+→ **A/B 确实同起点**，与项目里「A/B 同起终点」的既定口径一致，误差 2~8m。
+
+**同批清掉的过期表述**（`15-B` 不再是「缺轨迹」，留着就是错的）：
+`src/lib/olleeElevation.ts` 头注释、`src/lib/seed.ts:254` 注释、`src/lib/tripPlans.ts` 的 15-B 提示（改为写明「推断非实测 + 短 5.7% + 途经点已核对」）、
+四语 README 的数据来源表 / 轨迹小节 / 线型说明。
+
+## 2026-10-03（续·7）
+
+### 修复：03 / 15 的封面图与官方路线图整块消失
+
+- **根因**：封面不是写死在路线数据里的，而是 `DataContext.mergeAssets()` 拿 `route.code` 去 `public/photos/manifest.json`（风景照）和 `public/photos/maps.json`（官方路线图）里查键。上一轮把编号从 `03`/`15` 改成 `03-A`/`03-B`/`15-A`/`15-B` 时，**按 code 索引的数据改了，这两个素材清单的键漏了** → `photos[code]` / `maps[code]` 全部 miss，页面不报错，只是回落到 `cover-placeholder` 灰块，看起来就是「图没了」。
+- **教训（值得记住的排查顺序）**：编号类重构，**「按 code 索引」的清单不止代码里的那几处** —— `public/` 下的静态素材清单（`manifest.json` / `maps.json` / `CREDITS.md` / `tracks.json`）同样是按 code 索引的，只是不在 TS 里，grep `src/` 永远找不到。下次改编号，先 `grep -r '"03"\|"15"'` 整个仓库（含 `public/`），而不是只 grep 代码目录。
+- 修法：
+  - `public/photos/manifest.json`：`03`→`03-A`、`15`→`15-A`，并新增 `03-B` / `15-B` 条目；caption 跟着编号走并标出山线/海线。
+  - `public/photos/maps.json`：只改 `03`→`03-A`、`15`→`15-A`，**不给 B 线登记** —— 官方路线图 PDF 是 2017 版（拆分前才有 3/15 的图），把 A 线的示意图登记成 B 线的走向是张冠李戴。B 线详情页相册因此没有官方路线图，这是对的。
+  - `public/photos/CREDITS.md`：署名清单的编号列同步（`| 03 |`→`| 03-A |` ×5、`| 15 |`→`| 15-A |` ×3）。
+  - B 线**复用 A 线已有图文件**（`photos/scenes/olle-03.webp`、`olle-15.webp`），不新增、不复制文件 —— A/B 同起终点同一带，共用一张该区域的风景照不构成误导；B 线不给 gallery，避免相册里 A 线的图重复出现。
+  - caption 的 A/B 标注用**中点**而非括号（`温坪 → 表善 · A 山线`）：`split_route_map.py` 的 caption 模板是 `偶来 X 官方路线图（{label}）`，label 里再带括号会嵌套。`fetch_photos.py` 的 `CODE_LABEL` 一并改成中点，两个脚本共用同一份 label 才不会漂移。
+  - `scripts/split_route_map.py` 的 `PAGE_CODES`（PDF 页码 → 编号）同步 `03`→`03-A`、`15`→`15-A`。
+- **顺带修掉一处同源隐患**：看点 id 由 `build_sights_data.py` 按 `cur-{code}-{序号}` 生成，code 改成 `15-A` 后重跑会产出 `cur-15-A-1`，与现存的 `cur-15-1` 对不上。已把 `src/lib/sightsData.ts` 的 id、`scripts/fetch_sight_photos.py` 的 `SIGHT_LOCAL` / 名称表、`public/photos/CREDITS_SIGHTS.md` 一并改成 `cur-15-A-1`，图片文件 `public/photos/sights/cur-15-1.webp` → `cur-15-A-1.webp`（`git` 里体现为改名）。
+- 校验脚本（一次性跑通）：29 条逐条查「风景照/路线图/轨迹 命中 + 引用文件真实存在」→ 无缺文件；manifest 与 maps 均无多余键。当前只有 `15-B` 缺轨迹、`03-B`/`15-B`/`18-2` 缺官方路线图，都是已知且合理的。
+- `npm run build` ✅，`dist/` 下 manifest 已同步为 29 键。
+
 > 这些内容原先直接写在 README 里，读的人得先跑完整条排查链才能拿到一句结论。挪到这里之后，README 只回答问题，本文件负责解释。
+
+---
+
+## 2026-10-03（续·6）
+
+### 补轨迹：03-B 拿到了（29 条里 28 条有实测轨迹），15-B 仍缺
+
+**先纠正一个存了两轮的错误判断**：此前一直记着「本机 OSM / Overpass 不通」，据此把两条 B 线判成「抓不到」。
+实际情况是 **Overpass 一直通**，之前的 406 只是 curl 没带 `User-Agent`（Overpass 明确要求可识别 UA，
+`scripts/fetch_olle_osm.py` 里本来就有 UA，所以脚本一直能跑）。教训：判定「网络不通」前先看是不是请求头的问题，
+别把「我这条命令被拒」写成「这个源不可用」。
+
+**03-B 的取法**（这条路以后补别的分叉线还能用）：
+OSM 的 `올레길3`（rel 5458299）是个 superroute，成员 = **两个子关系** `올레길3A`(6089470)、`올레길3B`(6089589)
+**+ 父关系自己直属的 32 条 way**。关键是 `ways_of()` 展开后 `A∩B = 0` —— A、B 两条走法**一条 way 都不共用**，
+父关系那 32 条才是两线共用的首尾段。所以：
+
+| 组合 | way 数 | 缝合结果 | 对官方 |
+| --- | --- | --- | --- |
+| 3B 关系单独 | 25 | 7.43 km（1 段） | 14.6 的 51% |
+| 3A 关系单独 | 54 | 14.87 km（2 段） | 20.9 的 71% |
+| **父 32 + 3B 25** | 57 | **14.88 km（1 段）** | **14.6 的 102% ✅** |
+| 父 32 + 3A 54 | 86 | 22.32 km（2 段） | 20.9 的 107%（与现有 03-A 22.22 km 同源） |
+
+算术也自洽：父关系全缝 29.76 km（A∪B）− B 独有 7.43 = 22.33 ≈ A 线，反过来 29.76 − A 独有 14.87 = 14.89 ≈ B 线。
+**之前脚本把 B 当「闭合旁路（parallel）」剔掉了**（docstring 里那句「实测证据只有 03：剔前 29.76→剔后 22.71」
+说的就是这事）—— 对「A/B 分叉」这种结构，被剔的那段恰恰是另一条完整走法，不是绕路。
+
+产出的 `tracks/osm/olle-03-B.geojson` 经 `import_tracks.py --elevation` 入库：14.75 km / 爬升 48 m /
+最高 19 m（03-A 是爬升 260 m、最高 146 m）—— 海岸线与山线的地形特征对得上，可作交叉验证。
+另有一份独立社区 KML（`Jeju Olle 3B`，14.84 km，首末点一致）与 OSM 结果吻合，两个源互相印证。
+
+**15-B 为什么没拿到**（三个源都试过，如实记录）：
+1. **OSM 里 15 号线根本没有 route 关系** —— 全岛 22 个 올레 关系里没有它，只有散 way；
+2. 散 way 里标了 A 的 7 条、标了 B 的 **1 条**，其余 96 条叫 `Ollegil 15` 没区分 A/B。
+   把 104 条全缝起来只有 **9.93 km / 15 段**，是碎片，够不上可用门槛（宁可缺、不可假）；
+3. 社区 KML 站（pamnjeff.com，`JejuOlle<编号>.kml` 命名）有 `JejuOlle3b.kml`、`JejuOlle3a.kml`、
+   `JejuOlle15.kml`，但 15 的 A/B 变体（`15a`/`15A`/`15B`/`15b`/`15-B`/`15-1`）**全是 404**。
+
+**顺带查清了 15-A 为什么超长 19%**（这个此前只标了「⛔ 打折看」，没给原因）：
+官方是**改线后**才把 15 号线拆成 A/B 的（visitjeju：先前的 15 号线变更为 15-A、15-B 后重新开放），
+而现有 15-A 的轨迹来自改线**之前**的旧 15 号线（18.67 km，来自 `JejuOlle15.kml`）。
+新的 15-A 是 15.5 km，旧线自然更长 —— 不是缝合失误，是数据年代问题。要修得等 OSM 或社区有人按新走向补。
+
+落地改动：`public/tracks.json` 新增 `03-B`（其余 28 条一字未动，导入器的「保留已有对应数据」生效）；
+`tracks/osm/olle-03-B.geojson`；四语种 README 的轨迹数 27→28、`03-B` 标注已有轨迹、15-A 超长原因、
+以及「实际走完一圈设 403」。
+
+---
+
+## 2026-10-03（续·5）
+
+### 拆分：3 号线 / 15 号线按官方口径分成 A 山线 · B 海线（27 条 → 29 条）
+
+- **为什么要拆**：官方 Olle App 的路线列表里 3 号线、15 号线各是两条（`03-A`/`03-B`、`15-A`/`15-B`），
+  而本项目只记了 A 线（`03`=3A 20.9km、`15`=15A 15.5km）。结果是 `check_official_consistency.py`
+  每次都报「App 有、seed 缺：03-B / 15-B」，而页面上也根本没法把海线单独排进行程。
+- **官方口径（多来源交叉核对）**：A = 山线（内陆 / 中山间，翻岳穿林），B = 海线（海岸，官方称 바당올레，
+  바당 = 济州方言「海」）。两条同起终点、是同一段路的二选一，走完任意一条都算走完该号。
+
+  | 编号 | 走法 | 里程 | 耗时 | 难度 |
+  | --- | --- | --- | --- | --- |
+  | `03-A` | 山线（桶岳·独子峰） | 20.9 km | 6~7h | 上（★4） |
+  | `03-B` | 海线（온평숲길→신산포구→환해장성，在 신풍신천바다목장 与 A 汇合） | 14.6 km | 4~5h | 下（★2） |
+  | `15-A` | 山线（锦山公园·纳邑林道·과오름） | 15.5 km | 5~6h | 中（★3） |
+  | `15-B` | 海线（翰林港→귀덕→곽지→한담산책로→애월→고내포구） | 13.0 km | 4~5h | 下（★2） |
+
+  依据：官方 App 路线列表快照 `scripts/data/olle-app-routes.json`、Jeju Weekly 对 3-B「Badang Olle」开通的
+  报道、visitjeju.net 15-B 官方页、plusplanner 的官方线路介绍。visitjeju 写 15-B = 13.5km，与 App 的
+  13.0km 有出入，**以 App 现行值为准**。
+- **编号改成与官方一致**（不是「保留 03 另加 03-B」）：`03`→`03-A`、`15`→`15-A`，新增 `03-B`、`15-B`。
+  连带把**所有按 code 索引的数据**改名 —— `public/tracks.json`（含 `mainlineJoinFrom` 的 `03`→`03-A`、
+  `15`→`15-A` 引用）、`src/data/olle-endpoints.json`、`src/lib/olleeElevation.ts`、`olleSurfaces.ts`、
+  `waypointsData.ts`、`sightsData.ts`、`olleDurations.ts`、`src/data/stays.json` 的 `routeTowns`、
+  `src/lib/tripPlans.ts`，以及脚本侧的 `fetch_stays.py` / `add_stay_return.py` / `fetch_photos.py` /
+  `curated_sights.json` / `olle-waypoints.json`。
+  `public/tracks.json` 是紧凑格式，**用精确文本替换而不是 json.dump 重写** —— 重写会把 14 万字符压成
+  上万行，产生毫无意义的 diff。
+- **B 线暂缺轨迹**（决定：等用户拿到 GPX / GeoJSON 再接，不手工编一条近似折线）：
+  `tracks.json` 里没有 `03-B`/`15-B`，页面上按现有「无轨迹」逻辑走**灰绿虚线**示意，爬升显示「—」。
+  拿到文件后跑 `scripts/import_tracks.py` 即可自动接管，不用改代码。
+  ⚠️ 为此顺手修了 `import_tracks.py` 的 `guess_code()`：它把文件名里的字母全剔成 `_`，
+  `olle-03-B.gpx` 会被识别成 `03` 而漏判。现在**在纯数字判定之前**先匹配「数字 + A/B」，
+  `03-A`/`03-B`/`15b`/`03_B` 这些写法都能认。
+- **`fetch_olle_osm.py` 的 `DEFAULT_ALIAS` 置空**：原先 `{"03-A": "03"}` 是「把 OSM 的 3-A 归到主线 03」
+  的换算层；编号与官方对齐后这层不再需要（3-A 就该落成 `03-A`）。留着它会让重跑时 B 线静默丢数据。
+- **对账脚本同步**：`check_official_consistency.py` 的 SPECS 正则 `[\d-]+` 认不出带字母的编号（会导致
+  29 条被解析成 25 条而静默失效），放开成 `[\d\-AB]+`；同时删掉 `APP_TO_SPEC = {"03-A":"03","15-A":"15"}`
+  别名映射 —— 编号已对齐，再归一等于把 B 线永远藏在「App 有、seed 缺」的 ⚠️ 里。
+  `check_endpoints.py` 同样放开正则，并把「tracks.json 无此线」从 **problem 降级为 info** ——
+  缺轨迹是已知待补状态，混在 problem 里会跟「轨迹被改名 / 删了」分不清。
+- **全程合计 402.8 → 430 km**：按用户决定，29 条全计（与官方 App 的 29 个编号一一对应）。
+  代价是 A/B 是二选一，同一段路被算了两次（+27.6 km），注释与 README 都写明「想按实际走完算就把目标设成 403」。
+- **已知待办（未修，先记下来）**：
+  - `15-A` 的轨迹 18.44km 比官方 15.5km 长 **+19%**（对账脚本判 ⛔），爬升与地图形状请打折看。
+  - 官方航点里 **03 与 15 的 A/B 点是混在一起的**（例如 15 号线航点含 Handam Seaside Walkway，
+    那是 B 线的点；3 号线第一个点就叫 "Forked Road of Route A and B"）。补 B 线轨迹时要把航点一并拆开。
+- 验证：`check_official_consistency.py` → App 29 / seed 29、里程逐条一致、缺轨迹仅 `03-B`/`15-B`；
+  `check_endpoints.py` → ✅ 三向对账通过；`npm run build` 通过。
+
+---
+
+## 2026-10-03（续·4）
+
+### 新增：19 号线（朝天→金宁）4 处看点
+- 用户提供：19 号线途经 4·3 纪念馆、咸德海水浴场、犀牛峰、北村村落。
+- 核对结果：**这 4 处官方航点里本来就有**（`olle-waypoints.json` 的 19 号线，字段是 `distance` 不是 `km`）：Hamdeok Beach 6.3km / Seowoo-bong Sunset Spot 7.4km（viewpoint）/ Neobeunsoongee April 3 Memorial Hall 9.1km（viewpoint）/ Bukchon-pogu 10.1km。之所以看着像"缺"，是因为报告「核心景点」只列 `type=viewpoint`，咸德（normal）和北村（transport）被过滤掉了。
+- 仍然补进人工补充层：19 号线的详情页「路边景色」卡片原本是空的（此前只补了 01/06/07/08/14/15/20）。**两个图层用途不同** —— 官方航点是地图标记，本层是带简介+配图的卡片。已同步改掉 `curated_sights.json` 的 `_note`（原写"不重复官方已列的点"，与实际数据矛盾）。
+- 坐标不是估的：直接取自 `src/lib/waypointsData.ts`（`build_waypoints_data.py` 已按官方里程用 haversine 投影到真实轨迹上的成品坐标）。
+- 配图：全量搜本地图库，`File:Hamdeok_Beach.jpg` 挂在 **18 号线**封面（图在 18 号线路段上、景点属 19 号线），已登记进 `SIGHT_LOCAL` → 咸德海水浴场拿到封面（`photos/scenes/olle-18.webp`，Hong Da Hyeon / CC0）。犀牛峰、4·3 纪念馆、北村本地无对应图，留空。
+- 顺手修：`--local` 的署名标签原先只查 `SIGHT_LABEL` 字典、漏登记就退化成裸 id（本次出现过 `cur-19-1 (cur-19-1)`）。改为缺省回落到数据里的真实名称。
+- 现状：8 条线 / 12 处看点。`tsc --noEmit` 0 错误；报告 `docs/route-attractions.html` 已重生成（routes=27, viewpoints=33, curated=12）。
+
+---
+
+## 2026-10-03（续·3）
+
+### 修复：fetch_sight_photos.py 一启动就 KeyError: 'id'
+- 现象：`python3 scripts/fetch_sight_photos.py` 在 `sid = s["id"]` 直接崩。
+- 根因：`curated_sights.json` 的条目**本身没有 id 字段** —— id 是 `build_sights_data.py` 生成 `sightsData.ts` 时按位置拼出来的（`cur-{code}-{序号}`）。脚本 docstring 写着要"复刻 build_sights_data 的 id 规则"，但 `flat_sights()` 只返回 `(code, idx, item)`、从没真的把 id 拼出来，调用方却直接读 `s["id"]`。
+- 修法：新增 `sight_id(code, idx)` 复算 id，`flat_sights()` 返回 `(code, idx, sid, item)`，循环直接用算出的 sid；`--ids` 过滤改按 sid 并校验未知 id（给出可用 id 列表）；默认只处理 `SIGHT_QUERIES` 里登记过的 id，没登记的显式提示而非静默跳过。
+- 附带清理：删掉只写不读的 `file_basename`；"图片已存在"分支补齐 width/height（用 Pillow 读，缺失则静默降级）。
+- 验证（离线，无网络也能跑）：打桩 `fp.search` 跑 `--dry`，8 个 id 全部正确生成且与 `SIGHT_QUERIES` 完全对齐；`--ids` 精确筛选 + 未知 id 告警均正常。
+
+### 新增：`--local` 模式（Wikimedia 不可达时的无网兜底）
+- 背景：`commons.wikimedia.org` / `upload.wikimedia.org` 在本机与沙箱均不可达 —— 表现为 **TLS handshake timeout**（TCP 能连、TLS 被掐），不是脚本 bug，也不是简单的"慢"。example.com / api.github.com 正常，说明是针对性不可达。
+- 做法：`--local` 完全不联网，直接复用 `public/photos/` 里已随仓库分发的 CC 图，来源 `manifest.json`（自带 credit/source）。
+- **只登记精确匹配**（`SIGHT_LOCAL`）：`cur-08-1` 柱状节理带 ← olle-08 主图（Jungmun Daepo Jusangjeolli Cliff）、`cur-15-1` 挟才海滩 ← olle-14 主图（Hyeopjae Beach）。其余 6 处本地无对应图，**宁可留空也不用邻近景点照片顶替**（例如不拿「城山日出峰」的图当「涉地可支」，那是张冠李戴）。
+- 本次实跑结果：2 处拿到封面（`photos/scenes/olle-08.webp` 1600×1200、`photos/scenes/olle-14.webp` 1600×1071），署名写进 `public/photos/CREDITS_SIGHTS.md`（独立文件，避开被 `fetch_photos.py` 整体重写的 `CREDITS.md`）。
+
+### 环境备忘
+- Pillow 装在托管 venv `/Users/chenxin/.workbuddy/binaries/python/envs/default`（基于 Python 3.13.12）。**不要用 `pip3 install`** —— 那是 macOS 系统 Python 3.9.6，PEP 668 外部受管环境会拒绝；也不要 `--break-system-packages`。
+- 本环境 Bash 的 `grep` 对 `scripts/*.py` 不返回任何内容（Python 读同一文件却有内容），核对函数签名请改用 Python `inspect` 内省，别信空 grep 结果。
 
 ---
 
@@ -19,6 +250,37 @@
 - 使用约束：手机与 PC 必须同 WiFi；App 须以 http 在局域网内打开（https 页面拉取 http 中继会触发混合内容拦截）；公共 WiFi 的 AP 隔离 / PC 防火墙可能挡端口。
 - 验证：`tsc` 通过；中继冒烟测试 info/push/一次性拉取/CORS 均正常。
 - **定位（2026-10-03 澄清）**：此功能面向**下载源码并在本地运行**的开发者 / 自托管用户，已收进设置页「高级（开发者 / 自托管）」分区；已部署的在线版本**不提供**该能力（无后端中转），普通用户请使用「导出 / 导入 JSON」在设备间迁移数据。
+
+### 新增：人工补充「看点 / 路边景色」默认数据（curated_sights）
+- 动机：用户指出官方航点文件 `olle-waypoints.json`（2017 线路图 + 官方 App 航点）漏掉若干沿线标志性景点（如**涉地可支 Seopjikoji**）。项目里 `route.sights`（看点 / 路边景色）默认骨架是空的（`seed.ts` 原写 `sights: []`），"留给你在后台补"。
+- 约定：不污染官方源，仿 `curated_stays.json` 建独立人工补充层。
+  - `scripts/data/curated_sights.json`：按路线 code 分组的人工补充看点（名称中+原、WGS-84 估算坐标、SightType、`desc` 来源说明）。本期补 7 条线共 8 处：涉地可支(01)、正房瀑布(06)、天地渊瀑布(07)、柱状节理带(08)、翰林公园+飞扬岛(14)、挟才海滩(15)、万丈窟(20)。
+  - `scripts/build_sights_data.py`：搬运 + 补 `id`/`images` 字段，生成 `src/lib/sightsData.ts` 的 `DEFAULT_SIGHTS`（与 `build_waypoints_data.py` 同模式）。
+  - `src/lib/seed.ts`：`sights: []` → `sights: DEFAULT_SIGHTS[spec.code] ?? []`，默认路线即带上看点；后台 `SightsEditor` 仍可增删改。
+- 坐标性质：**非官方勘测、估算值**，仅供定位参考，需在官方/实地核实。报告 `docs/route-attractions.html` 已同步把这些"✚ 人工补充看点"单列（虚线黄框）标注。
+- 验证：`tsc --noEmit` 通过（0 错误）。
+- 生效说明：App 首次打开才写 seed；若浏览器已有旧 localStorage 路线（空 sights），需清掉该站点 localStorage 才会用上新默认看点（本项目约定不做历史数据迁移）。
+
+### 新增：设置页「合并官方默认看点」按钮（把默认看点主动同步进老路线）
+- 动机：上一条的 `DEFAULT_SIGHTS` 只在首次打开写 seed，老用户（本机已有路线、sights 为空）永远看不到新补看点。用户希望不用清数据也能拿到。
+- 设计取舍：**不**把合并塞进既有的「重新加载数据」按钮**（那个是中性重读、不回写）**，而在「数据」区同一行新增一个显式按钮「合并官方默认看点」——用户主动触发、幂等、不覆盖已有看点、不碰路线/行程篮/住宿，与「导入备份」同属显式动作，不违反"不做自动迁移"约定。
+- 实现：
+  - `src/lib/storage.ts`：新增 `mergeDefaultSights()`，读现有 routes，按 `id` 把 `DEFAULT_SIGHTS[code]` 里缺失的看点并入（已存在 id 跳过），写回 localStorage，返回 `{ lines, added }`。
+  - `src/store/DataContext.tsx`：接口加 `mergeDefaultSights`，实现先调 storage 合并再 `reload()` 刷新状态。
+  - `src/pages/SettingsPage.tsx`：btn-row 加按钮 + 确认弹窗，toast 显示「N 条线新增 M 处看点」。
+- 同步删掉临时方案 `docs/merge_sights_snippet.js`（一次性 Console 脚本，已被按钮取代）。
+- 验证：`tsc --noEmit` 通过（0 错误）。
+
+### 新增：看点封面图抓取管线（Wikimedia Commons 自由授权）
+- 动机：上一轮补的 8 处人工看点 `images` 为空，详情页 SightGallery 只显示文字、没有封面。用户要求从网络公开图片库爬封面。
+- 合规红线：不抓 OTA；只用 **Wikimedia Commons（CC0 / CC-BY / CC-BY-SA / 公共领域）**——复用 `fetch_photos.py` 已有的 `FREE_RE`/`JEJU_RE`/`JUNK_RE` 许可与济州相关性过滤，署名进独立的 `public/photos/CREDITS_SIGHTS.md`（**不写 CREDITS.md**，因为后者由 `fetch_photos.py` 每次整体重写会冲掉看点署名）。
+- 实现：
+  - `scripts/fetch_sight_photos.py`（新建）：复用 `fetch_photos.py` 的检索/许可过滤/WebP 压缩原语（按看点 id 而非路线编号），抓 8 处看点的 CC 封面 → 落 `public/photos/sights/<sight-id>.webp` → 回写 `curated_sights.json` 的 `images` → 重生成 `sightsData.ts` → 写 `CREDITS_SIGHTS.md`。支持 `--ids / --dry / --force / --proxy / --url / --no-cache`；`--url` 模式不下载、直接把 Commons 缩略图 URL 写进 `images`（运行时由用户浏览器直连 Wikimedia，省去本机下载）。
+  - `scripts/build_sights_data.py`：原先硬编码 `images: []`，改为**透传**源 `images` 字段（看点的图片随源走，不另起 manifest）。
+  - `src/lib/storage.ts` 的 `mergeDefaultSights()`：扩展为「缺失 id 补入 + 已存在且空图则补全图片」，返回 `{ lines, added, updated }`；否则已合并过的老路线再点合并也拿不到新封面。
+  - `src/store/DataContext.tsx` / `src/pages/SettingsPage.tsx`：同步返回类型与 toast（提示「补全 N 处封面」）。
+- 注意：本环境 `commons.wikimedia.org` / `upload.wikimedia.org` 网络不可达（其它外网 200），且沙箱 Python 未装 Pillow，故脚本**未在本会话实跑**；需在能访问 Wikimedia 的机器上执行（或 `--proxy` / `--url`）。执行：`python3 scripts/fetch_sight_photos.py`（需 `pip install Pillow`），完成后 `npm run build`。
+- 验证：`py_compile` 通过；`build_sights_data.py` 重生成 `sightsData.ts` 含 `images` 字段；`tsc --noEmit` 通过（0 错误）。
 
 ---
 

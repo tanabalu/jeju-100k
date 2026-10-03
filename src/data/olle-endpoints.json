@@ -53,7 +53,7 @@
       "source": "track"
     }
   },
-  "03": {
+  "03-A": {
     "start": {
       "key": "onpyeong",
       "zh": "温坪",
@@ -68,6 +68,24 @@
       "ko": "표선",
       "lng": 126.84249,
       "lat": 33.32553,
+      "source": "track"
+    }
+  },
+  "03-B": {
+    "start": {
+      "key": "onpyeong",
+      "zh": "温坪",
+      "ko": "온평",
+      "lng": 126.904085,
+      "lat": 33.405086,
+      "source": "track"
+    },
+    "end": {
+      "key": "pyoseon",
+      "zh": "表善",
+      "ko": "표선",
+      "lng": 126.842163,
+      "lat": 33.32539,
       "source": "track"
     }
   },
@@ -328,7 +346,7 @@
       "source": "track"
     }
   },
-  "15": {
+  "15-A": {
     "start": {
       "key": "hallim",
       "zh": "翰林",
@@ -343,6 +361,24 @@
       "ko": "고내",
       "lng": 126.33809,
       "lat": 33.46689,
+      "source": "track"
+    }
+  },
+  "15-B": {
+    "start": {
+      "key": "hallim",
+      "zh": "翰林",
+      "ko": "한림",
+      "lng": 126.26242,
+      "lat": 33.418658,
+      "source": "track"
+    },
+    "end": {
+      "key": "gonae",
+      "zh": "高内",
+      "ko": "고내",
+      "lng": 126.338224,
+      "lat": 33.466971,
       "source": "track"
     }
   },

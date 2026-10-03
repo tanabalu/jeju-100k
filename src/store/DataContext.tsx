@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { AlbumItem, AppSettings, ElevSample, Hotel, ImageRef, Plan, PlanItem, Route } from '../types'
-import { store, type ChecklistState, type UiState } from '../lib/storage'
+import { store, mergeDefaultSights as mergeDefaultSightsFromStore, type ChecklistState, type UiState } from '../lib/storage'
 import { PREP_GROUPS, PREP_PRESETS, normItemText } from '../lib/prep'
 import { buildSeedRoutes } from '../lib/seed'
 import { uid } from '../lib/id'
@@ -301,6 +301,12 @@ interface DataApi {
    * `ids` 省略 = 整份加入；已在清单里的（同 id 或同文案）会被跳过，不会重复加。
    */
   addPresetItems: (presetId: string, ids?: string[]) => void
+  /**
+   * 把官方默认看点（DEFAULT_SIGHTS / curated_sights.json）按 id 幂等并入现有路线。
+   * 默认种子只在首次打开写入，老用户需主动触发才能拿到新补的看点（无损、不覆盖用户已有数据）。
+   * 返回命中的路线数、实际新增看点数、被补全图片的已有看点数。
+   */
+  mergeDefaultSights: () => { lines: number; added: number; updated: number }
   /** 把某份备选清单已加入的条目整批移出总清单 */
   removePresetItems: (presetId: string) => void
   /** 把单条备选条目移出总清单（加入的反操作） */
@@ -368,6 +374,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     reload()
+  }, [reload])
+
+  const mergeDefaultSights = useCallback(() => {
+    const res = mergeDefaultSightsFromStore()
+    reload()
+    return res
   }, [reload])
 
   // 随包分发的素材与轨迹清单：官方路线图（maps.json）+ 自由授权照片（manifest.json）
@@ -634,6 +646,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       createPlan,
       updateSettings,
       reload,
+      mergeDefaultSights,
       photoManifest,
       routeMaps,
       stays,
@@ -667,6 +680,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       createPlan,
       updateSettings,
       reload,
+      mergeDefaultSights,
       toggleCheck,
       toggleSkip,
       resetChecklist,

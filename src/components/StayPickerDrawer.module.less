@@ -142,6 +142,7 @@
 .row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   padding: 9px 11px;
   border: 1px solid var(--line);
@@ -188,6 +189,31 @@
 
 .row-act {
   flex: none;
+}
+
+/* 行内「介绍」就地手风琴：点开后在原行下方铺满宽度的 Markdown 介绍面板 */
+.row-intro {
+  flex-basis: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: var(--line-soft, #f8fafc);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.row-intro-toggle {
+  display: inline-block;
+  margin-top: 4px;
+  border: none;
+  background: none;
+  color: var(--brand);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.row-intro-toggle:hover {
+  text-decoration: underline;
 }
 
 /* 「超出 8 km」分界线：远的依然可选，但要让人知道为什么排这么后 */

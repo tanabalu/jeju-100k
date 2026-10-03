@@ -140,73 +140,6 @@
       "type": "normal"
     }
   ],
-  "03": [
-    {
-      "name": "Ddeodolee Sikgaek Forked Road of Route A and B",
-      "distance": 0.5,
-      "type": "normal"
-    },
-    {
-      "name": "Sinsan-pogu(port)",
-      "distance": 4.8,
-      "type": "transport"
-    },
-    {
-      "name": "Nansan-ri Go, Jeong-hwa Grandma's Homestay",
-      "distance": 5.5,
-      "type": "normal"
-    },
-    {
-      "name": "Sinsan-ri Village Cafe",
-      "distance": 5.7,
-      "type": "normal"
-    },
-    {
-      "name": "Nong-gye",
-      "distance": 6.2,
-      "type": "normal"
-    },
-    {
-      "name": "Jueodong-pogu(port)",
-      "distance": 6.5,
-      "type": "transport"
-    },
-    {
-      "name": "Entrance to Tong Oreum",
-      "distance": 6.8,
-      "type": "viewpoint"
-    },
-    {
-      "name": "Top of Tong Oreum",
-      "distance": 7.3,
-      "type": "viewpoint"
-    },
-    {
-      "name": "Exit from Tong Oreum",
-      "distance": 7.7,
-      "type": "viewpoint"
-    },
-    {
-      "name": "Sinpung-pogu(port) Regathering Place of Route A and B A 14.4km / B 8km Sinpung Sincheon Bada Mokjang (livestock farm) A 14.8km / B",
-      "distance": 7.7,
-      "type": "transport"
-    },
-    {
-      "name": "Dokja-bong(peak)",
-      "distance": 8.1,
-      "type": "viewpoint"
-    },
-    {
-      "name": "Exit from Dokja-bong(peak)",
-      "distance": 9.1,
-      "type": "viewpoint"
-    },
-    {
-      "name": "Gallery of Kim, Young-gap",
-      "distance": 11.7,
-      "type": "normal"
-    }
-  ],
   "04": [
     {
       "name": "Pyoseon Haenyeo House",
@@ -830,73 +763,6 @@
       "type": "normal"
     }
   ],
-  "15": [
-    {
-      "name": "Kensington Resort in Hallim",
-      "distance": 2.8,
-      "type": "normal"
-    },
-    {
-      "name": "Gwideok Crossroad Yeongsaesaengmul (pond)",
-      "distance": 3.9,
-      "type": "normal"
-    },
-    {
-      "name": "Geumseong-cheon(stream) Gwideok 1-ri Fishing Village Co-op Welfare Center",
-      "distance": 5.6,
-      "type": "normal"
-    },
-    {
-      "name": "Geumseong-gyo(bridge)",
-      "distance": 6.8,
-      "type": "normal"
-    },
-    {
-      "name": "Gazebo at",
-      "distance": 7.2,
-      "type": "normal"
-    },
-    {
-      "name": "Gwakji Beach Yongmun-sa(temple)",
-      "distance": 7.4,
-      "type": "normal"
-    },
-    {
-      "name": "Gwakji Beach",
-      "distance": 7.8,
-      "type": "normal"
-    },
-    {
-      "name": "Handam Seaside Walkway",
-      "distance": 8.3,
-      "type": "normal"
-    },
-    {
-      "name": "Napeup Elementary",
-      "distance": 11.1,
-      "type": "normal"
-    },
-    {
-      "name": "Toilet in front of Napeup Elementary School",
-      "distance": 11.2,
-      "type": "normal"
-    },
-    {
-      "name": "Napeup-ri Village",
-      "distance": 11.6,
-      "type": "normal"
-    },
-    {
-      "name": "Gonae-pogu(port)",
-      "distance": 13.0,
-      "type": "transport"
-    },
-    {
-      "name": "Entrance",
-      "distance": 15.1,
-      "type": "normal"
-    }
-  ],
   "16": [
     {
       "name": "Darak Rest Area",
@@ -1259,6 +1125,140 @@
       "name": "Top of Jimi-bong(peak)",
       "distance": 9.0,
       "type": "viewpoint"
+    }
+  ],
+  "03-A": [
+    {
+      "name": "Ddeodolee Sikgaek Forked Road of Route A and B",
+      "distance": 0.5,
+      "type": "normal"
+    },
+    {
+      "name": "Sinsan-pogu(port)",
+      "distance": 4.8,
+      "type": "transport"
+    },
+    {
+      "name": "Nansan-ri Go, Jeong-hwa Grandma's Homestay",
+      "distance": 5.5,
+      "type": "normal"
+    },
+    {
+      "name": "Sinsan-ri Village Cafe",
+      "distance": 5.7,
+      "type": "normal"
+    },
+    {
+      "name": "Nong-gye",
+      "distance": 6.2,
+      "type": "normal"
+    },
+    {
+      "name": "Jueodong-pogu(port)",
+      "distance": 6.5,
+      "type": "transport"
+    },
+    {
+      "name": "Entrance to Tong Oreum",
+      "distance": 6.8,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Top of Tong Oreum",
+      "distance": 7.3,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Exit from Tong Oreum",
+      "distance": 7.7,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Sinpung-pogu(port) Regathering Place of Route A and B A 14.4km / B 8km Sinpung Sincheon Bada Mokjang (livestock farm) A 14.8km / B",
+      "distance": 7.7,
+      "type": "transport"
+    },
+    {
+      "name": "Dokja-bong(peak)",
+      "distance": 8.1,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Exit from Dokja-bong(peak)",
+      "distance": 9.1,
+      "type": "viewpoint"
+    },
+    {
+      "name": "Gallery of Kim, Young-gap",
+      "distance": 11.7,
+      "type": "normal"
+    }
+  ],
+  "15-A": [
+    {
+      "name": "Kensington Resort in Hallim",
+      "distance": 2.8,
+      "type": "normal"
+    },
+    {
+      "name": "Gwideok Crossroad Yeongsaesaengmul (pond)",
+      "distance": 3.9,
+      "type": "normal"
+    },
+    {
+      "name": "Geumseong-cheon(stream) Gwideok 1-ri Fishing Village Co-op Welfare Center",
+      "distance": 5.6,
+      "type": "normal"
+    },
+    {
+      "name": "Geumseong-gyo(bridge)",
+      "distance": 6.8,
+      "type": "normal"
+    },
+    {
+      "name": "Gazebo at",
+      "distance": 7.2,
+      "type": "normal"
+    },
+    {
+      "name": "Gwakji Beach Yongmun-sa(temple)",
+      "distance": 7.4,
+      "type": "normal"
+    },
+    {
+      "name": "Gwakji Beach",
+      "distance": 7.8,
+      "type": "normal"
+    },
+    {
+      "name": "Handam Seaside Walkway",
+      "distance": 8.3,
+      "type": "normal"
+    },
+    {
+      "name": "Napeup Elementary",
+      "distance": 11.1,
+      "type": "normal"
+    },
+    {
+      "name": "Toilet in front of Napeup Elementary School",
+      "distance": 11.2,
+      "type": "normal"
+    },
+    {
+      "name": "Napeup-ri Village",
+      "distance": 11.6,
+      "type": "normal"
+    },
+    {
+      "name": "Gonae-pogu(port)",
+      "distance": 13.0,
+      "type": "transport"
+    },
+    {
+      "name": "Entrance",
+      "distance": 15.1,
+      "type": "normal"
     }
   ]
 }

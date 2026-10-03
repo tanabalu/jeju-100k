@@ -5,6 +5,7 @@ import type { Hotel } from '../types'
 import { STAY_SEARCH_KM } from '../lib/stayMatch'
 import { matchStayName } from '../lib/staySearch'
 import { stayName } from '../lib/stayName'
+import { Markdown } from './Markdown'
 import styles from './StayPickerDrawer.module.less'
 
 /**
@@ -49,6 +50,72 @@ function typeSuffix(title: string, note?: string): string {
   if (!note) return ''
   const zh = note.split('/')[0].trim()
   return zh && title.includes(zh) ? '' : ` · ${note}`
+}
+
+/**
+ * 抽屉里的一行住宿。
+ * 名称 / 距离 / 业态 / 价格那行保持紧凑；有「介绍」的酒店多一个就地手风琴：
+ * 点「介绍 ▾」在原行下方展开 Markdown 渲染的详细介绍，再点「收起 ▴」收起（不弹窗）。
+ * 展开态各自独立（每行一个 open 状态），不影响其它行。
+ */
+function StayRow({
+  c,
+  isPrev,
+  lockedId,
+  onPick,
+}: {
+  c: StayPickerRow
+  isPrev: boolean
+  lockedId?: string
+  onPick: (hotelId: string | undefined) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const intro = c.hotel.intro
+  return (
+    <div className={`${styles.row}${lockedId === c.hotel.id ? ` ${styles['is-locked']}` : ''}`}>
+      <div className={`${styles['row-main']}`}>
+        <div className={`${styles['row-n']}`}>
+          {stayName(c.hotel)}
+          {lockedId === c.hotel.id && <span className={`${styles['row-lock']}`}>✓ 已锁定</span>}
+        </div>
+        {c.hotel.name !== stayName(c.hotel) && (
+          <div className={`${styles['row-ko']}`}>
+            {c.hotel.name}
+            {c.hotel.nameEn && c.hotel.nameEn !== c.hotel.name && c.hotel.nameEn !== stayName(c.hotel) && ` · ${c.hotel.nameEn}`}
+          </div>
+        )}
+        <div className={`${styles['row-m']}`}>
+          {isPrev ? '距明早出发点' : '距今晚终点'} {c.distanceKm.toFixed(1)} km
+          {c.distance2Km !== null && ` · 距明早起点 ${c.distance2Km.toFixed(1)} km`}
+          {typeSuffix(stayName(c.hotel), c.hotel.note)}
+          {c.hotel.priceRange && ` · ${c.hotel.priceRange}`}
+          {typeof c.hotel.rating === 'number' && ` · ★${c.hotel.rating.toFixed(1)}`}
+        </div>
+        {intro && (
+          <button
+            className={styles['row-intro-toggle']}
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+          >
+            {open ? '收起介绍 ▴' : '介绍 ▾'}
+          </button>
+        )}
+      </div>
+      {open && intro && (
+        <div className={styles['row-intro']}>
+          <Markdown text={intro} />
+        </div>
+      )}
+      <div className={`${styles['row-act']}`}>
+        <button
+          className={`btn btn-xs${lockedId === c.hotel.id ? '' : ' btn-primary'}`}
+          onClick={() => onPick(lockedId === c.hotel.id ? undefined : c.hotel.id)}
+        >
+          {lockedId === c.hotel.id ? '取消锁定' : '住这家'}
+        </button>
+      </div>
+    </div>
+  )
 }
 
 /**
@@ -170,37 +237,12 @@ export function StayPickerDrawer({
                     以下超出 {STAY_SEARCH_KM} km · 较远，仅供参考
                   </div>
                 )}
-                <div
-                  className={`${styles.row}${lockedId === c.hotel.id ? ` ${styles['is-locked']}` : ''}`}
-                >
-                  <div className={`${styles['row-main']}`}>
-                    <div className={`${styles['row-n']}`}>
-                      {stayName(c.hotel)}
-                      {lockedId === c.hotel.id && <span className={`${styles['row-lock']}`}>✓ 已锁定</span>}
-                    </div>
-                    {c.hotel.name !== stayName(c.hotel) && (
-                      <div className={`${styles['row-ko']}`}>
-                        {c.hotel.name}
-                        {c.hotel.nameEn && c.hotel.nameEn !== c.hotel.name && c.hotel.nameEn !== stayName(c.hotel) && ` · ${c.hotel.nameEn}`}
-                      </div>
-                    )}
-                    <div className={`${styles['row-m']}`}>
-                      {isPrev ? '距明早出发点' : '距今晚终点'} {c.distanceKm.toFixed(1)} km
-                      {c.distance2Km !== null && ` · 距明早起点 ${c.distance2Km.toFixed(1)} km`}
-                      {typeSuffix(stayName(c.hotel), c.hotel.note)}
-                      {c.hotel.priceRange && ` · ${c.hotel.priceRange}`}
-                      {typeof c.hotel.rating === 'number' && ` · ★${c.hotel.rating.toFixed(1)}`}
-                    </div>
-                  </div>
-                  <div className={`${styles['row-act']}`}>
-                    <button
-                      className={`btn btn-xs${lockedId === c.hotel.id ? '' : ' btn-primary'}`}
-                      onClick={() => onPick(lockedId === c.hotel.id ? undefined : c.hotel.id)}
-                    >
-                      {lockedId === c.hotel.id ? '取消锁定' : '住这家'}
-                    </button>
-                  </div>
-                </div>
+                <StayRow
+                  c={c}
+                  isPrev={isPrev}
+                  lockedId={lockedId}
+                  onPick={onPick}
+                />
               </div>
             ))
           )}

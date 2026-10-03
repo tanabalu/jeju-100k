@@ -5,6 +5,7 @@ import { useData } from '../store/DataContext'
 import { RouteMap } from '../components/RouteMap'
 import { ElevationChart } from '../components/ElevationChart'
 import { Thumb } from '../components/Thumb'
+import { Markdown } from '../components/Markdown'
 import { computeMetrics, formatGain, formatKm, projectToRoute, trackLines } from '../lib/geo'
 import { TRIP_PLANS, TRIP_PLAN_DISCLAIMER } from '../lib/tripPlans'
 import { estimateHours, formatHours } from '../lib/dayPlan'
@@ -15,6 +16,7 @@ import { routeKindLabel } from '../lib/routeKind'
 import { matchStayName } from '../lib/staySearch'
 import { stayName } from '../lib/stayName'
 import { useStayIntro } from '../lib/stayIntro'
+import { useShowStays } from '../lib/mapLayers'
 import type { Hotel, ImageRef, RouteMetrics } from '../types'
 import styles from './RouteDetailPage.module.less'
 
@@ -41,10 +43,9 @@ function gainHint(m: RouteMetrics | undefined): string {
   }
 }
 
-/** 地形数据口径：真实轨迹就不再叫「估算」 */
+/** 地形数据口径：剖面与爬升一律来自真实轨迹，没有轨迹就没有数字 */
 function basisLabel(m: RouteMetrics): string {
-  if (m.elevationBasis === 'track') return '沿真实轨迹逐点累加'
-  return m.elevationBasis === 'loop' ? '环线圆周采样估算' : '直线采样估算'
+  return m.elevationBasis === 'track' ? '沿真实轨迹逐点累加' : '未采集海拔，可在后台补'
 }
 
 /** 按路线编号排序（与「全部路线」列表默认顺序一致），用于详情页上/下一条衔接 */
@@ -58,6 +59,13 @@ function byCode(a: { code?: string | null }, b: { code?: string | null }): numbe
 /** 详情页住宿列表默认陈列的条数；其余进「查看全部」抽屉 */
 const STAY_PREVIEW = 3
 
+/**
+ * 住宿标被勾掉时传给地图的空数组。
+ * 必须是模块级常量：直接写 `[]` 每次渲染都是新数组，会把 RouteMap 的「hotels 变了就重绘图层」
+ * 依赖无限触发（每渲染一次就 clearLayers 重画一遍）。
+ */
+const NO_STAYS: Hotel[] = []
+
 export function RouteDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { getRoute, routes } = useData()
@@ -67,6 +75,8 @@ export function RouteDetailPage() {
   const [lb, setLb] = useState<{ items: LightboxItem[]; index: number } | null>(null)
   // 住宿「查看更多」抽屉：详情页只陈列前几条，全部列表在右侧抽屉里看，不在详情页铺开
   const [stayOpen, setStayOpen] = useState(false)
+  // 地图上的住宿标开关（跨刷新 / 翻页保留，见 src/lib/mapLayers.ts）
+  const [showStays, setShowStays] = useShowStays()
 
   // 全量路线按编号排好序，再定位当前这条，才能拿到正确的上一条 / 下一条
   const ordered = useMemo(() => [...routes].sort(byCode), [routes])
@@ -106,7 +116,7 @@ export function RouteDetailPage() {
   const start = m?.startPoint
   const end = m?.endPoint
   const added = has(route.id)
-  // 行程建议：按路线编号查表（27 条全量，见 src/lib/tripPlans.ts）
+  // 行程建议：按路线编号查表（29 条全量，见 src/lib/tripPlans.ts）
   const plan = route.code ? TRIP_PLANS[route.code] : undefined
 
   return (
@@ -190,12 +200,12 @@ export function RouteDetailPage() {
         <Stat
           label="海拔区间"
           value={m?.highestM != null ? `${m.lowestM} ~ ${m.highestM} m` : '—'}
-          hint={m?.gainSource === 'profile' ? (m.elevationBasis === 'track' ? '取自真实轨迹' : '取自地形采样') : '取自途经点海拔'}
+          hint={m?.gainSource === 'profile' ? '取自真实轨迹' : '取自途经点海拔'}
         />
         <Stat label="途经点" value={`${route.points.length} 个`} hint={`${route.hotels.length} 住宿 / ${route.sights.length} 看点`} />
       </div>
 
-      {/* 行程建议：27 条线全量（数据口径见 src/lib/tripPlans.ts 头注释） */}
+      {/* 行程建议：29 条线全量（数据口径见 src/lib/tripPlans.ts 头注释） */}
       {route.code && plan && (
         <section className="section">
           <h2>行程建议</h2>
@@ -250,11 +260,26 @@ export function RouteDetailPage() {
             </div>
           </div>
         </div>
-        <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>
-          {route.elevationBasis === 'track'
-            ? '坐标与轨迹均为实测数据，可直接用于导航与爬升判断。'
-            : '坐标为城镇级近似值，用于排序 / 看分布；导航前请校正或导入真实轨迹。'}
-        </p>
+        {/* 口径说明与图层开关同一行：说明在左，勾选在右（窄屏自动换行） */}
+        <div className={`${styles['map-tools']}`}>
+          <p className={`muted ${styles['map-tools-note']}`}>
+            {route.elevationBasis === 'track'
+              ? '坐标与轨迹均为实测数据，可直接用于导航与爬升判断。'
+              : '坐标为城镇级近似值，用于排序 / 看分布；导航前请校正或导入真实轨迹。'}
+          </p>
+          {/* 图层开关：住宿密的路线（OSM 数据动辄几十家）会盖住轨迹，可整批收起，只看线形 */}
+          {route.hotels.length > 0 && (
+            <label className={`${styles['map-toggle']}`}>
+              <input
+                type="checkbox"
+                checked={showStays}
+                onChange={(e) => setShowStays(e.target.checked)}
+              />
+              显示住宿标
+              <span className={`${styles['map-toggle-count']}`}>{route.hotels.length}</span>
+            </label>
+          )}
+        </div>
         {route.trackSource && (
           <p className="muted" style={{ marginTop: 4, fontSize: 12 }}>
             轨迹来源：<a href={route.trackSource.url} target="_blank" rel="noopener noreferrer">{route.trackSource.name}</a>
@@ -266,7 +291,7 @@ export function RouteDetailPage() {
           // 没有实测轨迹时，图上那根线只是「把两个近似坐标连起来」——
           // 走虚线，别让它看起来像真走过的路
           approxLines={route.elevationBasis === 'track' ? undefined : [true]}
-          hotels={route.hotels}
+          hotels={showStays ? route.hotels : NO_STAYS}
           sights={route.sights}
           height={440}
         />
@@ -625,9 +650,27 @@ function SightGallery({
  * 改写存进 localStorage 覆盖层（见 src/lib/stayIntro.ts），刷新后优先于默认介绍，
  * 且不会被 DataContext.mergeStays 用 bundle 真源整条覆盖掉。
  */
+/**
+ * 把 Markdown 介绍的第一行（去掉标记）当作折叠态的摘要预览。
+ * 介绍字段支持 Markdown 存储，折叠时只露出首行 + 省略号，展开后渲染完整 Markdown。
+ */
+function plainPreview(md: string): string {
+  const lines = md.split('\n')
+  const first = lines.find((l) => l.trim()) ?? ''
+  const more = lines.filter((l) => l.trim()).length > 1
+  return (
+    first
+      .replace(/\*\*/g, '')
+      .replace(/^#+\s*/, '')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .trim() + (more ? '…' : '')
+  )
+}
+
 function HotelIntro({ hotel }: { hotel: Hotel }) {
   const { value, isOverridden, save, reset } = useStayIntro(hotel.id, hotel.intro)
   const [editing, setEditing] = useState(false)
+  const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState('')
 
   const startEdit = () => {
@@ -648,7 +691,7 @@ function HotelIntro({ hotel }: { hotel: Hotel }) {
           className="input"
           rows={4}
           value={draft}
-          placeholder="填写酒店介绍：位置、设施、周边、参考价格等"
+          placeholder="填写酒店介绍：位置、设施、周边、参考价格等（支持 Markdown）"
           onChange={(e) => setDraft(e.target.value)}
         />
         <div className={styles['hotel-intro-actions']}>
@@ -677,10 +720,21 @@ function HotelIntro({ hotel }: { hotel: Hotel }) {
   if (value) {
     return (
       <div className={styles['hotel-intro']}>
-        <p className={styles['list-note']}>{value}</p>
-        <button className={styles['hotel-intro-edit-btn']} onClick={startEdit}>
-          编辑介绍
-        </button>
+        {open ? (
+          <div className={styles['hotel-intro-body']}>
+            <Markdown text={value} />
+          </div>
+        ) : (
+          <p className={styles['list-note']}>{plainPreview(value)}</p>
+        )}
+        <div className={styles['hotel-intro-actions']}>
+          <button className={styles['hotel-intro-toggle']} onClick={() => setOpen((o) => !o)}>
+            {open ? '收起 ▴' : '展开介绍 ▾'}
+          </button>
+          <button className={styles['hotel-intro-edit-btn']} onClick={startEdit}>
+            编辑介绍
+          </button>
+        </div>
       </div>
     )
   }

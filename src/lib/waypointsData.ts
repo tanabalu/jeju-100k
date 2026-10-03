@@ -45,7 +45,7 @@ export const ROUTE_WAYPOINTS: Record<string, WaypointDef[]> = {
     { name: "Top of Daesusan-bong(peak)", lng: 126.900637, lat: 33.439105, type: "viewpoint" },
     { name: "Hoorse Rangeland", lng: 126.891373, lat: 33.421056, type: "normal" },
   ],
-  '03': [
+  '03-A': [
     { name: "Ddeodolee Sikgaek Forked Road of Route A and B", lng: 126.902866, lat: 33.401523, type: "normal" },
     { name: "Sinsan-pogu(port)", lng: 126.873859, lat: 33.39454, type: "transport" },
     { name: "Nansan-ri Go, Jeong-hwa Grandma's Homestay", lng: 126.869738, lat: 33.398061, type: "normal" },
@@ -194,7 +194,7 @@ export const ROUTE_WAYPOINTS: Record<string, WaypointDef[]> = {
     { name: "Jeoji Drinking Water Resource", lng: 126.28279, lat: 33.310093, type: "normal" },
     { name: "O'Sulloc Green Tea Fields", lng: 126.286276, lat: 33.307602, type: "normal" },
   ],
-  '15': [
+  '15-A': [
     { name: "Kensington Resort in Hallim", lng: 126.279309, lat: 33.426889, type: "normal" },
     { name: "Gwideok Crossroad Yeongsaesaengmul (pond)", lng: 126.286901, lat: 33.432566, type: "normal" },
     { name: "Geumseong-cheon(stream) Gwideok 1-ri Fishing Village Co-op Welfare Center", lng: 126.301208, lat: 33.430503, type: "normal" },

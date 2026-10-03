@@ -123,10 +123,10 @@
     "width": 1600,
     "height": 990
   },
-  "03": {
+  "03-A": {
     "file": "photos/scenes/olle-03.webp",
     "title": "File:Beon yeong-ro, Pyoseon-myeon, Seogwipo-si, Jeju-do, South Korea - panoramio.jpg",
-    "caption": "偶来 03 温坪 → 表善 一带风景（Wikimedia Commons 自由授权，非官方摄影）",
+    "caption": "偶来 03-A 温坪 → 表善 · A 山线 一带风景（Wikimedia Commons 自由授权，非官方摄影）",
     "credit": "song songroov / CC BY 3.0",
     "source": "https://commons.wikimedia.org/wiki/File:Beon_yeong-ro,_Pyoseon-myeon,_Seogwipo-si,_Jeju-do,_South_Korea_-_panoramio.jpg",
     "cover": "photos/scenes/cover/olle-03.webp",
@@ -172,6 +172,16 @@
         "height": 720
       }
     ],
+    "width": 1600,
+    "height": 900
+  },
+  "03-B": {
+    "file": "photos/scenes/olle-03.webp",
+    "title": "File:Beon yeong-ro, Pyoseon-myeon, Seogwipo-si, Jeju-do, South Korea - panoramio.jpg",
+    "caption": "偶来 03-B 温坪 → 表善 · B 海线 一带风景（Wikimedia Commons 自由授权，非官方摄影）",
+    "credit": "song songroov / CC BY 3.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Beon_yeong-ro,_Pyoseon-myeon,_Seogwipo-si,_Jeju-do,_South_Korea_-_panoramio.jpg",
+    "cover": "photos/scenes/cover/olle-03.webp",
     "width": 1600,
     "height": 900
   },
@@ -839,10 +849,10 @@
     "width": 1600,
     "height": 1200
   },
-  "15": {
+  "15-A": {
     "file": "photos/scenes/olle-15.webp",
     "title": "File:Gwakji Beach in Jeju Island, 2022.jpg",
-    "caption": "偶来 15 翰林 → 高内（涯月一带） 一带风景（Wikimedia Commons 自由授权，非官方摄影）",
+    "caption": "偶来 15-A 翰林 → 高内 · A 山线 一带风景（Wikimedia Commons 自由授权，非官方摄影）",
     "credit": "Jeong seolah / CC0",
     "source": "https://commons.wikimedia.org/wiki/File:Gwakji_Beach_in_Jeju_Island,_2022.jpg",
     "cover": "photos/scenes/cover/olle-15.webp",
@@ -872,6 +882,16 @@
         "height": 914
       }
     ],
+    "width": 1600,
+    "height": 1200
+  },
+  "15-B": {
+    "file": "photos/scenes/olle-15.webp",
+    "title": "File:Gwakji Beach in Jeju Island, 2022.jpg",
+    "caption": "偶来 15-B 翰林 → 高内（涯月一带）· B 海线 一带风景（Wikimedia Commons 自由授权，非官方摄影）",
+    "credit": "Jeong seolah / CC0",
+    "source": "https://commons.wikimedia.org/wiki/File:Gwakji_Beach_in_Jeju_Island,_2022.jpg",
+    "cover": "photos/scenes/cover/olle-15.webp",
     "width": 1600,
     "height": 1200
   },

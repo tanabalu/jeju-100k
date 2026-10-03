@@ -53,7 +53,8 @@ def parse_places(text: str) -> dict[str, tuple[float, float]]:
 def parse_specs(text: str) -> dict[str, tuple[str, str]]:
     return {
         m.group(1): (m.group(2), m.group(3))
-        for m in re.finditer(r"code:\s*'([\d-]+)',\s*start:\s*'(\w+)',\s*end:\s*'(\w+)'", text)
+        # ⚠️ 编号里现在带 A/B（3 号线、15 号线的山线 / 海线两条走法），字符集要放开到字母
+        for m in re.finditer(r"code:\s*'([\d\-AB]+)',\s*start:\s*'(\w+)',\s*end:\s*'(\w+)'", text)
     }
 
 
@@ -109,7 +110,11 @@ def main() -> int:
                             f"{code}.{side}: source=official 但与 PLACES 官方 GPS 值差 {hav(cur, off):.0f}m"
                         )
             else:
-                problems.append(f"{code}: tracks.json 无此线")
+                # 没有轨迹的线（当前是 03-B / 15-B 两条海线，轨迹待补）**不算错误**：
+                # 起终点是照 A 线钉死的同一起终点，页面上按示意虚线画。
+                # 别把它塞进 problems —— 那会让「真缺轨迹」和「轨迹被改名/删了」混在一起看不出来。
+                if side == "start":  # 起终点各跑一遍，提示只记一次
+                    infos.append(f"{code}: tracks.json 暂无轨迹，跳过与轨迹首末点的比对")
 
             # 4. 与 PLACES 代表值
             dev_place = None

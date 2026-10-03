@@ -73,7 +73,7 @@ import xml.etree.ElementTree as ET
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "public", "tracks.json")
 
-# 官方 27 条（21 主线 + 6 支线）的编号与里程**只有一处真源**：src/lib/seed.ts 的 SPECS
+# 官方 29 条（21 主线 + 6 支线 + 3 / 15 号线各一条 A/B 替代走法）的编号与里程**只有一处真源**：src/lib/seed.ts 的 SPECS
 # （网页上给用户显示的就是它）。这里不再手抄一份。
 #
 # ⚠️ 抄过，然后烂了：脚本里那份副本一度写着 09=8.0 / 18=19.8 / 15=19.0（旧资料里的口径），
@@ -109,11 +109,12 @@ def load_official_km(path=SEED_TS):
     return km
 
 
-# 官方 27 条（21 主线 + 6 支线）。-1/-2 是支线，不要写成 01.1
+# 官方 29 条（21 主线 + 6 支线 + 3 号线 / 15 号线各一条 A/B 替代走法）。
+# -1/-2 是支线，**-A / -B 是同一段路的两种走法**（A 山线、B 海线），不要写成 01.1
 ROUTE_CODES = [
-    "01", "01-1", "02", "03", "04", "05", "06", "07", "07-1", "08", "09", "10",
-    "10-1", "11", "12", "13", "14", "14-1", "15", "16", "17", "18", "18-1",
-    "18-2", "19", "20", "21",
+    "01", "01-1", "02", "03-A", "03-B", "04", "05", "06", "07", "07-1", "08",
+    "09", "10", "10-1", "11", "12", "13", "14", "14-1", "15-A", "15-B", "16",
+    "17", "18", "18-1", "18-2", "19", "20", "21",
 ]
 
 # 官方公布的里程（km），用于对照轨迹里程是否离谱
@@ -181,7 +182,10 @@ def gain_loss(eles):
 ORIENT_TOL_M = 80.0          # 端点相距多少米以内算「同一个节点」
 BIG_GAP_M = 300.0            # 断口超过它才算「地图上会明显断开」，以下只在报告里提一句
 AUTO_JOIN_GAP_M = 30.0       # 同一条记录中端点短距离断开时，按 GPS 漏点补一小段
-MAIN_CODE = re.compile(r"\d{2}\Z")
+# 参与「相邻编号首尾相接」方向判定的编号：纯数字主线 + `-A`（3 / 15 号线的山线）。
+# ⚠️ `-B` **不参与**：它是与 A 线同一段路的替代走法，首尾跟 A 线重合，
+#    放进来只会给出两条一模一样的约束（还可能互相打架），没有任何新信息。
+MAIN_CODE = re.compile(r"\d{2}(-A)?\Z")
 
 
 def seg_gaps_m(segs):
@@ -216,12 +220,13 @@ def orient_flips(ends, tol=ORIENT_TOL_M):
     """按「相邻课程首尾相接」判出哪些编号的几何方向与官方行进方向相反。
 
     ends: {编号: (首点, 末点)}。返回 (要翻转的编号集合, 用到的约束列表)。
-    只比主线相邻编号（01→02→…→21）：支线是折返/替代线，首尾关系与主线不同，不参与。
+    只比主线相邻编号（01→02→03-A→04→…→15-A→16→…→21）：支线是折返/替代线，
+    首尾关系与主线不同，不参与（`-B` 同理，见 `MAIN_CODE` 的说明）。
     """
     codes = sorted(c for c in ends if MAIN_CODE.match(c))
     links = []
     for a, b in zip(codes, codes[1:]):
-        if int(b) - int(a) != 1:
+        if int(b[:2]) - int(a[:2]) != 1:
             continue                       # 中间缺了编号，这两条接不上，给不出约束
         sa, ea = ends[a]
         sb, eb = ends[b]
@@ -567,6 +572,14 @@ def guess_code(path, explicit):
     stem = os.path.splitext(os.path.basename(path))[0]
     if stem in explicit:
         return explicit[stem], "指定"
+    # A/B 走法（官方 3 / 15 号线的「山线 / 海线」两种走法）：文件名里的
+    # 「3-A」「3A」「03_B」「olle 15b」都得认出来。
+    # ⚠️ 必须放在下面那段之前 —— 那段会把字母全部剔成 `_`，`03-B` 会退化成 `03` 而漏判。
+    m = re.search(r"(?<![0-9])(\d{1,2})\s*[-_ ]?\s*([ABab])(?![0-9A-Za-z])", stem)
+    if m:
+        code = f"{int(m.group(1)):02d}-{m.group(2).upper()}"
+        return (code, "文件名") if code in ROUTE_CODES else (None, f"编号 {code} 不在 29 条里")
+
     s = stem.lower()
     for w in NOISE_WORDS:
         s = s.replace(w, "_")
@@ -587,7 +600,7 @@ def guess_code(path, explicit):
         code = f"{head}-{parts[1]}"
     else:
         return None, f"数字歧义（{s}）"
-    return (code, "文件名") if code in ROUTE_CODES else (None, f"编号 {code} 不在 27 条里")
+    return (code, "文件名") if code in ROUTE_CODES else (None, f"编号 {code} 不在 29 条里")
 
 
 def main():
