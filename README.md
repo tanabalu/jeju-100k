@@ -368,7 +368,7 @@ src/
   lib/storage.ts         localStorage 仓库 + 导入导出
   lib/imageStore.ts      IndexedDB 图片存储与压缩
   lib/seed.ts            27 条偶来小路预置数据
-  lib/seedStays.ts       沿线住宿预置数据（build_seed_stays.py 生成）
+  lib/seedStays.ts       沿线住宿 seed（import src/data/stays.json 实时派生，不再内联 3.6 万行副本）
   lib/prep.ts            行前 checklist 与吃喝住行速查数据（政策项标 verify）
   lib/dayPlan.ts         行程单的按天排期与时间序列推算
   store/DataContext.tsx  全局数据 + 素材（官方路线图 / 照片 / 真实轨迹）叠加 + checklist 状态
@@ -377,11 +377,11 @@ src/
   pages/                 Routes / RouteDetail / Plan / Prep / Admin / Settings
   pages/admin/           基本信息 / 途经点 / 住宿 / 看点 / 相册 五个编辑器
 public/photos/           封面风景照（scenes/ + scenes/cover/ + manifest.json + CREDITS.md）与官方路线图（maps/ + maps/cover/ + maps.json）
-public/stays.json       沿线住宿（Overpass 抓取，运行时 fetch 读取）
+src/data/stays.json     沿线住宿唯一真源（OSM / TourAPI / Kakao / 人工核对合并；构建期打包，运行时不再 fetch）
 public/tracks.json      真实轨迹（import_tracks.py 生成，运行时 fetch 读取）
-scripts/fetch_stays.py  Overpass 抓取沿线住宿 → stays.json
+scripts/fetch_stays.py  Overpass 抓取沿线住宿 → src/data/stays.json
 scripts/gen_stay_zh.py  给住宿生成中文名（音译 + 固定映射）
-scripts/build_seed_stays.py  归集住宿 → src/lib/seedStays.ts
+scripts/fetch_stays*.py / gen_stay_*.py  维护 src/data/stays.json（住宿唯一真源）；seedStays.ts 直接派生，不再有 build_seed_stays.py
 scripts/fetch_photos.py  Commons 自由授权图片抓取（卡片封面 + 详情页原图两份）
 scripts/selftest_fetch_photos.py  fetch_photos 的离线自测（不联网）
 scripts/split_route_map.py  官方 Route Map PDF 按路线切割成卡片封面（压缩版）+ 详情页原图

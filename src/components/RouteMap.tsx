@@ -3,6 +3,7 @@ import * as L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { ElevSample, GeoPoint, Hotel, MapStyle, Sight, TrackPoint, WaypointType } from '../types'
 import { useData } from '../store/DataContext'
+import { stayName } from '../lib/stayName'
 import styles from './RouteMap.module.less'
 
 const W = 800
@@ -19,11 +20,14 @@ function iconDataUri(color: string, glyph: string): string {
 
 /**
  * 徽标宽度：随文字长度自适应（「07」窄、「10-1」宽），保证编号不被挤掉。
- * 13px 粗体数字约 7.6px/字；两端药丸圆角（rx = 11.5）各占掉 11.5px，
- * 所以常态要额外留 23px，最小宽度 38 —— 否则两位编号会顶到圆角上。
+ * 13px 粗体**数字/ASCII** 约 7.6px/字，但**中日韩全角字约 13px/字** —— 必须按字符类型加权，
+ * 否则「第2天」这种中文标签会被算成 3 字 × 7.6 = 23px，文字直接顶出药丸两端。
+ * 两端药丸圆角（rx = 11.5）各占掉 11.5px，所以常态要额外留 23px，最小宽度 44。
  */
 function badgeWidth(label: string): number {
-  return Math.max(44, Math.round(label.length * 7.6 + 26))
+  let w = 0
+  for (const ch of label) w += ch.charCodeAt(0) > 0x2e80 ? 13 : 7.6
+  return Math.max(44, Math.round(w + 26))
 }
 
 /** XML 文本转义：编号来自数据，别让一个 `&` 把整个 data URI 弄成坏 SVG */
@@ -155,17 +159,24 @@ function makeIcon(kind: string, wpType?: WaypointType): L.DivIcon {
   })
 }
 
-/** 编号徽标图标：锚点在药丸底部中央，尾巴尖正好落在坐标上 */
-function makeBadgeIcon(label: string): L.DivIcon {
+/**
+ * 编号徽标图标：锚点在药丸底部中央，尾巴尖正好落在坐标上。
+ * 颜色可换 —— 路线编号用黑（COLORS.badge），已确认住宿用紫（COLORS.hotel），
+ * 两种药丸同屏时靠颜色就能分开是哪一套编号。
+ */
+function makeBadgeIcon(label: string, color: string = COLORS.badge): L.DivIcon {
   const w = badgeWidth(label)
   const h = 32
   return L.divIcon({
     className: 'trail-marker',
-    html: `<img src="${badgeDataUri(COLORS.badge, label)}" width="${w}" height="${h}" alt="${esc(label)}" draggable="false" />`,
+    html: `<img src="${badgeDataUri(color, label)}" width="${w}" height="${h}" alt="${esc(label)}" draggable="false" />`,
     iconSize: [w, h],
     iconAnchor: [w / 2, h],
   })
 }
+
+/** 徽标标记的悬浮偏移：它比水滴标记高一点，tooltip 得跟着抬起来才不压住药丸 */
+const BADGE_TOOLTIP_OFFSET: [number, number] = [0, -32]
 
 interface RouteMapProps {
   /** 单段路线；与 trails 二选一 */
@@ -198,6 +209,19 @@ interface RouteMapProps {
    */
   badges?: MapBadge[]
   hotels?: Hotel[]
+  /**
+   * 住宿标上直接画出来的短标签：`hotel.id` → 文字（如「第2天」「前夜」）。
+   *
+   * 给了就换成**紫色药丸徽标**（与路线编号的黑药丸同形异色）替代默认的「住」字水滴 ——
+   * 只看图标就能认出「这家是哪晚」，不必逐个悬停。行程篮的「已确认住宿」模式用它。
+   * 不给的住宿照旧画水滴。
+   */
+  hotelBadges?: Record<string, string>
+  /**
+   * 住宿标悬停时的一行小字：`hotel.id` → 说明（如「第2天 · 已确认」）。
+   * 画在名字下面，只影响 tooltip。
+   */
+  hotelNotes?: Record<string, string>
   sights?: Sight[]
   height?: number
   /**
@@ -283,6 +307,8 @@ export function RouteMap({
   approxLines,
   badges,
   hotels = [],
+  hotelBadges,
+  hotelNotes,
   sights = [],
   height = 420,
   fixedZoom,
@@ -464,23 +490,36 @@ export function RouteMap({
       const marker = L.marker([mk.lat, mk.lng], { icon }).addTo(layer)
       // 途经点悬停显示名称（起终点语义已由「起/终」字形表达，不必再悬停）
       if (mk.name && (mk.kind === 'badge' || mk.kind === 'via'))
-        marker.bindTooltip(mk.name, { direction: 'top', offset: [0, mk.kind === 'badge' ? -32 : -26] })
+        marker.bindTooltip(mk.name, {
+          direction: 'top',
+          offset: mk.kind === 'badge' ? BADGE_TOOLTIP_OFFSET : [0, -26],
+        })
     })
     const hotelOk = finitePts(hotels)
     const sightOk = finitePts(sights)
-    // 住宿 / 看点悬停回显名称（与途经点一致）；住宿优先用中文名 nameZh
+    // 住宿 / 看点悬停回显名称（与途经点一致）；住宿主名按 中文>英文>韩文 优先级
     hotelOk.forEach((h) => {
-      const m = L.marker([h.lat, h.lng], { icon: makeIcon('hotel') }).addTo(layer)
-      // 悬停同时回显中文名与韩文原名；中文名与原名一致（无译名）时只显示一行
-      const zh = h.nameZh || ''
+      // 「已确认住宿」模式：紫药丸上直接写第几晚，其余情况还是「住」字水滴
+      const badge = hotelBadges?.[h.id]
+      const icon = badge ? makeBadgeIcon(badge, COLORS.hotel) : makeIcon('hotel')
+      const m = L.marker([h.lat, h.lng], { icon }).addTo(layer)
+      // 悬停回显主名（中文/英文/韩文）与韩文原名；主名已是原名时只显示一行
+      const main = stayName(h)
       const ko = h.name || ''
       let label: string
-      if (zh && ko && zh !== ko) {
-        label = `${esc(zh)}<br><span class="rm-ko">${esc(ko)}</span>`
+      if (main && ko && main !== ko) {
+        label = `${esc(main)}<br><span class="rm-ko">${esc(ko)}</span>`
       } else {
-        label = zh || ko
+        label = main || ko
       }
-      if (label) m.bindTooltip(label, { direction: 'top', offset: [0, -26] })
+      // 「已确认住宿」模式：名字下面再补一行小字，说明这是哪晚定下的
+      const note = hotelNotes?.[h.id]
+      if (note) label = `${label}<br><span class="rm-ko">${esc(note)}</span>`
+      if (label)
+        m.bindTooltip(label, {
+          direction: 'top',
+          offset: badge ? BADGE_TOOLTIP_OFFSET : [0, -26],
+        })
     })
     sightOk.forEach((s) => {
       const m = L.marker([s.lat, s.lng], { icon: makeIcon('sight') }).addTo(layer)
@@ -517,11 +556,24 @@ export function RouteMap({
     } else {
       map.fitBounds(L.latLngBounds(coords), { padding: [60, 60], maxZoom: 15 })
     }
-  }, [status, points, trails, lines, draw, drawSegs, markers, hotels, sights, fixedZoom])
+  }, [
+    status,
+    points,
+    trails,
+    lines,
+    draw,
+    drawSegs,
+    markers,
+    hotels,
+    hotelBadges,
+    hotelNotes,
+    sights,
+    fixedZoom,
+  ])
 
   const fallbackBox = useMemo(
-    () => project(drawSegs, markers, hotels, sights),
-    [drawSegs, markers, hotels, sights],
+    () => project(drawSegs, markers, hotels, sights, hotelBadges),
+    [drawSegs, markers, hotels, sights, hotelBadges],
   )
 
   return (
@@ -549,7 +601,13 @@ export function RouteMap({
             </>
           )}
           {/* 图例随实际标记走：住宿被用户收起（或本来就没有）时不留一个对不上图的空图例项 */}
-          {hotels.length > 0 && <span><i style={{ background: COLORS.hotel }} />住宿</span>}
+          {/* 带了天数标签的就是「已确认」那几家，图例文案跟着改，别让「住宿」对不上一屏紫药丸 */}
+          {hotels.length > 0 && (
+            <span>
+              <i style={{ background: COLORS.hotel }} />
+              {hotelBadges && Object.keys(hotelBadges).length > 0 ? '已确认住宿' : '住宿'}
+            </span>
+          )}
           {sights.length > 0 && <span><i style={{ background: COLORS.sight }} />看点</span>}
         </div>
       )}
@@ -561,7 +619,16 @@ export function RouteMap({
 }
 
 interface Projected {
-  items: { x: number; y: number; kind: string; name: string; label?: string; wpType?: WaypointType }[]
+  items: {
+    x: number
+    y: number
+    kind: string
+    name: string
+    label?: string
+    /** 徽标的填充色（路线编号=黑、已确认住宿=紫）；不填时用路线编号的黑色 */
+    badgeColor?: string
+    wpType?: WaypointType
+  }[]
   paths: string[]
   hasData: boolean
   lngMin: number
@@ -580,6 +647,7 @@ function project(
   markers: MarkerItem[],
   hotels: Hotel[],
   sights: Sight[],
+  hotelBadges?: Record<string, string>,
 ): Projected {
   const segPts = segs.map((seg) => finitePts(seg))
   const hotelsOk = finitePts(hotels)
@@ -611,7 +679,17 @@ function project(
   markers.forEach((m) =>
     items.push({ x: toX(m.lng), y: toY(m.lat), kind: m.kind, name: m.name, label: m.label, wpType: m.wpType }),
   )
-  hotelsOk.forEach((h) => items.push({ x: toX(h.lng), y: toY(h.lat), kind: 'hotel', name: h.name }))
+  // 住宿：画了短标签（已确认住宿）的走药丸，颜色取住宿紫，与路线编号的黑药丸区分
+  hotelsOk.forEach((h) => {
+    const badge = hotelBadges?.[h.id]
+    items.push({
+      x: toX(h.lng),
+      y: toY(h.lat),
+      kind: 'hotel',
+      name: stayName(h),
+      ...(badge ? { label: badge, badgeColor: COLORS.hotel } : {}),
+    })
+  })
   sightsOk.forEach((s) => items.push({ x: toX(s.lng), y: toY(s.lat), kind: 'sight', name: s.name }))
 
   const paths = segPts
@@ -683,7 +761,8 @@ function FallbackSketch({
         ))}
         {box.items.map((it, i) =>
           it.label ? (
-            // 编号徽标（行程篮）：文字画在药丸里，位置就是线的中点，不用另贴名字
+            // 编号徽标（行程篮）：文字画在药丸里，位置就是线的中点，不用另贴名字。
+            // 已确认住宿复用同一形状，换紫色填充
             <g key={i}>
               <rect
                 x={it.x - badgeWidth(it.label) / 2}
@@ -691,7 +770,7 @@ function FallbackSketch({
                 width={badgeWidth(it.label)}
                 height={26}
                 rx={13}
-                fill={COLORS.badge}
+                fill={it.badgeColor ?? COLORS.badge}
                 stroke="#fff"
                 strokeWidth="2.5"
               />
@@ -722,7 +801,8 @@ function FallbackSketch({
         )}
       </svg>
       <div className={`${styles['sketch-foot']}`}>
-        {box.items.some((it) => it.label) ? (
+        {/* 用 kind 判断而不是「有没有 label」—— 已确认住宿的药丸也带 label，不能被当成路线编号 */}
+        {box.items.some((it) => it.kind === 'badge') ? (
           <span><i style={{ background: COLORS.badge }} />路线编号</span>
         ) : (
           <>

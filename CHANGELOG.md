@@ -6,7 +6,233 @@
 
 ---
 
+## 2026-10-02（续·2）
+
+### 新增住宿：枫树酒店（메이플 호텔 / Maple Hotel）
+- 用户手填公开信息要求补库。排查：库里无此酒店（无 OSM/OTA 重复记录）。
+- 按既定「人工核对源 + 合并脚本」机制补：`scripts/data/curated_stays.json` 加一条 `manual_jeju-maple-hotel`（matchKeys 含 Maple/메이플/枫树/Maple Hotel），`fetch_stays_manual.py` 归到最近城镇 **제주시（济州市）**（老衡洞在济州市区，距该镇中心约 3.6km，是市区兜底城镇）。
+- 字段：`name` 메이플 호텔、`nameZh` 枫树酒店（官方标记）、`nameEn` Maple Hotel（官方标记）、`note` 酒店（gen_stay_zh 按业态词归一）、地址、无电话（用户未给）。坐标用老衡洞街区级近似（126.4635, 33.4765），非地址精确打点。
+- 合规：未落价格/图片/评论（房价区间仅口头告知，不入库）。
+- 结果：总数 960→961；`tsc`、`npm run build` 通过，数据已打进 index chunk。`gen_stay_zh.py` 显示中文名 2→3 条、英文名 +1（100）。
+
+---
+
+## 2026-10-02（续）
+
+### 住宿数据收敛为单一数据源（去掉 3.6 万行 seedStays 副本 + 运行时 fetch）
+- 痛点：住宿数据在源码里物理存在两份 —— `public/stays.json`（真源）+ `src/lib/seedStays.ts`（build_seed_stays.py 把同一份 960 家整段抄进去的 3.6 万行烘焙副本），每次改数据都要重跑生成脚本重新抄一遍。
+- 改法：
+  - 唯一真源定为 **`src/data/stays.json`**（从 `public/stays.json` 移入，与 `olle-endpoints.json` 同目录同模式），7 个读写脚本（`fetch_stays*.py` / `gen_stay_*.py` / `gen_stays_preview.py`）路径同步改为 `src/data/stays.json`。
+  - `src/lib/seedStays.ts` 重写为约 30 行的**派生模块**：`import` 真源后按 `routeTowns` 归集到每条路线（与 `DataContext` 的 `mergeStays` 行为一致），不再内联任何住宿数据。删掉 `scripts/build_seed_stays.py`（不再需要生成步骤）。
+  - `src/store/DataContext.tsx` 改为直接 `import` 同一份 JSON 作住宿池，**去掉运行时 `fetch('stays.json')`**；`stays` 不再是 `null` 状态、改为取自导入数据。`context.stays` 接口签名由 `StaysManifest | null` 变为 `StaysManifest`（外部无消费方，纯内部派生变量）。
+  - 删除 `public/stays.json`（运行时不再 fetch，由 bundle 内联提供）。
+- 代价：住宿数据随包打包进 JS，**改完 `src/data/stays.json` 后需重新 `npm run build`**（原本 seed 路径本就要重建；"刷新即生效"便利放弃，因为实际工作流本就是跑脚本+构建）。
+- 验证：`tsc --noEmit` 与 `npm run build` 通过；`dist/stays.json` 不再生成、bundle 无 `stays.json` 字符串残留、住宿数据已打进 index chunk；`seedStays.ts` 35,915 行 → 34 行。
+
 ## 2026-10-02
+
+### 新增住宿：济州托维斯公寓（제주토비스콘도미니엄 / Jeju Tovice Condo）
+- 用户手填该酒店公开信息（中文/英文/地址/电话），要求补进库。排查发现它**本来就在 OSM 库里**，但被重复映射成 4 条（涯月 3 条 + 翰林 1 条，两簇坐标差约 460m，属同一酒店被重复录入），且缺中文名/英文名/地址/电话。
+- 不抓 OTA（携程/Airbnb/Booking 等 ToS 禁止且 MIT 再分发风险高），缺失知名住宿只走「人工整理并核对的公开信息」这一合规来源。
+- 新增 `scripts/data/curated_stays.json`（人工核对源）+ `scripts/fetch_stays_manual.py`（与 TourAPI/Kakao 同构的合并脚本）：按 `matchKeys` 删掉全部命中条目（跨镇去重），再把规范条目补进最近城镇（涯月），带 `nameZhOfficial`/`nameEnOfficial` 标记，gen 脚本不会覆盖手填名。幂等，重跑若干次结果一致；即便 `fetch_stays.py` 全量重抓把重复带回来，重跑本脚本会再次去重 + 补回。
+- 同步把 `gen_stay_zh.py` 的官方中文名保护从「只认 source=tourapi」改为「认 nameZhOfficial 不限来源」，否则手填中文名会被自动生成覆盖（`gen_stay_en.py` 本就来源无关，保持一致）。
+- 顺手归一 7 个城镇的 `count` 字段（Tourapi/Kakao 合并追加时没同步 count，历史遗留，现 count 求和=真实总条数 960）。
+- 结果：中文名由 1 条变 2 条（新增「济州托维斯公寓」），英文名 +1（99），该酒店进入路线 15、16 的 `seedStays.ts`。`tsc --noEmit` 与 `npm run build` 通过。
+- 中文名取「托维斯」（Tovice 更通用音译）；用户另提「多维斯」变体，如需切换改 `curated_stays.json` 的 `nameZh` 即可。
+
+### 住宿中文名：排除「纯地名」误导值 + 前端显示优先级 中文>英文>韩文
+- 用户发现多条 `nameZh: "济州"`（제주민박 等「地名+业态词」被翻译成只剩城市名）。根因：剥离业态词后整个品牌只剩地名，退化成城市名，丢失「这是个住宿」的身份。
+- `scripts/gen_stay_zh.py` 新增 `brand_is_place_only()`：剥离业态词后若品牌整个是法定地名（제주/한라산/Jeju…）则 nameZh 置空，界面回退韩文原名（仍带 민박/호텔 业态词，身份清楚）。
+- 两条规则叠加（非纯中文置空 + 纯地名置空）：963 条里只剩 **1 条**纯中文名（"君悦 济州" = Grand Hyatt Jeju，真实国际品牌中文名），其余 962 条回退英文名或韩文 —— 这是规则的必然结果；要更多中文名需放宽口径（用户待定）。
+- 新增前端 helper `src/lib/stayName.ts`：`stayName()` 统一「中文(nameZh) > 英文(nameEn) > 韩文(name)」优先级，`staySubName()` 补韩文原名副行。DayBoard / StayPickerDrawer / PlanPage / PlanPrintSheet / RouteDetailPage / RouteMap / stayMatch 全部改用该 helper。
+- 顺带发现 **数据重复 bug**：同一 OSM 节点被归入多个镇，导致 164 组、353 条真重复（同名同 id），地图/搜索会重复出现。未在本轮修复，待用户确认是否做跨镇去重。
+- 校验：`tsc --noEmit` 与 `npm run build` 均通过。
+
+### 住宿搜索：统一到 `staySearch.ts`，中 / 韩 / 英 / 罗马音都能搜
+
+- **背景**：两处住宿列表各写了一套搜索 —— `StayPickerDrawer`（行程篮抽屉）已经连着
+  `nameEn` / `nameRomaja`，但 `RouteDetailPage` 的 `StayDrawer` 只匹配 `nameZh` + `name`（韩文原名），
+  同一个英文名在这个抽屉搜得到、换个入口就搜不到。
+- **收敛**：新增 `src/lib/staySearch.ts`，导出 `matchStayName(hotel, query)`，两个抽屉都改调它。
+  规则：大小写不敏感；忽略空格与 `- _ . ' " ( ) / & ·` 等分隔符（`RamadaPlaza` 能命中 `Ramada Plaza Jeju`）；
+  多关键词是「且」关系且不分先后（`jeju hyatt` 能命中 `Grand Hyatt Jeju`）。
+  输入框 placeholder 同步改成「搜索名称（中文 / 韩文 / 英文）」。
+- **英文拼写兜底（关键）**：全岛 774 家（去重后）里 `nameEn` 只有 79 家、`nameZh` 17 家，
+  `nameRomaja`（韩式罗马音）才是 100% 覆盖的那个字段。而 OSM 给的是
+  펜션→`pensyeon`（125 家）、리조트→`rijoteu`、게스트하우스→`geseuteuhauseu` 这套写法，
+  用户实际会敲的却是 `pension` / `resort` / `guesthouse` —— 不做归一的话搜 `pension` 只能命中 8 家。
+  于是加了「同词异写」表（`pensyeon|penseon→pension`、`rijoteu|risoteu|lijoteu→resort`、`kondo→condo`、
+  `geseuteuhauseu?→guesthouse`、`hoseutel→hostel`、`yeogwan|yeoinsuk→inn`）；
+  归一串是**追加**不覆盖原文，所以 `pensyeon` 和 `pension` 都能搜到同一批。
+  实测效果（774 家去重口径）：`pension` 8 → 133 家、`resort` 0 → 36、`guesthouse` → 47、
+  `condo` → 10、`inn` → 12；`hotel` 一直是 154 家、`grand hyatt` → 1、`ramada` → 2 不受影响。
+- **为什么不在数据层补英文名**：项目约定 `nameEn` 只抄 OSM 真实拉丁名（`name:en`），不翻译、不罗马转写，
+  所以上面这套写法差异只能留在搜索层兜，不能写进数据。
+- **详情页 `HotelCard` 补英文名副行**：搜英文命中的条目多为 `nameEn` / 罗马音，卡片上只印中文名或韩文名时
+  认不出搜到的是哪一家。现在主标题之外按「韩文原名 · 英文名」补一行（都不与主标题重复才显示）。
+- **仍未解决的数据短板**：`nameEn` 只覆盖 79 家是采集阶段的取舍（当前这批 OSM 抓取没取 `name:en`），
+  要拿全量得重跑 `scripts/fetch_stays.py`（本机 Overpass 不通，得换能出网的环境）。
+  TourAPI 的英文/简中数据集实测不含济州住宿，补不了这块。
+
+### 按天看板：「查看全部住宿」抽屉（每晚 + 出发前一晚）
+
+- 需求：住宿卡只陈列前 5 条候选，8 km 以外的根本露不出来 —— 有车 / 愿意多走一段时挑不到。
+  所以卡片底部加「查看全部住宿（N 家）›」，点击从右侧滑出抽屉列出全量并可选中一家。
+- 新增 `src/components/StayPickerDrawer.tsx` + 同名 `.module.less`：mask + 滑入动画 + Esc 关闭 +
+  中/韩/英/罗马音搜索 + 顶部锁定条（已锁定那家可能排得很后，不用翻列表也能取消）。
+- `stayMatch.ts`：`StayCandidate` / `PrevStayCandidate` 加 `near`（是否在 8 km 内）；
+  `rankCandidates` / `rankByStart` 加 `maxKm` 参数；导出 `rankAllStays()` / `rankAllByStart()`
+  —— 传 `Infinity` 即不截断的全量排序，远的照列并标「较远」，**不隐藏**。
+- **两种口径共用一个组件**：「每晚」按「0.6 × 距今晚终点 + 0.4 × 距明早起点」排序，
+  「出发前一晚」按「距第一天出发点」排序。为了不复制一份组件，抽屉改成吃中性行结构
+  `StayPickerRow { hotel, distanceKm, distance2Km, near }`，由 `variant: 'night' | 'prev'`
+  决定标题/提示/距离文案；`DayBoard` 里用 `nightRow()` / `prevRow()` 两个映射函数转。
+  早先版本让 `toEndKm` 直接承载「距出发点」能少写几行，但字段名在说谎，改回中性结构。
+- 锁定后若那家超出 8 km（不在自动候选里），会被顶到卡片候选列表第一位 ——
+  从抽屉里挑了远处的住宿、卡片上却看不见，会让人以为没选上。前夜卡同样处理。
+- 空态兜底：前夜推不出区域（`prev` 为 null）但起点附近录过住宿时，入口照常出现 ——
+  推不出区域名不等于没得住。
+- **踩坑（文案）**：抽屉里一行曾显示成「瓦夏夏 民宿」+ 副文本「… · 民宿 / Guesthouse」，
+  业态写了两遍 —— 中文名是「地名义译 + 业态中译」生成的（名字本身就带业态），
+  而 `hotel.note` 是同一件事的中英对照。加 `typeSuffix(title, note)`：标题里已含该业态词
+  就不再打印，只有标题是韩文/英文原名（无中文名）时才补，否则整行看不出业态。
+  **通用口径**：任何「中文名 + note」并排展示的地方都要走这个判断
+  （详情页 `RouteDetailPage` 的 `HotelCard` 仍是 note 单独成行，同样重复，尚未改）。
+
+### 行程位置地图：住宿从「显示/隐藏」开关改成三选一模式
+
+- 之前的「显示住宿」复选框只能二选一，够不到一种很常见的看图需求：**只看自己定下来的那几家**。
+  全量住宿一次十几个紫标铺满全岛，压得路线看不清；全关掉又完全看不到落脚点在哪。
+- 改成三个模式按钮（「行程位置」标题右侧，`PlanPage` 的 `MAP_STAY_MODES`）：
+  - `none` 仅路径 —— 画路线与编号，不画住宿；
+  - `all` 全量住宿 —— 行程篮里每条路线挂着的所有住宿（改造前的默认行为）；
+  - `confirmed` 已确认住宿 —— 只画「按天」里点「住这家」锁定下来的，含出发前一晚。
+- 「已确认」的数据源是 `stays.get(day)?.lockedHotel` + `prevNight?.lockedHotel`（`stayMatch` 里
+  已经把 `plan.items[].stayId` / `plan.prevStayId` 解析成 `Hotel` 了），**没有另开一条口径** ——
+  自动推荐出来的候选不算确认，必须用户点过「住这家」。
+  排序按「前夜 → 第 1 天 → 第 2 天…」，与行程单上的顺序一致；同一家连住两晚按 id 去重只画一个。
+- `RouteMap` 新增可选 `hotelBadges`（`hotel.id` → 短标签）与 `hotelNotes`（`hotel.id` → tooltip 小字）：
+  「已确认」模式下住宿标从「住」字水滴换成**紫色药丸 + 天数**（前夜 / 第2天 / 第1-2天），
+  与路线编号的黑药丸同形异色；不传就完全照旧（详情页 / 后台选点不受影响）。
+- 天数标签会合并连住：同一家连住几晚合成「第1-2天」，而不是每晚在同一坐标摞一个一样的紫标。
+  天序里 `day = 0` 表示出发前一晚，排在第一天之前。
+- **修 bug（用户实测反馈）**：第 1 天和第 3 天选了同一家、中间那晚没定住宿时，标签显示成
+  「第1-3天」—— 凭空多出一晚，与行程单对不上。根因是合并条件只看了「数组相邻两项 id 是否相同」，
+  没校验天号是否紧挨着：第 2 天没锁定住宿时它在序列里根本不存在，于是 1 和 3 在数组里成了邻居。
+  改成按「天号 +1」切连续段，不连续的写成「第1、3天」（段数 > 3 时截断加「…」）。
+  真连住（1,2 / 1,2,3）仍然并成「第1-2天」「第1-3天」。
+- **踩坑**：`badgeWidth()` 原来按 `label.length * 7.6` 估算，那是 13px 粗体**数字**的宽度；
+  中文全角字在同样字号下约 **13px/字**，照原公式算「第2天」只有 49px，文字会顶出药丸两端。
+  改成逐字符判断（`charCodeAt(0) > 0x2e80` 算全角 13px），路线编号（纯数字/连字符）宽度不变。
+- 存储字段从 `planMapHotels: boolean` 换成 `planMapStayMode: 'none' | 'all' | 'confirmed'`，
+  默认 `all`（保持改造前「默认看得到住宿」的行为）。项目在研发阶段、不做旧数据兼容，
+  直接改类型；`normalizeUi` 用白名单校验，非法值回落 `all`。
+- 「已确认」模式下若一家都没锁，地图上方补一行提示，指回「按天」去点「住这家」 ——
+  否则切过去看到一张没变化的图会以为功能坏了。
+
+### 住宿漏知名酒店：确认是数据源天花板，改接韩国观光公社 TourAPI
+
+- 用户反馈「济州亚洲酒店根本没看到」。核查：该酒店在济州市抓取圈内（노연로 53，距机场 2.75 km，
+  中心 126.490/33.500 半径 7 km）、业态也匹配，却不在库里 → **OSM 里就没有这条记录**。
+- 不是孤例。933 条里民宿 357 + 家庭民宿 192 = **59% 是小民宿**，酒店只有 184 条；
+  知名连锁有的有（하얏트 / 롯데시티 / JW 메리어트 / 파라다이스 / 베스트웨스턴 / 하워드존슨 / 대한항공 칼호텔），
+  有的缺（亚洲、新罗、君悦、Maison Glad）。抓取本身也有缺口：目标 17 镇只抓到 15 个
+  （缺 대평리 大坪里、가파도 加波岛），文件头至今 `partial: true`。
+- **根因是数据源天花板**：OSM 是志愿者数据，济州小民宿录得密、中大型酒店反而常缺。
+  重抓 OSM 只是在同一份不完整数据里再捞一遍，解决不了。
+- 本机无法在线复核（overpass-api.de 忙、kumi 与 private.coffee 空响应、Nominatim 无返回），
+  按「试两次即停」停下，结论依据位置与类型匹配。
+- 选定方案：TourAPI 4.0（韩国观光公社官方）。新增 `scripts/fetch_stays_tourapi.py`：
+  - `KorService2/areaBasedList2`，`areaCode=39`（济州）+ `contentTypeId=32`（住宿）翻页抓全量；
+    可选再抓 `ChsService2` / `EngService2` 拿官方中文名与英文名（**三个语言是独立数据集，key 分别申请**）。
+  - 合并去重：坐标 < 150 m 判为同一家 → 不新增，只把官方中文名 / 英文名 / 地址 / 电话补到已有条目；
+    否则按最近城镇归入，标 `source=tourapi`。
+  - `gen_stay_zh.py` / `gen_stay_en.py` 改为跳过有官方名称的 tourapi 条目，避免被自动中译覆盖。
+  - **待办**：key 未申请，脚本尚未实跑。申请后 `export TOURAPI_KEY_KOR=...` 再
+    `python3 scripts/fetch_stays_tourapi.py --dry` 验样本，去掉 `--dry` 全量跑，最后重跑 `build_seed_stays.py`。
+
+### 中文名不是纯中文就置空
+
+- 需求：nameZh 大量是半中半韩（"西归浦칼"）或中英混排（"JW 万豪 济州"），读着别扭也搜不到。
+- 改：`gen_stay_zh.py` 加 `pure_zh()` —— 只有「汉字 + 空格」才写入 nameZh，含韩文/拉丁/数字的一律置 null。
+- 结果：963 条里**只有 23 条留下**（城山 / 日出峰 / 汉拿山 / 翰林 / 西归浦 / 表善 / 和顺 / 金宁 / 下摹 / 君悦 济州），
+  940 条置空，界面回退显示韩文原名。搜索不受影响：抽屉里韩文原名 / 英文名 / 罗马音仍可搜。
+- 顺带清掉 `PLACES` 表里的普通名词（해안→海岸、해변→海边、폭포→瀑布、계곡→溪谷、공원→公园、
+  오름→岳、정원→庭院、궁전→宫殿、숙소→住宿、동굴→洞窟）：它们不是地名，意译出来就是编造的店名
+  （"오름모텔"→"岳"、"공원민박"→"公园"）。只留法定地名的汉字表记。
+
+### 中文名不再拼业态词（nameZh 与 note 去重）
+
+- 需求：nameZh 生成成「济州신라 酒店」「포구 家庭民宿」，业态词既在名称里又在 `note` 里，读着重复。
+- 改：`scripts/gen_stay_zh.py` 的 `make()` 只返回名称本身（地名义译 + 品牌保留原文），
+  业态照旧只写 `note`。963 条全量重算，**nameZh 含业态词的条目 0 条**、空值 0 条。
+- 连带：`StayPickerDrawer` 的 `typeSuffix()` 原是「标题已含业态就不再补」的去重补丁（当时注释里
+  举的例子是「瓦夏夏 民宿 · 民宿 / Guesthouse」），现在标题一律不含业态，它退化成照常补业态；
+  注释改写为描述当前行为，保留 `includes` 判断仅防后台把 nameZh 手写成带业态。
+- 有 154 条 nameZh 与韩文原名相同（名称里既无可译地名也无业态词可剥离，如 솔트 / 하늘이），
+  属正常；前端 `nameZh !== name` 才补原名行，不会重复显示。
+
+### TourAPI 首跑：补进 30 家官方收录住宿，但亚洲酒店仍缺
+
+- 结果：`public/stays.json` 933 → **963 条**（新增 30，另 19 家与已有 OSM 条目按坐标 < 150 m 判为同一家、只补字段）。
+  seed 回填 4143 → 4250。
+- **实测覆盖（推翻了写脚本时的预期）**：
+  - 韩文 KorService2 的济州住宿 `contentTypeId=32` **只有 49 条**，`searchStay2` 同样是 49 —— 官方库收录的是精选住宿，不是全量。
+  - 简中 ChsService2 / 英文 EngService2 **不含住宿**：全国 `contentTypeId=32` 的 totalCount 都是 0（济州全类型只剩 171 / 163 条）。
+    所以「拿官方中文名 / 英文名」这条路**走不通**，本轮 `nameZhOfficial` / `nameEnOfficial` 均为 0，
+    49 条的中文名仍走 `gen_stay_zh.py` 既有口径。脚本头那句「外语服务直接给出官方中英文名」已改正。
+- **cat3 映射表按实测重校准**（原先照文档推断，错得离谱）：`B02011100` 被映射成「汗蒸房」，
+  而它下面 18 条是 나이스호텔 / 엠버리조트 / 천지연크리스탈호텔 这类酒店度假村；`B02010700` 映射成「度假村」，
+  实际 12 条清一色是 펜션（已改「民宿」）。现在 cat3 **只作兜底**，业态一律由 `gen_stay_zh.py`
+  按名称里的业态词判定，与 OSM 条目同一口径。
+- **踩坑**：note 原先只在为空时才补，导致上一轮写错的「汗蒸房」永久留在库里（솔트 / 제주브릭스 / 해성파크텔）。
+  改成每次重跑都按校准后的 cat3 刷新，污染值可自愈。同理「官方名保护」改用显式标记
+  `nameZhOfficial` / `nameEnOfficial`，不再用 `source=tourapi and nameZh` 判断 —— 否则自动生成的中译
+  会被误当成官方名保护起来，永远刷不掉。
+- **仍未解决**：用户点名的 제주아시아호텔（济州亚洲酒店）TourAPI 里也没有。要补得换数据源
+  （Kakao Local API）或人工补录。
+
+### TourAPI key 改存本地文件，不进 git
+
+- 需求：上一轮要求 key 靠 `export` 传，每次开新终端都要重设，还容易手滑粘进命令历史。
+- 做法：新增 `.env.example`（提交，只有空键名 + 三个申请链接）与 `.env`（`cp` 自模板，填真实 key，
+  `.gitignore` 已忽略）。`scripts/fetch_stays_tourapi.py` 加 `load_env()`：启动即读项目根 `.env`。
+- 优先级：**已 export 的同名环境变量 > .env** —— 临时换 key 不用改文件。空值、纯注释、
+  无 `=` 的行一律跳过，所以模板原样复制也不会读出空 key。
+- 坑：`.gitignore` 里 `#` 只在行首才是注释。最初把说明写在 `!.env.example` 行尾，整段中文被当成
+  pattern 的一部分，导致模板反而被 `.env.*` 挡住无法提交 —— 说明必须单独成行。
+- 校验：`git check-ignore -v` 确认 `.env` 被忽略、`.env.example` 不在忽略列表。
+
+### 住宿英文名：只抄 OSM 真实拉丁名，98 条有、835 条留空
+
+- 用户要求「只要真实的英文名，没有就留空，不要拿中文/韩文翻译」。所以**没有任何翻译与转写**，
+  全部照抄 OSM 里本来就存在的拉丁字母字符串。
+- 三个来源：① 名称本身是拉丁字母（OSM 的 `name` 即英文，79 条，如 `White Castle Pension`）；
+  ② 韩文名括号里带的拉丁串（如 `성문모텔 (Seongmun Motel)`）；③ 韩英混合名里成段的英文部分
+  （`JW Marriott Jeju Resort & Spa - JW 메리어트…` 取前半）。
+- **纯罗马音串不进 nameEn**：`Haeddeuneunjip`、`Eondeokwiuihayanjip` 这类是韩语罗马转写不是英文，
+  它们的位置在 `nameRomaja`。括号内噪声（`Yongnam Reports Park (free)` 的 `free`）同样排除。
+  「CF 모텔」「제주JJ게스트하우스」的拉丁只是缩写碎片，不构成英文名，不填。
+- 933 条里 98 条取到、835 条留空 —— OSM 对济州这些民宿绝大多数没记录拉丁名，这是数据现状，不是遗漏。
+- **没走补抓**：想拿全量 `name:en` 只能重查 Overpass，本机两次都失败（overpass-api.de 返回
+  Dispatcher 超时、kumi 镜像空响应），按「试两次即停」停下。已在 `fetch_stays.py` 里存下
+  `tags["name:en"]`，将来网络通了重跑爬虫即可自动带上，不必再改脚本。
+
+### 住宿中文名：从「音译假汉字」改成「只补可靠中文」，933 条全覆盖
+
+- **为什么缺**：`gen_stay_zh.py` 只在早先 5 个镇（表善 / 西归浦 / 涯月 / 金宁等）跑过，
+  后来新增的 10 个镇没重跑，所以 933 条里只有 239 条有 `nameZh`，城山 0/51、济州市 0/269 整片为空。
+- **为什么不直接补齐了事**：原口径是「韩文音节 → 汉字」硬凑，产出 `와하하 → 瓦夏夏`、
+  `고망난돌 → 高马罗道`、`일성 → 伊徐培徐` 这类名字。住宿方根本没有这个中文名，
+  拿去订房 / 导航 / 问路全都搜不到，属于误导，所以没有沿用，改成新口径重写。
+- **新口径（只补三类可靠中文）**：① 行政区标准汉字（제주→济州、서귀포→西归浦、성산→城山）；
+  ② 业态词中译；③ 国际连锁官方中文名（Marriott→万豪、Hyatt→凯悦）。
+  品牌是固有词、无对应汉字的（파도소리、해뜨는아침、와하하）**一律保留韩文原名**，不再硬凑。
+- **业态按名称识别，不再信 OSM 的 tourism 子类型**：OSM 常把 민박 标成 `motel`，
+  直译出来是「汽车旅馆」，与实情差得远。改成从名称里的业态词判定后，
+  「汽车旅馆」305 → 102，민박 归位到「家庭民宿」192 条。
+- 新增 `nameRomaja`（Revised Romanization 简化转写），供在韩国地图里搜索；
+  界面上中文名旁边保留韩文原名小字，打印版括注原名 —— 打印版要带在路上，问路时原名比中文名管用。
 
 ### 行程位置地图：住宿标可隐藏（默认显示）
 

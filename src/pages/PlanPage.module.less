@@ -168,22 +168,12 @@
   font-size: 18px;
   line-height: 1.3;
 }
-/* 行程位置地图的「显示住宿」开关：贴着标题右侧，勾选色与住宿标记同色（紫），一眼对得上 */
-.map-toggle {
+/* 行程位置地图的住宿模式切换（仅路径 / 全量住宿 / 已确认住宿）：贴着标题右侧，三选一 */
+.map-modes {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12.5px;
-  color: var(--text);
-  cursor: pointer;
-  user-select: none;
-  white-space: nowrap;
-}
-.map-toggle input {
-  width: 15px;
-  height: 15px;
-  accent-color: #9333ea;
-  cursor: pointer;
+  flex-wrap: wrap;
 }
 .warn-tag {
   background: #fff7ed;

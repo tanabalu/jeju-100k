@@ -12,8 +12,11 @@ import { store, type ChecklistState, type UiState } from '../lib/storage'
 import { PREP_GROUPS, PREP_PRESETS, normItemText } from '../lib/prep'
 import { buildSeedRoutes } from '../lib/seed'
 import { uid } from '../lib/id'
+// 住宿唯一真源（OSM / TourAPI / Kakao / 人工核对合并产物），随包打包进 JS。
+// 改完 src/data/stays.json 后需重新构建；不再运行时 fetch，避免数据在源码里存两份。
+import staysData from '../data/stays.json'
 
-/** public/stays.json 的一条城镇住宿池（OSM 爬取，字段对齐 Hotel） */
+/** src/data/stays.json 的一条城镇住宿池（OSM 爬取，字段对齐 Hotel） */
 export interface StayTown {
   ko: string
   zh: string
@@ -24,7 +27,7 @@ export interface StayTown {
   hotels: Hotel[]
 }
 
-/** public/stays.json 顶层结构：随包分发的住宿池，刷新即生效，不落库 */
+/** src/data/stays.json 顶层结构：随包打包的住宿池（构建期固化，不落库、不运行时 fetch） */
 export interface StaysManifest {
   version: number
   generatedAt: string
@@ -39,26 +42,43 @@ export interface StaysManifest {
 /**
  * 把「官方建议住这的城镇」的住宿池合并进路线（不落库，对齐 mergeAssets 范式）。
  * 严格按 routeTowns 映射收集；跨城镇去重按 hotel.id，避免同一家被挂多次。
+ *
+ * ## 对账而不是追加（2026-10-02 修）
+ * 旧实现是「只把 bundle 里的新 id 追加进 route.hotels」，于是路线在 localStorage 里存的那份
+ * 住宿副本（`seed.ts` 首次 seed 时写入并持久化）永远盖住打包真源：改了 `stays.json` 重新构建后，
+ * 同 id 的旧副本不更新、bundle 已删的条目不消失，点「重新加载数据」只是把同一份旧副本再读一遍，
+ * 只有「清空全部数据」触发重新 seed 才刷新。
+ *
+ * 新口径：bundle 始终为权威 —— 这条路线官方建议的城镇对应的住宿取**最新打包数据**；
+ * 只保留「id 不在全局 bundle 里、纯属后台手填」的住宿（不随 bundle 刷新、也不会被误删）。
+ * 这样 reload 即可反映最新 `stays.json`，又不会丢素材管理里手补的住宿。
  */
 function mergeStays(
   route: Route,
   townsByKo: Record<string, Hotel[]>,
   routeTowns: Record<string, string[]>,
+  bundleIds: Set<string>,
 ): Route {
   const codes = route.code ? routeTowns[route.code] : undefined
-  if (!codes?.length) return route
-  const seen = new Set(route.hotels.map((h) => h.id))
-  const add: Hotel[] = []
-  for (const ko of codes) {
+  // 这条路线官方建议住的城市对应的住宿（始终取最新打包数据，刷新即生效）
+  const bundle: Hotel[] = []
+  const seen = new Set<string>()
+  for (const ko of codes ?? []) {
     for (const h of townsByKo[ko] ?? []) {
-      if (!seen.has(h.id)) {
+      if (h.id && !seen.has(h.id)) {
         seen.add(h.id)
-        add.push(h)
+        bundle.push(h)
       }
     }
   }
-  if (!add.length) return route
-  return { ...route, hotels: [...route.hotels, ...add] }
+  // 后台手填：id 不在全局 bundle 里的才保留（bundle 删了的 / 改映射不再推荐的，都随 bundle 走）
+  const manualOnly = route.hotels.filter((h) => h.id && !bundleIds.has(h.id))
+  const next = [...bundle, ...manualOnly]
+  // 内容（含顺序）与现有一致就不新建 route 对象，避免每次渲染都触发下游 memo 重算
+  if (next.length === route.hotels.length && next.every((h, i) => h === route.hotels[i])) {
+    return route
+  }
+  return { ...route, hotels: next }
 }
 
 export interface PhotoEntry {
@@ -266,8 +286,8 @@ interface DataApi {
   photoManifest: PhotoManifest
   /** public/photos/maps.json 里的官方路线图表 */
   routeMaps: PhotoManifest
-  /** public/stays.json 里的住宿池（OSM 爬取，随包分发，刷新即生效） */
-  stays: StaysManifest | null
+  /** src/data/stays.json 里的住宿池（OSM 爬取，随包打包，构建期固化） */
+  stays: StaysManifest
   /** 行前 checklist 的勾选状态与自定义条目 */
   checklist: ChecklistState
   toggleCheck: (id: string) => void
@@ -303,7 +323,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [ui, setUi] = useState<UiState>({
     prepOnlyTodo: false,
     planHideDone: false,
-    planMapHotels: true,
+    planMapStayMode: 'all',
     prepGroupsCollapsed: [],
     prepPresetsOpen: [],
     prepTutorialsOpen: [],
@@ -311,7 +331,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [photoManifest, setPhotoManifest] = useState<PhotoManifest>({})
   const [routeMaps, setRouteMaps] = useState<PhotoManifest>({})
   const [trackManifest, setTrackManifest] = useState<TrackManifest>({})
-  const [stays, setStays] = useState<StaysManifest | null>(null)
+  // 住宿池直接取自打包进 JS 的唯一真源，无需运行时 fetch / 状态。
+  const stays = staysData as unknown as StaysManifest
   const [checklist, setChecklist] = useState<ChecklistState>({
     checked: [],
     skipped: [],
@@ -363,13 +384,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       load<PhotoManifest>('photos/maps.json'),
       load<PhotoManifest>('photos/manifest.json'),
       load<TrackManifest>('tracks.json'),
-      load<StaysManifest>('stays.json'),
-    ]).then(([maps, photos, tracks, staysJson]) => {
+    ]).then(([maps, photos, tracks]) => {
       if (!alive) return
       if (maps) setRouteMaps(maps)
       if (photos) setPhotoManifest(photos)
       if (tracks) setTrackManifest(tracks)
-      if (staysJson) setStays(staysJson)
     })
     return () => {
       alive = false
@@ -378,23 +397,30 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const townsByKo = useMemo(() => {
     const m: Record<string, Hotel[]> = {}
-    for (const t of stays?.towns ?? []) m[t.ko] = t.hotels
+    for (const t of stays.towns) m[t.ko] = t.hotels
     return m
+  }, [stays])
+
+  /** 全局 bundle 住宿 id 集合（所有城镇并集）：用于 mergeStays 区分「打包真源」与「后台手填」 */
+  const bundleIds = useMemo(() => {
+    const s = new Set<string>()
+    for (const t of stays.towns) for (const h of t.hotels) if (h.id) s.add(h.id)
+    return s
   }, [stays])
 
   const routes = useMemo(() => {
     const hasAssets = Object.keys(photoManifest).length > 0 || Object.keys(routeMaps).length > 0
     const hasTracks = Object.keys(trackManifest).length > 0
-    const hasStays = !!stays && Object.keys(townsByKo).length > 0
+    const hasStays = Object.keys(townsByKo).length > 0
     if (!hasAssets && !hasTracks && !hasStays) return rawRoutes
     return rawRoutes.map((r) => {
       const withAssets = hasAssets ? mergeAssets(r, photoManifest, routeMaps) : r
       const withStays = hasStays
-        ? mergeStays(withAssets, townsByKo, stays!.routeTowns)
+        ? mergeStays(withAssets, townsByKo, stays.routeTowns, bundleIds)
         : withAssets
       return hasTracks ? mergeTrack(withStays, trackManifest) : withStays
     })
-  }, [rawRoutes, photoManifest, routeMaps, trackManifest, stays, townsByKo])
+  }, [rawRoutes, photoManifest, routeMaps, trackManifest, stays, townsByKo, bundleIds])
 
   const upsertRoute = useCallback((route: Route) => {
     setRawRoutes((prev) => {

@@ -10,14 +10,33 @@ import {
   type PlanRow,
 } from '../lib/dayPlan'
 import {
+  rankAllByStart,
+  rankAllStays,
   suggestStay,
+  type LinkedHotel,
   type PrevStayCandidate,
   type PrevStaySuggestion,
+  type StayCandidate,
   type StaySuggestion,
 } from '../lib/stayMatch'
 import { formatDurationRange, officialDuration } from '../lib/olleDurations'
+import { stayName, staySubName } from '../lib/stayName'
 import { Select } from './Select'
+import { StayPickerDrawer, type StayPickerRow } from './StayPickerDrawer'
 import styles from './DayBoard.module.less'
+
+/** 住宿抽屉打开在哪一档：'night' 是第 day 天晚上，'prev' 是出发前一晚 */
+type PickerTarget = { kind: 'night'; day: number } | { kind: 'prev' }
+
+/** 每晚候选 → 抽屉行：主距离是距今晚终点，副距离是距明早起点 */
+function nightRow(c: StayCandidate): StayPickerRow {
+  return { hotel: c.hotel, distanceKm: c.toEndKm, distance2Km: c.toNextStartKm, near: c.near }
+}
+
+/** 前夜候选 → 抽屉行：只有「距明早出发点」一个距离 */
+function prevRow(c: PrevStayCandidate): StayPickerRow {
+  return { hotel: c.hotel, distanceKm: c.toStartKm, distance2Km: null, near: c.near }
+}
 
 export interface DayBoardProps {
   rows: PlanRow[]
@@ -25,6 +44,8 @@ export interface DayBoardProps {
   days: DayPlan[]
   /** 每天的住宿建议，key 为天号 */
   stays: Map<number, StaySuggestion | null>
+  /** 全岛住宿池（跨路线收集，按 hotel.id 去重）——「查看全部住宿」抽屉的全量列表来源 */
+  hotels: LinkedHotel[]
   /** 「出发前一晚」的住宿建议；没有排任何一天时传 null */
   prevNight: PrevStaySuggestion | null
   /** 出发前一晚对应的日期标签（由父组件算好，没填出发日就是空串） */
@@ -70,6 +91,7 @@ export function DayBoard(props: DayBoardProps) {
     rows,
     days,
     stays,
+    hotels,
     prevNight,
     prevLabel,
     prevNote,
@@ -91,8 +113,35 @@ export function DayBoard(props: DayBoardProps) {
   const [overDay, setOverDay] = useState<string | null>(null)
   /** 拖拽期间用 ref 存 id：state 更新会晚于 dragstart 的同步读取 */
   const dragRef = useRef<string | null>(null)
+  /** 当前打开的「查看全部住宿」抽屉（null = 没开） */
+  const [picker, setPicker] = useState<PickerTarget | null>(null)
 
   const dayOptions = useMemo(() => days.map((d) => d.day), [days])
+
+  /**
+   * 每天的全量住宿候选（抽屉用）：不做 8 km 截断，远近都列。
+   * 权重与卡片上的候选一致（0.6 × 今晚终点 + 0.4 × 明早起点），所以抽屉开头的
+   * 顺序和卡片里露出的那几条是同一套口径，抽屉只是把后面没露出来的补全。
+   */
+  const picksByDay = useMemo(() => {
+    const map = new Map<number, StayPickerRow[]>()
+    days.forEach((d, i) => {
+      const lastRoute = d.rows[d.rows.length - 1]?.route
+      map.set(
+        d.day,
+        lastRoute
+          ? rankAllStays(lastRoute, days[i + 1]?.rows[0]?.route, hotels).map(nightRow)
+          : [],
+      )
+    })
+    return map
+  }, [days, hotels])
+
+  /** 出发前一晚的全量住宿候选：同样不截断，按「离第一天出发点近」排 */
+  const prevPicks = useMemo(() => {
+    const firstRoute = firstDay?.rows[0]?.route
+    return firstRoute ? rankAllByStart(firstRoute, hotels).map(prevRow) : []
+  }, [firstDay, hotels])
 
   const handleDrop = (dayKey: string) => {
     const id = dragRef.current ?? dragId
@@ -168,9 +217,11 @@ export function DayBoard(props: DayBoardProps) {
             </div>
             <PrevStayCard
               prev={prevNight}
+              picks={prevPicks}
               note={prevNote}
               onSetNote={onSetPrevNote}
               onLock={onLockPrevStay}
+              onOpenPicker={() => setPicker({ kind: 'prev' })}
             />
           </section>
         )}
@@ -242,10 +293,13 @@ export function DayBoard(props: DayBoardProps) {
               <StayCard
                 day={d}
                 stay={stay}
-                note={noteOfDay(d.day)}
-                onSetNote={(text) => onSetDayNote(d.day, text)}
+                picks={picksByDay.get(d.day) ?? []}
                 onLockStay={onLockStay}
+                onOpenPicker={(day) => setPicker({ kind: 'night', day })}
               />
+              {/* 当天备注：挂在「天」上、不跟任何偶来小路徒步绑定；没有路线的天（自由活动 / 交通 / 休整）
+                  也要能写，所以独立于 StayCard（StayCard 对空天会整块 return null） */}
+              <DayNote note={noteOfDay(d.day)} onSetNote={(t) => onSetDayNote(d.day, t)} />
             </section>
           )
         })}
@@ -257,6 +311,37 @@ export function DayBoard(props: DayBoardProps) {
         </section>
         </div>
       </div>
+
+      {/*
+        住宿抽屉：整块看板共用一个实例，开哪一档由 picker 决定。
+        「每晚」和「前夜」只是排序口径不同（离终点 / 离第一天出发点），
+        列表、搜索、锁定这些交互完全一样，所以复用同一个组件。
+      */}
+      {picker?.kind === 'night' && (
+        <StayPickerDrawer
+          variant="night"
+          day={picker.day}
+          rows={picksByDay.get(picker.day) ?? []}
+          lockedId={stays.get(picker.day)?.lockedHotel?.id}
+          onPick={(hotelId) => {
+            onLockStay(picker.day, hotelId)
+            setPicker(null)
+          }}
+          onClose={() => setPicker(null)}
+        />
+      )}
+      {picker?.kind === 'prev' && (
+        <StayPickerDrawer
+          variant="prev"
+          rows={prevPicks}
+          lockedId={prevNight?.lockedHotel?.id}
+          onPick={(hotelId) => {
+            onLockPrevStay(hotelId)
+            setPicker(null)
+          }}
+          onClose={() => setPicker(null)}
+        />
+      )}
     </div>
   )
 }
@@ -343,28 +428,42 @@ function Card(p: CardProps) {
   )
 }
 
-interface StayCardProps {
-  day: DayPlan
-  stay: StaySuggestion | null
+/**
+ * 当天备注：挂在「天」上、不跟任何偶来小路徒步绑定。
+ * 放在 StayCard 之外，是因为 StayCard 对「没有路线的天」会整块 return null ——
+ * 而自由活动日 / 交通日 / 休整日恰恰是没有徒步的那天，反而最需要写备注。
+ */
+function DayNote({
+  note,
+  onSetNote,
+}: {
   note: string
   onSetNote: (text: string) => void
-  onLockStay: (day: number, hotelId: string | undefined) => void
-}
-
-function StayCard({ day, stay, note, onSetNote, onLockStay }: StayCardProps) {
-  /** 备注 + 住宿区构成的就是「这天要交代的事」，空数据态也要能写备注 */
-  const noteField = (
+}) {
+  return (
     <label className={`${styles['note-field']}`}>
-      <span className={`${styles['stay-label']}`}>✏️ 备注</span>
+      <span className={`${styles['stay-label']}`}>✏️ 当天备注</span>
       <input
         className="input input-xs"
         value={note}
-        placeholder="订房确认号、接驳安排……会印进行程单"
+        placeholder="今天的安排、订房确认号、接驳安排……会印进行程单"
         onChange={(e) => onSetNote(e.target.value)}
       />
     </label>
   )
+}
 
+interface StayCardProps {
+  day: DayPlan
+  stay: StaySuggestion | null
+  /** 这一天的全量住宿候选（抽屉用，已按距离权重排好序） */
+  picks: StayPickerRow[]
+  onLockStay: (day: number, hotelId: string | undefined) => void
+  /** 打开「查看全部住宿」抽屉 */
+  onOpenPicker: (day: number) => void
+}
+
+function StayCard({ day, stay, picks, onLockStay, onOpenPicker }: StayCardProps) {
   if (day.rows.length === 0) return null
   const headExtra = day.isLast ? <span className={`${styles['stay-tag']}`}>最后一晚</span> : null
 
@@ -379,15 +478,34 @@ function StayCard({ day, stay, note, onSetNote, onLockStay }: StayCardProps) {
           这条路线没有任何住宿数据可推：既没有官方的住宿建议口径，也没录入过附近的住宿。
           去<Link to="/admin">素材管理</Link>给路线补录住宿后，这里会自动出候选清单。
         </div>
-        {noteField}
       </div>
     )
   }
+  /**
+   * 卡片上陈列的候选：默认前 5 条。
+   * 锁定的那家若在 8 km 以外（不在自动候选里）就顶到第一位 —— 从抽屉里挑了远处的住宿，
+   * 卡片上却看不见它，会让人以为没选上。
+   */
+  const top5 = stay.candidates.slice(0, 5)
+  const lockedPick = stay.lockedHotel
+    ? picks.find((p) => p.hotel.id === stay.lockedHotel?.id)
+    : undefined
+  const shown =
+    lockedPick && !top5.some((c) => c.hotel.id === lockedPick.hotel.id)
+      ? [lockedPick, ...top5.slice(0, 4).map(nightRow)]
+      : top5.map(nightRow)
+
   return (
     <div className={`${styles.stay}`}>
       <div className={`${styles['stay-head']}`}>
         <span className={`${styles['stay-label']}`}>🛏 今晚住</span>
         <b className={`${styles['stay-area']}`}>{stay.area}</b>
+        {/* 区域建议照旧是系统推的那条，订了哪家在这里补一句 —— 与行程单同一口径 */}
+        {stay.lockedHotel && (
+          <span className={`${styles['stay-locked']}`}>
+            已定：{stayName(stay.lockedHotel)}
+          </span>
+        )}
         {headExtra}
         {stay.lockedHotel && (
           <button className="btn btn-xs" onClick={() => onLockStay(day.day, undefined)}>
@@ -401,14 +519,14 @@ function StayCard({ day, stay, note, onSetNote, onLockStay }: StayCardProps) {
           备选：{stay.altArea} —— {stay.altReason}
         </div>
       )}
-      {stay.candidates.length > 0 ? (
+      {shown.length > 0 ? (
         <div className={`${styles['stay-opts']}`}>
-          {stay.candidates.slice(0, 5).map((c) => (
+          {shown.map((c) => (
             <StayOption
               key={c.hotel.id}
               hotel={c.hotel}
-              meta={`距今晚终点 ${c.toEndKm.toFixed(1)} km${
-                c.toNextStartKm !== null ? ` · 距明早起点 ${c.toNextStartKm.toFixed(1)} km` : ''
+              meta={`距今晚终点 ${c.distanceKm.toFixed(1)} km${
+                c.distance2Km !== null ? ` · 距明早起点 ${c.distance2Km.toFixed(1)} km` : ''
               }`}
               locked={stay.lockedHotel?.id === c.hotel.id}
               onLock={(v) => onLockStay(day.day, v)}
@@ -422,20 +540,32 @@ function StayCard({ day, stay, note, onSetNote, onLockStay }: StayCardProps) {
           在此之前，上面那条区域建议就是全部可用信息。
         </div>
       )}
-      {noteField}
+      {/* 卡片上只陈列前 5 条；全量（含 8 km 以外的）在抽屉里翻，避免把当天这列撑成一根长条 */}
+      {picks.length > 0 && (
+        <button className={`${styles['stay-more']}`} onClick={() => onOpenPicker(day.day)}>
+          查看全部住宿（{picks.length} 家）
+          <span className={`${styles['stay-more-arrow']}`} aria-hidden>
+            ›
+          </span>
+        </button>
+      )}
     </div>
   )
 }
 
 interface PrevStayCardProps {
   prev: PrevStaySuggestion | null
+  /** 前夜的全量住宿候选（抽屉用，按离第一天出发点近排序） */
+  picks: StayPickerRow[]
   note: string
   onSetNote: (text: string) => void
   onLock: (hotelId: string | undefined) => void
+  /** 打开「查看全部住宿」抽屉 */
+  onOpenPicker: () => void
 }
 
 /** 「出发前一晚」的住宿卡 —— 权重是离第一天出发点近，不是离终点近 */
-function PrevStayCard({ prev, note, onSetNote, onLock }: PrevStayCardProps) {
+function PrevStayCard({ prev, picks, note, onSetNote, onLock, onOpenPicker }: PrevStayCardProps) {
   const noteField = (
     <label className={`${styles['note-field']}`}>
       <span className={`${styles['stay-label']}`}>✏️ 备注</span>
@@ -458,15 +588,45 @@ function PrevStayCard({ prev, note, onSetNote, onLock }: PrevStayCardProps) {
           第一天那条路线没有官方的前夜住宿建议，也推不出所在区域 ——
           去<Link to="/admin">素材管理</Link>补录住宿后这里会自动出候选。
         </div>
+        {/* 推不出区域不代表没得住：起点附近录过住宿的话，仍然可以从抽屉里挑一家 */}
+        {picks.length > 0 && (
+          <button className={`${styles['stay-more']}`} onClick={onOpenPicker}>
+            查看全部住宿（{picks.length} 家）
+            <span className={`${styles['stay-more-arrow']}`} aria-hidden>
+              ›
+            </span>
+          </button>
+        )}
         {noteField}
       </div>
     )
   }
+
+  /**
+   * 卡片上陈列的候选：默认前 5 条。
+   * 锁定的那家若在 8 km 以外（不在自动候选里）就顶到第一位 —— 从抽屉里挑了远处的住宿，
+   * 卡片上却看不见它，会让人以为没选上。
+   */
+  const top5 = prev.candidates.slice(0, 5)
+  const lockedPick = prev.lockedHotel
+    ? picks.find((p) => p.hotel.id === prev.lockedHotel?.id)
+    : undefined
+  const shown =
+    lockedPick && !top5.some((c) => c.hotel.id === lockedPick.hotel.id)
+      ? [lockedPick, ...top5.slice(0, 4).map(prevRow)]
+      : top5.map(prevRow)
+
   return (
     <div className={`${styles.stay}`}>
       <div className={`${styles['stay-head']}`}>
         <span className={`${styles['stay-label']}`}>🛏 前一晚住</span>
         <b className={`${styles['stay-area']}`}>{prev.area}</b>
+        {/* 同上：区域建议照旧，订了哪家补在后面 */}
+        {prev.lockedHotel && (
+          <span className={`${styles['stay-locked']}`}>
+            已定：{stayName(prev.lockedHotel)}
+          </span>
+        )}
         {prev.lockedHotel && (
           <button className="btn btn-xs" onClick={() => onLock(undefined)}>
             取消锁定
@@ -474,13 +634,13 @@ function PrevStayCard({ prev, note, onSetNote, onLock }: PrevStayCardProps) {
         )}
       </div>
       <div className={`${styles['stay-reason']}`}>推荐理由：{prev.reason}</div>
-      {prev.candidates.length > 0 ? (
+      {shown.length > 0 ? (
         <div className={`${styles['stay-opts']}`}>
-          {prev.candidates.slice(0, 5).map((c: PrevStayCandidate) => (
+          {shown.map((c) => (
             <StayOption
               key={c.hotel.id}
               hotel={c.hotel}
-              meta={`距明早出发点 ${c.toStartKm.toFixed(1)} km`}
+              meta={`距明早出发点 ${c.distanceKm.toFixed(1)} km`}
               locked={prev.lockedHotel?.id === c.hotel.id}
               onLock={(v) => onLock(v)}
             />
@@ -490,6 +650,15 @@ function PrevStayCard({ prev, note, onSetNote, onLock }: PrevStayCardProps) {
         <div className={`${styles['stay-nodata']}`}>
           出发点附近 8 km 内没有已录入的住宿 —— 上面那条区域建议就是全部可用信息。
         </div>
+      )}
+      {/* 卡片上只陈列前 5 条；全量（含 8 km 以外的）在抽屉里翻 */}
+      {picks.length > 0 && (
+        <button className={`${styles['stay-more']}`} onClick={onOpenPicker}>
+          查看全部住宿（{picks.length} 家）
+          <span className={`${styles['stay-more-arrow']}`} aria-hidden>
+            ›
+          </span>
+        </button>
       )}
       {noteField}
     </div>
@@ -510,7 +679,15 @@ function StayOption({
   return (
     <div className={`${styles.opt}${locked ? ` ${styles['is-locked']}` : ''}`}>
       <div className={`${styles['opt-n']}`}>
-        {hotel.name}
+        {stayName(hotel)}
+        {staySubName(hotel) && (
+          <span
+            className={`${styles['opt-ko']}`}
+            title={[hotel.nameEn, hotel.nameRomaja].filter(Boolean).join(' · ') || hotel.name}
+          >
+            {hotel.name}
+          </span>
+        )}
         {locked && <span className={`${styles['opt-lock']}`}>✓ 已锁定</span>}
       </div>
       <div className={`${styles['opt-m']}`}>

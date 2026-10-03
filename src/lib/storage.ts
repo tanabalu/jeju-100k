@@ -44,13 +44,24 @@ const EMPTY_CHECKLIST: ChecklistState = { checked: [], skipped: [], custom: [], 
  * 单独一个键，不塞进 settings / checklist：这两个都进备份文件（exportBackup / importBackup），
  * 而「筛选开关」是本机视图偏好 —— 导入别人的备份不该顺手把我的筛选状态改掉。
  */
+/**
+ * 行程篮「行程位置」地图的住宿模式：
+ * - none      只看路径，整图不画住宿
+ * - all       路径 + 全量推荐住宿（行程篮里每条路线挂着的住宿，一次十几个）
+ * - confirmed 路径 + 已确认住宿（「按天」里点「住这家」锁定的那些，含出发前一晚）
+ */
+export type PlanMapStayMode = 'none' | 'all' | 'confirmed'
+
+/** 合法值清单：normalizeUi 用它做白名单校验，不在清单里的一律回落 'all' */
+const PLAN_MAP_STAY_MODES: PlanMapStayMode[] = ['none', 'all', 'confirmed']
+
 export interface UiState {
   /** 行前清单：只看未完成 */
   prepOnlyTodo: boolean
   /** 行程篮：只看未完成（隐藏已走完的路线） */
   planHideDone: boolean
-  /** 行程篮「行程位置」地图：显示住宿标（紫）。默认显示，勾掉就整图不画住宿 */
-  planMapHotels: boolean
+  /** 行程篮「行程位置」地图画哪些住宿标；默认 `all`（全量推荐住宿） */
+  planMapStayMode: PlanMapStayMode
   /** 行前清单：被折叠的分组 id（PREP_GROUPS 的 id + custom / extras），默认全展开 */
   prepGroupsCollapsed: string[]
   /** 行前清单：被展开的备选卡片 id（PREP_PRESETS 的 id），默认全折叠 */
@@ -62,7 +73,7 @@ export interface UiState {
 const EMPTY_UI: UiState = {
   prepOnlyTodo: false,
   planHideDone: false,
-  planMapHotels: true,
+  planMapStayMode: 'all',
   prepGroupsCollapsed: [],
   prepPresetsOpen: [],
   prepTutorialsOpen: [],
@@ -74,8 +85,9 @@ function normalizeUi(raw: Partial<UiState> | undefined | null): UiState {
   return {
     prepOnlyTodo: raw.prepOnlyTodo === true,
     planHideDone: raw.planHideDone === true,
-    // 住宿标默认显示：只有明确关掉过才隐藏（布尔兜底统一走 `=== true` 会让首次进来的用户看不到住宿）
-    planMapHotels: raw.planMapHotels !== false,
+    planMapStayMode: PLAN_MAP_STAY_MODES.includes(raw.planMapStayMode as PlanMapStayMode)
+      ? (raw.planMapStayMode as PlanMapStayMode)
+      : 'all',
     prepGroupsCollapsed: arr<string>(raw.prepGroupsCollapsed),
     prepPresetsOpen: arr<string>(raw.prepPresetsOpen),
     prepTutorialsOpen: arr<string>(raw.prepTutorialsOpen),

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 并行爬取济州偶来沿线城镇的住宿 POI（OpenStreetMap / Overpass API），
-整理成与 src/types.ts 的 Hotel 结构对齐，写入 public/stays.json，
+整理成与 src/types.ts 的 Hotel 结构对齐，写入 src/data/stays.json，
 供前端 DataContext 的 mergeStays 叠加进各路线的 Route.hotels。
 
 - 数据源：OSM 公开数据（ODbL），合规、带真实经纬度，无反爬。
@@ -19,6 +19,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -147,6 +148,11 @@ def to_hotel(e: dict):
     name = tags.get("name") or tags.get("name:en") or tags.get("name:ko")
     if not name:
         return None
+    # 英文名只抄 OSM 的 name:en；name 本身是拉丁字母时它即为英文名。
+    # 两者都没有就留空 —— 不翻译、不罗马转写（那是 scripts/gen_stay_zh.py 的 nameRomaja）。
+    name_en = tags.get("name:en")
+    if not name_en and re.fullmatch(r"[A-Za-z0-9\s&'\.\-]+", name.strip()):
+        name_en = name
     road = tags.get("addr:road") or tags.get("addr:street")
     hn = tags.get("addr:housenumber")
     city = tags.get("addr:city") or tags.get("addr:suburb")
@@ -163,6 +169,7 @@ def to_hotel(e: dict):
     return {
         "id": f"osm_{e.get('type')}_{e.get('id')}",
         "name": name,
+        "nameEn": name_en,
         "lng": round(float(lon), 6),
         "lat": round(float(lat), 6),
         "address": addr or None,
@@ -212,7 +219,7 @@ def main():
     args = ap.parse_args()
 
     here = os.path.dirname(os.path.abspath(__file__))
-    dest = os.path.normpath(os.path.join(here, "..", "public", "stays.json"))
+    dest = os.path.normpath(os.path.join(here, "..", "src", "data", "stays.json"))
 
     # 始终以磁盘已有数据为基底：write_partial 只输出 results 里有的城镇，
     # 不带基底跑 --dry 会把 stays.json 覆盖成只剩一个城镇。

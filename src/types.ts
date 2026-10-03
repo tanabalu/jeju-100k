@@ -53,8 +53,22 @@ export interface ImageRef {
 export interface Hotel {
   id: string
   name: string
-  /** 中文名（由韩文音译 / 借词映射生成，自动生成，待人工核对；缺省时回退 name） */
+  /**
+   * 中文名。只补可靠中文：地名义译 + 国际品牌官方名（城山、西归浦、君悦 济州…）。
+   * **只放名称本身，不含业态** —— 业态在 note 字段，两处都写会重复。
+   * **不是纯中文就置空**（只认「汉字 + 空格」，含韩文/拉丁/数字一律 null），界面回退 `name`。
+   * **品牌整个只是地名也置空**（제주민박→"济州"、한라산호텔→"汉拿山" 这类，翻译出来只是城市/山名，
+   *   丢失「这是个住宿」的身份，反而误导），界面回退韩文原名（仍带 민박/호텔 业态词）。
+   * 由 scripts/gen_stay_zh.py 自动生成，可在住宿素材后台人工核对改写。
+   */
   nameZh?: string
+  /** 韩文原名的罗马音转写（Revised Romanization），便于在韩国地图里搜索 */
+  nameRomaja?: string
+  /**
+   * 英文名。只取 OSM 里本来就存在的拉丁字母名称（name:en 或拉丁写的 name），
+   * 不做翻译、不做罗马转写；OSM 没记录拉丁名的留空。
+   */
+  nameEn?: string
   lng: number
   lat: number
   address?: string
@@ -65,6 +79,14 @@ export interface Hotel {
   /** 官网 / 预订页链接（OSM 等公开源可能提供） */
   website?: string
   note?: string
+  /**
+   * 酒店介绍（位置 / 设施 / 周边 / 价格等）。
+   *
+   * 打包真源（stays.json）里可带一份默认介绍；前端用户改写的会作为 override 存进
+   * localStorage（见 src/lib/stayIntro.ts），刷新后优先于默认介绍生效 —— 这样即便该酒店来自
+   * bundle、在 DataContext.mergeStays 里被真源整条替换，用户写过的介绍也不会被冲掉。
+   */
+  intro?: string
   /** 封面图（本地上传进 IndexedDB 或外链） */
   cover?: ImageRef
 }

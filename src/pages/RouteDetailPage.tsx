@@ -12,6 +12,9 @@ import { formatDurationRange, officialDuration } from '../lib/olleDurations'
 import { resolveImageSrc } from '../lib/imageStore'
 import { useActivePlan } from '../hooks/useActivePlan'
 import { routeKindLabel } from '../lib/routeKind'
+import { matchStayName } from '../lib/staySearch'
+import { stayName } from '../lib/stayName'
+import { useStayIntro } from '../lib/stayIntro'
 import type { Hotel, ImageRef, RouteMetrics } from '../types'
 import styles from './RouteDetailPage.module.less'
 
@@ -630,9 +633,81 @@ function SightGallery({
 
 /**
  * 一条住宿卡片（详情页预览与抽屉共用）。
- * 名称优先显示中文名 nameZh；当中文名与原文不同（音译生成）时，补一行韩文原名便于核对。
+ * 主名优先级：中文(nameZh) > 英文(nameEn) > 韩文原名(name)；副行补韩文原名与英文名，方便对上检索结果。
  * 价格 / 评分：OSM 未提供时为 null，此处只在有真实数据时才渲染对应标签，绝不编造假数值。
  */
+/**
+ * 酒店介绍：显示打包默认介绍，并支持就地编辑保存。
+ * 改写存进 localStorage 覆盖层（见 src/lib/stayIntro.ts），刷新后优先于默认介绍，
+ * 且不会被 DataContext.mergeStays 用 bundle 真源整条覆盖掉。
+ */
+function HotelIntro({ hotel }: { hotel: Hotel }) {
+  const { value, isOverridden, save, reset } = useStayIntro(hotel.id, hotel.intro)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+
+  const startEdit = () => {
+    setDraft(value)
+    setEditing(true)
+  }
+  const commit = () => {
+    // 与默认介绍一致就回落覆盖，避免写一份和默认重复的冗余 override
+    if (draft.trim() === (hotel.intro ?? '').trim()) reset()
+    else save(draft)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div className={styles['hotel-intro-edit']}>
+        <textarea
+          className="input"
+          rows={4}
+          value={draft}
+          placeholder="填写酒店介绍：位置、设施、周边、参考价格等"
+          onChange={(e) => setDraft(e.target.value)}
+        />
+        <div className={styles['hotel-intro-actions']}>
+          <button className="btn btn-sm btn-primary" onClick={commit}>
+            保存
+          </button>
+          <button className="btn btn-sm" onClick={() => setEditing(false)}>
+            取消
+          </button>
+          {isOverridden && (
+            <button
+              className="btn btn-sm btn-ghost"
+              onClick={() => {
+                reset()
+                setEditing(false)
+              }}
+            >
+              恢复默认
+            </button>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  if (value) {
+    return (
+      <div className={styles['hotel-intro']}>
+        <p className={styles['list-note']}>{value}</p>
+        <button className={styles['hotel-intro-edit-btn']} onClick={startEdit}>
+          编辑介绍
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <button className={styles['hotel-intro-add']} onClick={startEdit}>
+      ＋ 添加酒店介绍
+    </button>
+  )
+}
+
 function HotelCard({
   hotel,
   atKm,
@@ -642,8 +717,11 @@ function HotelCard({
   atKm: number
   offRouteKm: number
 }) {
-  const zh = hotel.nameZh
-  const showOrig = !!zh && zh !== hotel.name
+  const main = stayName(hotel)
+  /** 英文名（OSM 真实拉丁名）有且不与主标题重复时才补，便于和英文检索结果对上 */
+  const en = hotel.nameEn && hotel.nameEn !== main && hotel.nameEn !== hotel.name ? hotel.nameEn : ''
+  /** 副行：主标题不是韩文原名时补原名，再补英文名（两都有可能只有其一） */
+  const subLine = [main !== hotel.name ? hotel.name : '', en].filter(Boolean).join(' · ')
   return (
     <div key={hotel.id} className="list-item">
       <div className="list-main">
@@ -654,8 +732,8 @@ function HotelCard({
             </div>
           )}
           <div className="list-main">
-            <b>{zh || hotel.name}</b>
-            {showOrig && <span className="muted">{hotel.name}</span>}
+            <b>{main}</b>
+            {subLine && <span className="muted">{subLine}</span>}
           </div>
         </div>
       </div>
@@ -675,13 +753,14 @@ function HotelCard({
           </a>
         </p>
       )}
+      <HotelIntro hotel={hotel} />
     </div>
   )
 }
 
 /**
  * 住宿「查看全部」抽屉：从右侧滑入的浮层（另一个容器），详情页本身不展开长列表。
- * 顶部带名称搜索（中文 / 韩文皆可），Esc 或点遮罩关闭，打开时锁背景滚动。
+ * 顶部带名称搜索（中文 / 韩文 / 英文 / 罗马音皆可），Esc 或点遮罩关闭，打开时锁背景滚动。
  */
 function StayDrawer({
   rows,
@@ -692,12 +771,9 @@ function StayDrawer({
 }) {
   const [q, setQ] = useState('')
   const filtered = useMemo(() => {
-    const t = q.trim().toLowerCase()
+    const t = q.trim()
     if (!t) return rows
-    return rows.filter(
-      ({ hotel }) =>
-        (hotel.nameZh || '').toLowerCase().includes(t) || hotel.name.toLowerCase().includes(t),
-    )
+    return rows.filter(({ hotel }) => matchStayName(hotel, t))
   }, [rows, q])
 
   useEffect(() => {
@@ -732,7 +808,7 @@ function StayDrawer({
         <div className={styles['stay-search-wrap']}>
           <input
             className={styles['stay-search']}
-            placeholder="搜索名称（中文 / 韩文）"
+            placeholder="搜索名称（中文 / 韩文 / 英文）"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />

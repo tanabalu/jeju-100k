@@ -20,6 +20,7 @@ import { TRIP_PLANS, type TripPlan } from './tripPlans'
 import { haversineKm } from './geo'
 import type { DayPlan } from './dayPlan'
 import { isIslandRoute, routeEnds, stayIdOfDay } from './dayPlan'
+import { stayName } from './stayName'
 
 /** 候选搜索半径（km）：超过这个距离的住宿不做候选，住过去等于白折腾 */
 export const STAY_SEARCH_KM = 8
@@ -40,6 +41,8 @@ export interface StayCandidate {
   toNextStartKm: number | null
   /** 排序分，越小越靠前 */
   score: number
+  /** 是否在候选半径内（全量列表里用它标出「超出 8 km」的那批） */
+  near: boolean
 }
 
 export type StaySource = 'locked' | 'island' | 'lastRoute' | 'fallback'
@@ -54,7 +57,10 @@ export interface StaySuggestion {
   altReason?: string
   source: StaySource
   candidates: StayCandidate[]
-  /** 用户锁定的住宿（有值时 area/reason 退化为描述它） */
+  /**
+   * 用户锁定的住宿。**不影响 area / reason** —— 那两项始终是系统推的区域建议，
+   * 锁定的这家由界面在建议后面补「已定：XXX」，两者并存而不是互相顶替。
+   */
   lockedHotel?: Hotel
 }
 
@@ -65,6 +71,8 @@ export interface PrevStayCandidate {
   /** 距第一天出发点（官方/实际起点）的直线距离 km */
   toStartKm: number
   score: number
+  /** 是否在候选半径内（全量列表里用它标出「超出 8 km」的那批） */
+  near: boolean
 }
 
 export type PrevStaySource = 'locked' | 'official' | 'fallback'
@@ -135,6 +143,11 @@ function areasCompatible(a: string | undefined, b: string | undefined): boolean 
  *
  * **每一天都有自己的建议，最后一天也一样** —— 走完最后一段当晚还要落脚，
  * 多半第二天才飞机 / 船返程，把最后一晚漏掉等于把人丢在街上。
+ *
+ * 锁定了住宿**不改写区域建议**：`area` / `reason` 仍是官方口径推出来的那条，
+ * 锁定的那家挂在 `lockedHotel` 上，界面在建议后面补一句「已定：XXX」。
+ * 行程单是要照着走的，订了哪家用「已定」标注就够了 —— 把推荐区域换成酒店名，
+ * 等于把「这一带为什么值得住」的判定依据一起抹掉。
  */
 export function suggestStay(
   day: DayPlan,
@@ -142,25 +155,45 @@ export function suggestStay(
   hotels: LinkedHotel[],
   items: PlanItem[],
 ): StaySuggestion | null {
+  if (!day.rows.length) return null
+
+  const lastRoute = day.rows[day.rows.length - 1].route
+  const nextFirstRoute = nextDay?.rows[0]?.route
+
+  const lockedId = stayIdOfDay(items, day.day)
+  const locked = lockedId ? hotels.find((h) => h.hotel.id === lockedId) : undefined
+  const auto = autoStay(day, nextDay, hotels)
+
+  if (!locked) return auto
+  /* 有区域建议：保留它，锁定的那家另行标注 */
+  if (auto) return { ...auto, lockedHotel: locked.hotel }
+  /* 连区域都推不出来时，锁定的那家就是唯一能交代的「住哪」 */
+  return {
+    area: stayName(locked.hotel),
+    reason: '你锁定了这家 —— 手动选择优先。',
+    source: 'locked',
+    lockedHotel: locked.hotel,
+    candidates: rankCandidates(lastRoute, nextFirstRoute, hotels),
+  }
+}
+
+/**
+ * 系统给某一天推的住宿建议（不含用户锁定）。
+ *
+ * 优先级：离岛提示 → 当天最后一站的官方建议（并与「明早上哪出发」交叉校验）
+ * → 按终点所在地降级。**拿不到就返回 null，不编造。**
+ */
+function autoStay(
+  day: DayPlan,
+  nextDay: DayPlan | undefined,
+  hotels: LinkedHotel[],
+): StaySuggestion | null {
   const rows = day.rows
   if (!rows.length) return null
 
   const lastRow = rows[rows.length - 1]
   const lastRoute = lastRow.route
   const nextFirstRoute = nextDay?.rows[0]?.route
-
-  /* ---- 规则 1：用户已锁定 → 原样展示 ---- */
-  const lockedId = stayIdOfDay(items, day.day)
-  const locked = lockedId ? hotels.find((h) => h.hotel.id === lockedId) : undefined
-  if (locked) {
-    return {
-      area: `${locked.hotel.name}`,
-      reason: '你锁定了这家 —— 手动选择优先，不再给自动推荐。',
-      source: 'locked',
-      lockedHotel: locked.hotel,
-      candidates: rankCandidates(lastRoute, nextFirstRoute, hotels),
-    }
-  }
 
   /* ---- 规则 2：离岛 → 提示船班风险，住宿地以官方口径为准 ---- */
   const islandRow = rows.find((r) => isIslandRoute(r.route))
@@ -228,6 +261,9 @@ export function suggestStay(
  * 前者要的是**离第一天出发点近**（第二天一早直接开走），依据 `tripPlans.stay`
  * 的官方口径；后者要的是**离当天终点近**，依据 `stayReturn`。两套权重不一样，
  * 混在一起算会给出互相打架的建议。
+ *
+ * 与每晚一致：锁定了住宿**不改写区域建议**，`area` / `reason` 仍是官方口径那条，
+ * 锁定的那家挂在 `lockedHotel` 上由界面补「已定：XXX」。
  */
 export function suggestPrevNight(
   firstDay: DayPlan | undefined,
@@ -238,17 +274,34 @@ export function suggestPrevNight(
   const firstRoute = firstDay.rows[0].route
   const candidates = rankByStart(firstRoute, hotels)
 
-  /* 规则 1：用户已锁定 */
   const locked = prevStayId ? hotels.find((h) => h.hotel.id === prevStayId) : undefined
-  if (locked) {
-    return {
-      area: locked.hotel.name,
-      reason: '你锁定了这家 —— 手动选择优先，不再给自动推荐。',
-      source: 'locked',
-      lockedHotel: locked.hotel,
-      candidates,
-    }
+  const auto = autoPrevNight(firstDay, hotels)
+
+  if (!locked) return auto
+  /* 有区域建议：保留它，锁定的那家另行标注 */
+  if (auto) return { ...auto, lockedHotel: locked.hotel }
+  /* 连区域都推不出来时，锁定的那家就是唯一能交代的「住哪」 */
+  return {
+    area: stayName(locked.hotel),
+    reason: '你锁定了这家 —— 手动选择优先。',
+    source: 'locked',
+    lockedHotel: locked.hotel,
+    candidates,
   }
+}
+
+/**
+ * 系统给的「出发前一晚住哪」（不含用户锁定）。
+ *
+ * 优先级：官方口径 → 按第一天起点所在地降级。**拿不到就返回 null，不编造。**
+ */
+function autoPrevNight(
+  firstDay: DayPlan | undefined,
+  hotels: LinkedHotel[],
+): PrevStaySuggestion | null {
+  if (!firstDay?.rows.length) return null
+  const firstRoute = firstDay.rows[0].route
+  const candidates = rankByStart(firstRoute, hotels)
 
   /* 规则 2：官方口径 —— 走这条之前那一晚建议住哪 */
   const area = morningAreaOf(firstRoute)
@@ -279,8 +332,16 @@ export function suggestPrevNight(
   return null
 }
 
-/** 按「离出发点」排序的前夜候选 */
-function rankByStart(route: Route, hotels: LinkedHotel[]): PrevStayCandidate[] {
+/**
+ * 按「离出发点」排序的前夜候选。
+ *
+ * @param maxKm 距离上限，默认候选半径（8 km）。传 Infinity 就是不截断的全量列表。
+ */
+function rankByStart(
+  route: Route,
+  hotels: LinkedHotel[],
+  maxKm: number = STAY_SEARCH_KM,
+): PrevStayCandidate[] {
   const start = endpointGeo(route, 'start')
   if (!start) return []
   const seen = new Set<string>()
@@ -289,9 +350,9 @@ function rankByStart(route: Route, hotels: LinkedHotel[]): PrevStayCandidate[] {
     if (seen.has(hotel.id)) continue
     if (!Number.isFinite(hotel.lng) || !Number.isFinite(hotel.lat)) continue
     const toStartKm = haversineKm(start, { lng: hotel.lng, lat: hotel.lat })
-    if (toStartKm > STAY_SEARCH_KM) continue
+    if (toStartKm > maxKm) continue
     seen.add(hotel.id)
-    out.push({ hotel, routeId, toStartKm, score: toStartKm })
+    out.push({ hotel, routeId, toStartKm, score: toStartKm, near: toStartKm <= STAY_SEARCH_KM })
   }
   return out.sort((a, b) => {
     if (Math.abs(a.score - b.score) > 0.05) return a.score - b.score
@@ -335,11 +396,14 @@ function areaFromRoute(route: Route): string | undefined {
 /**
  * 候选排序：0.6 × 离今晚终点 + 0.4 × 离明早起点（km），越小越靠前。
  * 同一家住宿被挂在多条路线下时只会入选一次 —— 按 hotel.id 去重。
+ *
+ * @param maxKm 距离上限，默认候选半径（8 km）。传 Infinity 就是不截断的全量列表。
  */
 function rankCandidates(
   lastRoute: Route,
   nextFirstRoute: Route | undefined,
   hotels: LinkedHotel[],
+  maxKm: number = STAY_SEARCH_KM,
 ): StayCandidate[] {
   const end = endpointGeo(lastRoute, 'end')
   const nextStart = nextFirstRoute ? endpointGeo(nextFirstRoute, 'start') : undefined
@@ -350,13 +414,13 @@ function rankCandidates(
     if (seen.has(hotel.id)) continue
     if (!Number.isFinite(hotel.lng) || !Number.isFinite(hotel.lat)) continue
     const toEndKm = haversineKm(end, { lng: hotel.lng, lat: hotel.lat })
-    if (toEndKm > STAY_SEARCH_KM) continue
+    if (toEndKm > maxKm) continue
     const toNextStartKm = nextStart
       ? haversineKm(nextStart, { lng: hotel.lng, lat: hotel.lat })
       : null
     const score = 0.6 * toEndKm + 0.4 * (toNextStartKm ?? toEndKm)
     seen.add(hotel.id)
-    out.push({ hotel, routeId, toEndKm, toNextStartKm, score })
+    out.push({ hotel, routeId, toEndKm, toNextStartKm, score, near: toEndKm <= STAY_SEARCH_KM })
   }
   return out.sort((a, b) => {
     if (Math.abs(a.score - b.score) > 0.05) return a.score - b.score
@@ -384,6 +448,32 @@ const src =
       : (route.points ?? [])[0])
   if (!src || !Number.isFinite(src.lng) || !Number.isFinite(src.lat)) return undefined
   return { lng: src.lng, lat: src.lat }
+}
+
+/**
+ * 「查看全部住宿」抽屉用的全量列表：**不做半径截断**，远近都列，远的排在后面。
+ *
+ * 排序权重与候选一致（0.6 × 今晚终点 + 0.4 × 明早起点），所以列表开头的顺序
+ * 和卡片上那几条的口径是一致的 —— 抽屉只是把后面没露出来的部分补全。
+ * 超出 8 km 的那批标 `near: false`，界面上单独隔开提示「较远」，但**不隐藏**：
+ * 有车 / 愿意多走一段时，用户仍要能从这里选它。
+ */
+export function rankAllStays(
+  lastRoute: Route,
+  nextFirstRoute: Route | undefined,
+  hotels: LinkedHotel[],
+): StayCandidate[] {
+  return rankCandidates(lastRoute, nextFirstRoute, hotels, Number.POSITIVE_INFINITY)
+}
+
+/**
+ * 「查看全部住宿」抽屉用的前夜全量列表：**不做半径截断**，远的排在后面。
+ *
+ * 排序权重与候选一致（离第一天出发点越近越靠前），所以列表开头的顺序和卡片上
+ * 那几条是一致的 —— 抽屉只是把 8 km 以外没露出来的部分补全，方便有车时挑远处的。
+ */
+export function rankAllByStart(firstRoute: Route, hotels: LinkedHotel[]): PrevStayCandidate[] {
+  return rankByStart(firstRoute, hotels, Number.POSITIVE_INFINITY)
 }
 
 /** 把全部路线的住宿收集成候选池（去重靠 id 冲突时的先到先得） */

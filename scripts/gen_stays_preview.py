@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-根据 public/stays.json 生成独立回显预览页 stays_preview.html（项目根目录）。
+根据 src/data/stays.json 生成独立回显预览页 stays_preview.html（项目根目录）。
 内联数据，双击即可在浏览器查看（地图 + 按城镇分组列表），不依赖 dev server。
 重跑本脚本即可在爬取更新后刷新预览。
 
@@ -12,7 +12,7 @@ import json
 import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.normpath(os.path.join(HERE, "..", "public", "stays.json"))
+SRC = os.path.normpath(os.path.join(HERE, "..", "src", "data", "stays.json"))
 OUT = os.path.normpath(os.path.join(HERE, "..", "stays_preview.html"))
 
 
@@ -22,7 +22,7 @@ def esc(s):
 
 def main():
     if not os.path.exists(SRC):
-        print("找不到 public/stays.json，先跑 fetch_stays.py", file=__import__("sys").stderr)
+        print("找不到 src/data/stays.json，先跑 fetch_stays.py", file=__import__("sys").stderr)
         return
     manifest = json.load(open(SRC, encoding="utf-8"))
     towns = manifest.get("towns", [])

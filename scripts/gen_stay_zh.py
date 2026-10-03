@@ -1,147 +1,277 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-给 public/stays.json 每条住宿补 nameZh（中文名）。
+给 src/data/stays.json 每条住宿生成中文名 nameZh、罗马音 nameRomaja，并按真实业态修正 note。
 
-策略（透明、不编造）：
-- 分类词（民宿 / 酒店 / 度假村 …）取自可靠的 note 中文字段；note 缺失时回退到韩文关键词表。
-- 品牌名做「韩文音节 → 汉字」音译：拆初声/中声/终声 → 拼音 → 去终声取基底 → 汉字表。
-  叠加一批英语借词 / 济州地名的固定映射（济州/西归浦/度假村/豪华…）提升可读度。
-- 任何无法可靠音译的音节一律回落韩文原字，绝不给假汉字。
-- priceRange / rating 等 OSM 未提供的字段保持 null（由界面标注「暂无」），不编造。
+口径：只补可靠中文，不编造品牌名。**nameZh 只放名称本身，业态写进 note，两处不重复。**
+- 业态：从名称里的业态词识别（민박→家庭民宿、펜션→民宿、리조트→度假村…），只写 note。
+  OSM 的 tourism 子类型常把 민박 标成 motel，直译出来是「汽车旅馆」，与实情偏差大，
+  所以业态一律以名称为准，OSM 分类仅在没有业态词时兜底。
+- 地名：济州岛行政区标准汉字（제주→济州、서귀포→西归浦、성산→城山…）。
+- 国际品牌：官方中文名（Marriott→万豪、Hyatt→凯悦…）。
+- 其余品牌部分（绝大多数是固有词，无对应汉字）只能保留韩文/英文原名，不做音节硬凑的假汉字
+  —— 拿去订房、导航、问路都搜不到，属于误导。
+- 于是大量 nameZh 会是半中半韩（"西归浦칼"）或中英混排（"JW 万豪 济州"）。这种一律**整条置空**：
+  只有纯中文（汉字 + 空格）才写入 nameZh，其余留 null，界面回退显示韩文原名。宁缺，不凑。
+- 特例：**品牌整个只是地名**（제주민박→"济州"、한라산호텔→"汉拿山"、Jeju Guest House→"济州"）
+  也不写 nameZh —— 翻译出来只是城市/山名，丢失「这是个住宿」的身份，反而误导。
+  界面回退时韩文原名仍带着 민박/호텔 业态词，身份清楚。
+- nameRomaja：韩文原名按 Revised Romanization 简化转写，便于在韩国地图里搜索。
 
-幂等：仅当 nameZh 缺省时写入；--force 覆盖重算。
+全量重算，幂等。
 """
 import json
 import re
-import sys
 
-SRC = "public/stays.json"
+SRC = "src/data/stays.json"
+
+# 业态词（韩文 / 英文）→ 中文。按长度降序匹配，长词优先避免误切（콘도미니엄 先于 콘도）。
+CATS = [
+    ('콘도미니엄', '公寓式酒店'), ('게스트하우스', '民宿'), ('글램핑', '豪华露营'),
+    ('민박집', '家庭民宿'), ('캠핑장', '露营地'), ('캠핑', '露营地'),
+    ('리조트', '度假村'), ('팬션', '民宿'), ('펜션', '民宿'),
+    ('콘도', '公寓式酒店'), ('호스텔', '青年旅舍'), ('호텔', '酒店'),
+    ('모텔', '汽车旅馆'), ('민박', '家庭民宿'), ('여관', '旅馆'),
+    ('찜질방', '汗蒸房'), ('야영장', '露营地'), ('스파', '水疗'),
+]
+CATS_EN = [
+    ('guesthouse', '民宿'), ('guest house', '民宿'), ('resort', '度假村'),
+    ('pension', '民宿'), ('hostel', '青年旅舍'), ('motel', '汽车旅馆'),
+    ('hotel', '酒店'), ('condo', '公寓式酒店'), ('camping', '露营地'),
+    ('glamping', '豪华露营'), ('spa', '水疗'),
+]
+
+# 济州岛行政区 / 景点标准汉字。只放有确定汉字表记的，固有词不进表。
+PLACES = [
+    ('성산일출봉', '城山日出峰'), ('일출봉', '日出峰'), ('한라산', '汉拿山'),
+    ('서귀포', '西归浦'), ('모슬포', '摹瑟浦'), ('추자도', '楸子岛'),
+    ('제주시', '济州市'), ('신제주', '新济州'), ('구제주', '旧济州'),
+    ('제주', '济州'), ('성산', '城山'), ('표선', '表善'), ('남원', '南元'),
+    ('화순', '和顺'), ('무릉', '武陵'), ('저지', '楮旨'), ('한림', '翰林'),
+    ('애월', '涯月'), ('김녕', '金宁'), ('우도', '牛岛'), ('함덕', '咸德'),
+    ('조천', '朝天'), ('구좌', '旧左'), ('안덕', '安德'), ('대정', '大静'),
+    ('한경', '翰京'), ('삼양', '三阳'), ('용담', '龙潭'), ('건입', '健入'),
+    ('화북', '禾北'), ('봉개', '凤盖'), ('회천', '回泉'), ('월평', '月坪'),
+    ('영평', '营坪'), ('오라', '吾罗'), ('도남', '道南'), ('하모', '下摹'),
+    ('이도', '二徒'), ('삼도', '三徒'),
+    # 以下只放法定地名（韩国洞·里多有汉字表记）。普通名词不放进来：
+    # 해안/해변/폭포/계곡/공원/정원/궁전/숙소 这类意译出来会变成「公园」「岳」这种编造的店名。
+]
+
+# 国际连锁 / 已知品牌的官方中文名（英文名匹配，大小写不敏感）。
+BRANDS_EN = [
+    ('jw marriott', 'JW 万豪'), ('marriott', '万豪'), ('grand hyatt', '君悦'),
+    ('park hyatt', '柏悦'), ('hyatt', '凯悦'), ('sheraton', '喜来登'),
+    ('ramada', '华美达'), ('hilton', '希尔顿'), ('shilla', '新罗'),
+    ('lotte', '乐天'), ('novotel', '诺富特'), ('mercure', '美居'),
+    ('ibis', '宜必思'), ('best western', '贝斯特韦斯特'), ('howard johnson', '豪生'),
+    ('holiday inn', '假日'), ('intercontinental', '洲际'), ('crowne plaza', '皇冠假日'),
+    ('wyndham', '温德姆'), ('pullman', '铂尔曼'), ('sofitel', '索菲特'),
+    ('accor', '雅高'), ('kensington', '肯辛顿'), ('paradise', '天堂'),
+]
+
+# 英文名里出现的济州地名（OSM 常把名称写成 Jeju / Seogwipo 罗马字）
+PLACES_EN = [
+    ('jeju', '济州'), ('seogwipo', '西归浦'), ('seongsan', '城山'), ('pyoseon', '表善'),
+    ('aewol', '涯月'), ('hallasan', '汉拿山'), ('hamdeok', '咸德'), ('jungmun', '中文'),
+    ('gimnyeong', '金宁'), ('namwon', '南元'), ('hanrim', '翰林'), ('udo', '牛岛'),
+]
 
 CHO = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ']
 JUNG = ['ㅏ', 'ㅐ', 'ㅑ', 'ㅒ', 'ㅓ', 'ㅔ', 'ㅕ', 'ㅖ', 'ㅗ', 'ㅘ', 'ㅙ', 'ㅚ', 'ㅛ', 'ㅜ', 'ㅝ', 'ㅞ', 'ㅟ', 'ㅠ', 'ㅡ', 'ㅢ', 'ㅣ']
-JONG = ['', 'ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㄹㄱ', 'ㄹㅁ', 'ㄹㅂ', 'ㄹㅅ', 'ㄹㅌ', 'ㄹㅍ', 'ㄹㅎ', 'ㅁ', 'ㅂ', 'ㅂㅅ', 'ㅂㅌ', 'ㅂㅎ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅎ']
+JONG = ['', 'ㄱ', 'ㄲ', 'ㄳ', 'ㄴ', 'ㄵ', 'ㄶ', 'ㄷ', 'ㄹ', 'ㄺ', 'ㄻ', 'ㄼ', 'ㄽ', 'ㄾ', 'ㄿ', 'ㅀ', 'ㅁ', 'ㅂ', 'ㅄ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ']
 
-INIT_P = {'ㄱ': 'g', 'ㄲ': 'kk', 'ㄴ': 'n', 'ㄷ': 'd', 'ㄸ': 'tt', 'ㄹ': 'r', 'ㅁ': 'm', 'ㅂ': 'b', 'ㅃ': 'pp', 'ㅅ': 's', 'ㅆ': 'ss', 'ㅇ': '', 'ㅈ': 'j', 'ㅉ': 'jj', 'ㅊ': 'ch', 'ㅋ': 'k', 'ㅌ': 't', 'ㅍ': 'p', 'ㅎ': 'h'}
-VOW_P = {'ㅏ': 'a', 'ㅐ': 'ae', 'ㅑ': 'ya', 'ㅒ': 'yae', 'ㅓ': 'eo', 'ㅔ': 'e', 'ㅕ': 'yeo', 'ㅖ': 'ye', 'ㅗ': 'o', 'ㅘ': 'wa', 'ㅙ': 'wae', 'ㅚ': 'oe', 'ㅛ': 'yo', 'ㅜ': 'u', 'ㅝ': 'wo', 'ㅞ': 'we', 'ㅟ': 'wi', 'ㅠ': 'yu', 'ㅡ': 'eu', 'ㅢ': 'ui', 'ㅣ': 'i'}
-FIN_P = {'': '', 'ㄱ': 'g', 'ㄲ': 'k', 'ㄴ': 'n', 'ㄷ': 't', 'ㄸ': '', 'ㄹ': 'l', 'ㄹㄱ': 'lg', 'ㄹㅁ': 'lm', 'ㄹㅂ': 'lb', 'ㄹㅅ': 'ls', 'ㄹㅌ': 'lt', 'ㄹㅍ': 'lp', 'ㄹㅎ': 'lh', 'ㅁ': 'm', 'ㅂ': 'b', 'ㅂㅅ': 'bs', 'ㅂㅌ': 'bt', 'ㅂㅎ': 'bh', 'ㅅ': 's', 'ㅆ': 'ss', 'ㅇ': 'ng', 'ㅈ': 'j', 'ㅊ': 'ch', 'ㅋ': 'k', 'ㅌ': 't', 'ㅎ': ''}
-
-# 拼音基底（去掉终声）→ 汉字。音译用，一致性优先，非权威汉字。
-BASE_HANZI = {
-    'a': '雅', 'ae': '爱', 'ba': '巴', 'bae': '倍', 'beo': '柏', 'beu': '弗', 'bi': '飞', 'bo': '宝',
-    'byeo': '廉', 'chae': '彩', 'cheo': '次', 'chi': '智', 'cho': '草', 'chu': '秋', 'chyu': '丘',
-    'da': '多', 'dae': '大', 'de': '德', 'deo': '德', 'deu': '德', 'di': '地', 'do': '道', 'du': '斗',
-    'eo': '御', 'eu': '乙', 'ga': '家', 'gae': '介', 'ge': '季', 'geo': '巨', 'geu': '极', 'gi': '基',
-    'go': '高', 'gu': '九', 'gwa': '果', 'gwi': '贵', 'gye': '桂', 'gyeo': '庚',
-    'ha': '夏', 'hae': '海', 'he': '慧', 'heo': '许', 'heu': '熙', 'hi': '熙', 'ho': '浩', 'hui': '熙',
-    'hwa': '华', 'hyeo': '恤', 'hyu': '休', 'i': '伊', 'ja': '子', 'jae': '在', 'je': '帝', 'jeo': '弟',
-    'jeu': '帝', 'ji': '智', 'jji': '智', 'jo': '朝', 'ju': '周', 'jwo': '佐',
-    'ka': '卡', 'kae': '凯', 'ke': '桂', 'keu': '克', 'ki': '基', 'kkeo': '巨', 'ko': '高',
-    'ma': '马', 'me': '梅', 'mi': '美', 'mo': '慕', 'mu': '武', 'myeo': '苗',
-    'na': '罗', 'ne': '来', 'neo': '诺', 'neu': '努', 'ni': '尼', 'no': '鲁', 'nyeo': '女', 'nyu': '纽',
-    'o': '吴', 'pa': '派', 'pae': '培', 'pe': '培', 'peo': '表', 'peu': '普', 'pi': '皮', 'po': '浦',
-    'ppa': '帕', 'ppeu': '弗', 'pu': '富', 'pyo': '表',
-    'ra': '罗', 'rae': '来', 're': '礼', 'reo': '勒', 'reu': '勒', 'ri': '利', 'ro': '鲁', 'ru': '柳',
-    'ryeo': '吕', 'sa': '司', 'sae': '赛', 'se': '世', 'seo': '徐', 'seu': '斯', 'si': '诗', 'so': '素',
-    'sseo': '西', 'su': '秀', 'sya': '舍', 'syeo': '徐', 'syu': '休',
-    'ta': '他', 'tae': '泰', 'te': '泰', 'teo': '太', 'teu': '特', 'ti': '蒂', 'to': '岛', 'tta': '他',
-    'tto': '道', 'tu': '图', 'u': '宇', 'ui': '义', 'wa': '瓦', 'we': '月', 'wo': '月', 'ya': '雅',
-    'ye': '礼', 'yeo': '吕', 'yo': '瑶', 'yu': '柳',
-}
-
-# 英语借词 / 济州地名固定映射（韩文整词 → 中文），优先于逐字音译。
-OVERRIDE_BRAND = {
-    '제주': '济州', '서귀포': '西归浦', '서귀': '西归', '성산': '城山', '한라': '汉拿', '올레': '偶来',
-    '월드': '世界', '파크': '公园', '블루': '蓝', '그린': '绿', '골드': '金', '선셋': '日落', '오션': '海',
-    '마운틴': '山', '힐': '丘', '타운': '镇', '빌라': '别墅', '스위트': '套房', '카페': '咖啡馆',
-    '해변': '海边', '포레스트': '森林', '가든': '花园', '빌리지': '村', '하우스': '公馆', '럭셔리': '豪华',
-    '팰리스': '宫', '호텔': '酒店', '리조트': '度假村', '콘도': '公寓酒店', '캠핑': '露营', '글램핑': '露营',
-    '호스텔': '青年旅舍', '펜션': '民宿', '민박': '民宿', '모텔': '汽车旅馆', '게스트하우스': '民宿',
-}
-
-# 分类词（韩文 → 中文）；用于从品牌里剥离分类，分类统一由 note 提供。
-CAT_KO = ['게스트하우스', '민박집', '민박', '펜션', '리조트', '호텔', '모텔', '호스텔', '콘도미니엄', '콘도', '캠핑장', '글램핑']
+# Revised Romanization（简化：终声取代表音，不做全部连音异化）
+CHO_R = {'ㄱ': 'g', 'ㄲ': 'kk', 'ㄴ': 'n', 'ㄷ': 'd', 'ㄸ': 'tt', 'ㄹ': 'r', 'ㅁ': 'm',
+         'ㅂ': 'b', 'ㅃ': 'pp', 'ㅅ': 's', 'ㅆ': 'ss', 'ㅇ': '', 'ㅈ': 'j', 'ㅉ': 'jj',
+         'ㅊ': 'ch', 'ㅋ': 'k', 'ㅌ': 't', 'ㅍ': 'p', 'ㅎ': 'h'}
+JUNG_R = {'ㅏ': 'a', 'ㅐ': 'ae', 'ㅑ': 'ya', 'ㅒ': 'yae', 'ㅓ': 'eo', 'ㅔ': 'e', 'ㅕ': 'yeo',
+          'ㅖ': 'ye', 'ㅗ': 'o', 'ㅘ': 'wa', 'ㅙ': 'wae', 'ㅚ': 'oe', 'ㅛ': 'yo', 'ㅜ': 'u',
+          'ㅝ': 'wo', 'ㅞ': 'we', 'ㅟ': 'wi', 'ㅠ': 'yu', 'ㅡ': 'eu', 'ㅢ': 'ui', 'ㅣ': 'i'}
+JONG_R = {'': '', 'ㄱ': 'k', 'ㄲ': 'k', 'ㄳ': 'k', 'ㄴ': 'n', 'ㄵ': 'n', 'ㄶ': 'n', 'ㄷ': 't',
+          'ㄹ': 'l', 'ㄺ': 'k', 'ㄻ': 'm', 'ㄼ': 'l', 'ㄽ': 'l', 'ㄾ': 'l', 'ㄿ': 'l', 'ㅀ': 'l',
+          'ㅁ': 'm', 'ㅂ': 'p', 'ㅄ': 'p', 'ㅅ': 't', 'ㅆ': 't', 'ㅇ': 'ng', 'ㅈ': 't',
+          'ㅊ': 't', 'ㅋ': 'k', 'ㅌ': 't', 'ㅍ': 'p', 'ㅎ': 't'}
 
 
 def is_hangul(ch: str) -> bool:
     return 0xAC00 <= ord(ch) <= 0xD7A3
 
 
-def base_of(ch: str) -> str:
+def split_syllable(ch: str):
     b = ord(ch) - 0xAC00
-    c = CHO[b // 588]
-    j = JUNG[b % 588 // 28]
-    f = JONG[b % 28]
-    return (INIT_P[c] + VOW_P[j] + FIN_P[f]).rstrip('bcdfghjklmnpqrstvwxyz')
+    return CHO[b // 588], JUNG[b % 588 // 28], JONG[b % 28]
 
 
-def hanzi_of(ch: str) -> str:
-    """单韩文字节 → 汉字（或原字回落）"""
-    if not is_hangul(ch):
-        return ch
-    hz = BASE_HANZI.get(base_of(ch))
-    return hz if hz else ch
-
-
-def cat_from_note(note: str | None) -> str:
-    if not note:
-        return ''
-    m = re.match(r'[一-鿿]+', note)
-    return m.group(0) if m else ''
-
-
-def transliterate(brand: str) -> str:
-    """韩文品牌 → 中文音译（借词/地名优先，余下逐字音译，无法译的回落韩文）"""
-    s = brand
-    for kw in CAT_KO:
-        s = s.replace(kw, ' ')
-    for kw, zh in OVERRIDE_BRAND.items():
-        s = s.replace(kw, zh)
+def romaja(text: str) -> str:
+    """韩文 → 罗马音（Revised Romanization 简化版）。非韩文字符原样保留。"""
     out = []
-    buf = []
-    for ch in s:
-        if is_hangul(ch):
-            buf.append(hanzi_of(ch))
-        else:
-            if buf:
-                out.append(''.join(buf))
-                buf = []
+    syl = [split_syllable(c) if is_hangul(c) else None for c in text]
+    for i, ch in enumerate(text):
+        if not is_hangul(ch):
             out.append(ch)
-    if buf:
-        out.append(''.join(buf))
-    return ''.join(out).strip()
+            continue
+        cho, jung, jong = syl[i]
+        nxt = syl[i + 1] if i + 1 < len(syl) else None
+        # 初声 ㄹ：词首读 r，前面有终声时读 l
+        if cho == 'ㄹ':
+            prev_jong = syl[i - 1][2] if i > 0 and syl[i - 1] else ''
+            lead = 'r' if not prev_jong else 'l'
+        else:
+            lead = CHO_R[cho]
+        vowel = JUNG_R[jung]
+        # 终声 ㄹ：后接元音开头音节时读 r，否则读 l
+        if jong == 'ㄹ':
+            tail = 'r' if (nxt and nxt[0] == 'ㅇ') else 'l'
+        else:
+            tail = JONG_R[jong]
+        out.append(lead + vowel + tail)
+    s = ''.join(out)
+    return re.sub(r'\s+', ' ', s).strip()
 
 
-def make_name_zh(hotel: dict) -> str:
+def strip_cat(name: str):
+    """剥离业态词，返回 (品牌部分, 业态中文 or None)。业态取最左出现的那个。"""
+    low = name.lower()
+    hits = []
+    for kw, zh in CATS:
+        p = name.find(kw)
+        if p >= 0:
+            hits.append((p, kw, zh))
+    for kw, zh in CATS_EN:
+        m = re.search(r'\b' + re.escape(kw) + r'\b', low)
+        if m:
+            hits.append((m.start(), kw, zh))
+    if not hits:
+        return name, None
+    hits.sort(key=lambda x: (-len(x[1]), x[0]))
+    # 主业态：出现位置最靠前的那个
+    primary = min(hits, key=lambda x: x[0])[2]
+    brand = name
+    for kw, _zh in CATS:
+        brand = brand.replace(kw, ' ')
+    for kw, _zh in CATS_EN:
+        brand = re.sub(r'\b' + re.escape(kw) + r'\b', ' ', brand, flags=re.I)
+    return brand, primary
+
+
+def apply_places(brand: str) -> str:
+    """地名意译：韩文标准汉字 + 英文名里的罗马字地名。"""
+    for kw, zh in PLACES:
+        brand = brand.replace(kw, zh)
+    for kw, zh in PLACES_EN:
+        brand = re.sub(r'\b' + re.escape(kw) + r'\b', zh, brand, flags=re.I)
+    return brand
+
+
+def apply_brands_en(brand: str) -> str:
+    out = brand
+    for kw, zh in BRANDS_EN:
+        out = re.sub(re.escape(kw), zh, out, flags=re.I)
+    return out
+
+
+def clean(s: str) -> str:
+    s = re.sub(r'\s*[&/]\s*', ' ', s)
+    return re.sub(r'\s+', ' ', s).strip(' ·-–')
+
+
+# OSM 子类型兜底时的措辞收敛（名称里没有业态词时才用到）
+NOTE_FALLBACK = {
+    '民宿 / Guesthouse': '民宿',
+    '公寓式住宿': '公寓式酒店',
+}
+
+
+CJK_ONLY = re.compile(r'^[\u4e00-\u9fff\s]+$')
+
+
+def pure_zh(s: str):
+    """只有纯中文（汉字 + 空格）才要。
+
+    含韩文（"西归浦칼"）、拉丁（"JW 万豪 济州"）、数字的一律不要 —— 半中半韩的名字读着别扭，
+    拿去订房导航也搜不到，不如留空让界面显示韩文原名。宁缺，不凑。
+    """
+    s = (s or '').strip()
+    if not s or not CJK_ONLY.match(s):
+        return None
+    if not any('\u4e00' <= c <= '\u9fff' for c in s):
+        return None
+    return s
+
+
+def brand_is_place_only(brand_raw: str) -> bool:
+    """品牌部分是否『整个就是地名』（剥离业态词后只剩法定地名，没有实际店名）。
+
+    例：제주민박→品牌'제주'(济州)、한라산호텔→'한라산'(汉拿山)、Jeju Guest House→'Jeju'。
+    这种翻译出来只是城市 / 乡镇 / 山名，完全丢失『这是个住宿』的身份，渲染成「济州」
+    会让人误以为是地名而非酒店。所以一律留空，让界面回退显示韩文原名
+    （韩文原名里还带着 민박/호텔 这类业态词，身份清楚）。
+    """
+    if not brand_raw.strip():
+        return False
+    s = brand_raw
+    for kw, _ in PLACES:
+        s = s.replace(kw, ' ')
+    for kw, _ in PLACES_EN:
+        s = re.sub(r'\b' + re.escape(kw) + r'\b', ' ', s, flags=re.I)
+    # 去掉标点 / 空白后若为空，说明整个品牌就是地名，没有可译的实际店名
+    s = re.sub(r'[^A-Za-z가-힣]', '', s)
+    return s == ''
+
+
+def make(hotel: dict):
     name = hotel.get('name') or ''
-    cat = cat_from_note(hotel.get('note'))
-    if not cat:
-        for kw in CAT_KO:
-            if kw in name:
-                cat = OVERRIDE_BRAND.get(kw, '')
-                break
-    brand = transliterate(name)
-    brand = re.sub(r'\s+', '', brand)
-    if brand and cat:
-        return f'{brand} {cat}'
-    return brand or cat
+    # 括号内多是罗马音或英文副名，去掉（罗马音由 nameRomaja 字段提供）
+    base = re.sub(r'\([^)]*\)', ' ', name)
+    brand, cat = strip_cat(base)
+    if cat is None:
+        cat = NOTE_FALLBACK.get(hotel.get('note') or '', hotel.get('note') or '')
+        brand = base
+    brand_raw = brand
+    brand = clean(apply_brands_en(apply_places(brand)))
+    if not brand:
+        brand = clean(apply_places(base))
+        brand_raw = base
+    # 业态词不进名称：note 字段已经承载它，界面上也是分开显示的，拼进来只会重复
+    name_zh = brand or clean(apply_places(base))
+    place_only = brand_is_place_only(brand_raw)
+    return name_zh, cat, romaja(re.sub(r'\([^)]*\)', ' ', name)), place_only
 
 
 def main():
-    force = '--force' in sys.argv
     d = json.load(open(SRC, encoding='utf-8'))
     total = 0
-    filled = 0
+    skipped = 0      # 沿用 TourAPI 官方中文名
+    blanked = 0      # 生成结果不是纯中文 / 只是地名，置空
     for town in d.get('towns', []):
         for h in town.get('hotels', []):
             total += 1
-            if h.get('nameZh') and not force:
-                filled += 1
+            zh, cat, rom, place_only = make(h)
+            h['nameRomaja'] = rom
+            if cat:
+                h['note'] = cat
+            # 官方中文名（nameZhOfficial，不限来源：TourAPI / 人工核对都打这个标记）才保护，
+            # 其余条目走同一口径（剥离业态词 + 地名意译 + 纯中文判定）。
+            if h.get('nameZhOfficial'):
+                h['nameZh'] = pure_zh(h.get('nameZh'))
+                if h['nameZh']:
+                    skipped += 1
                 continue
-            h['nameZh'] = make_name_zh(h)
-            filled += 1
-    json.dump(d, open(SRC, 'w', encoding='utf-8'), ensure_ascii=False)
-    print(f'住宿总数={total}，已写 nameZh={filled}')
+            # 普通条目：品牌整个只是地名（济州 / 汉拿山…）不是可用店名，留空；
+            # 其余只保留纯中文，半中半韩一律置空。界面回退优先级：中文>英文>韩文。
+            if place_only:
+                h['nameZh'] = None
+                blanked += 1
+            else:
+                h['nameZh'] = pure_zh(zh)
+                if not h['nameZh']:
+                    blanked += 1
+    json.dump(d, open(SRC, 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
+    print(
+        f'住宿总数={total}，沿用 TourAPI 官方中文名 {skipped} 条，'
+        f'有中文名 {total - blanked} 条，地名-only / 非纯中文置空 {blanked} 条'
+    )
 
 
 if __name__ == '__main__':

@@ -1,5 +1,6 @@
-import type { Plan, Route, RouteMetrics } from '../types'
+import type { Hotel, Plan, Route, RouteMetrics } from '../types'
 import { formatKm } from '../lib/geo'
+import { stayName } from '../lib/stayName'
 import {
   addHours,
   dayDepartureH,
@@ -35,6 +36,15 @@ export interface PlanPrintSheetProps {
 /** 路线在行程单上的短标签：有编号用「20号线」，自定义路线退回名称 */
 function routeLabel(r: Route): string {
   return r.code ? `${r.code}号线` : r.name
+}
+
+/**
+ * 住宿在行程单上的名字：用优先级选出的主名（中文 > 英文 > 韩文），并括注韩文原名。
+ * 打印版是要带在路上用的，问路 / 给司机看时原名比中文名管用。
+ */
+function stayPrintName(h: Hotel): string {
+  const main = stayName(h)
+  return main !== h.name ? `${main}（${h.name}）` : main
 }
 
 /** 难度数字 → 文案（1-5；站内 seed 只用到 2/3/4） */
@@ -116,7 +126,7 @@ export function PlanPrintSheet({
             <>
               <div className={`${styles.line}`}>
                 🛏 <b>建议住：{prevNight.area}</b>
-                {prevNight.lockedHotel && <span> —— 已定：{prevNight.lockedHotel.name}</span>}
+                {prevNight.lockedHotel && <span> —— 已定：{stayPrintName(prevNight.lockedHotel)}</span>}
               </div>
               <div className={`${styles['line-sub']}`}>{prevNight.reason}</div>
               {prevNight.candidates.length > 0 && (
@@ -124,7 +134,7 @@ export function PlanPrintSheet({
                   候选（离第一天出发点 {STAY_SEARCH_KM} km 内由近及远）：
                   {prevNight.candidates
                     .slice(0, 3)
-                    .map((c) => c.hotel.name + (c.hotel.priceRange ? `（${c.hotel.priceRange}）` : ''))
+                    .map((c) => stayPrintName(c.hotel) + (c.hotel.priceRange ? `（${c.hotel.priceRange}）` : ''))
                     .join(' · ')}
                 </div>
               )}
@@ -254,7 +264,7 @@ export function PlanPrintSheet({
                 <div className={`${styles.line}`}>
                   🛏 <b>建议住：{stay.area}</b>
                   {d.isLast && <span>（最后一晚）</span>}
-                  {stay.lockedHotel && <span> —— 已定：{stay.lockedHotel.name}</span>}
+                  {stay.lockedHotel && <span> —— 已定：{stayPrintName(stay.lockedHotel)}</span>}
                 </div>
                 <div className={`${styles['line-sub']}`}>{stay.reason}</div>
                 {stay.altArea && (
@@ -267,7 +277,7 @@ export function PlanPrintSheet({
                     候选（离今晚终点 {STAY_SEARCH_KM} km 内、加权距离排序）：
                     {stay.candidates
                       .slice(0, 3)
-                      .map((c) => c.hotel.name + (c.hotel.priceRange ? `（${c.hotel.priceRange}）` : ''))
+                      .map((c) => stayPrintName(c.hotel) + (c.hotel.priceRange ? `（${c.hotel.priceRange}）` : ''))
                       .join(' · ')}
                   </div>
                 )}

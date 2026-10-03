@@ -304,6 +304,20 @@
   color: #92400e;
 }
 
+/* 「已定：XXX」：跟着系统推荐区域后面补的一句 —— 推荐照旧给，订了哪家单独标 */
+.stay-locked {
+  font-size: 11px;
+  border-radius: 5px;
+  padding: 1px 6px;
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* 「最后一晚」标记：末日同样给住宿建议，但得让人看出这是收尾那一晚 */
 .stay-tag {
   font-size: 11px;
@@ -368,6 +382,14 @@
   font-weight: 600;
 }
 
+/* 韩文原名（中文名旁边的小字，便于复制去韩国地图搜索） */
+.opt-ko {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+  margin-left: 6px;
+}
+
 .opt-lock {
   font-size: 11px;
   color: var(--brand-dark);
@@ -383,6 +405,40 @@
 
 .opt-act {
   margin-top: 5px;
+}
+
+/* 「查看全部住宿」入口：虚线整行按钮，点了右侧滑出抽屉，不在这张卡里铺开长列表 */
+.stay-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 7px 10px;
+  border: 1px dashed #e0c98d;
+  border-radius: 8px;
+  background: #fffdf7;
+  color: #92400e;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.stay-more:hover {
+  background: #fff8e6;
+  border-color: #cfae63;
+}
+
+.stay-more-arrow {
+  font-size: 14px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+.stay-more:hover .stay-more-arrow {
+  transform: translateX(3px);
 }
 
 .note-field {

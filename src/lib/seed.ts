@@ -266,7 +266,8 @@ function buildRoute(spec: OlleSpec): Route {
     bestSeason: '3-5 月（油菜花）、9-11 月（秋高气爽）',
     tags,
     // 爬来的住宿（OSM）按路线 code 回填进 seed，作为后台可编辑的一等数据。
-    // 由 scripts/build_seed_stays.py 从 public/stays.json 生成；重跑爬虫后需重跑该脚本。
+    // 住宿 seed 由 src/lib/seedStays.ts 从 src/data/stays.json 实时派生（import），
+    // 改住宿后只需重新构建、无需重跑脚本。
     hotels: SEED_STAYS[spec.code] ?? [],
     sights: [],
     album: [],

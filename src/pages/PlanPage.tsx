@@ -13,6 +13,9 @@ import { DatePicker } from '../components/DatePicker'
 import { PlanPrintSheet } from '../components/PlanPrintSheet'
 import { PlanHelpSheet } from '../components/PlanHelpSheet'
 import { collectHotels, suggestPrevNight } from '../lib/stayMatch'
+import { stayName } from '../lib/stayName'
+import type { PlanMapStayMode } from '../lib/storage'
+import type { Hotel } from '../types'
 import {
   DAY_HOURS_LIMIT,
   DAY_KM_LIMIT,
@@ -33,6 +36,13 @@ type PlanView = 'list' | 'days'
 const VIEWS: { key: PlanView; label: string }[] = [
   { key: 'list', label: '清单' },
   { key: 'days', label: '按天' },
+]
+
+/** 行程位置地图的三种查看模式：住宿标画到什么程度 */
+const MAP_STAY_MODES: { key: PlanMapStayMode; label: string; hint: string }[] = [
+  { key: 'none', label: '仅路径', hint: '只画路线与编号，整图不出现住宿标' },
+  { key: 'all', label: '全量住宿', hint: '画出行程篮里每条路线挂着的所有住宿（一次十几个）' },
+  { key: 'confirmed', label: '已确认住宿', hint: '只画你在「按天」里点「住这家」锁定下来的住宿，含出发前一晚' },
 ]
 
 /** 记住用户上次停在哪个页签：刷新 / 重进都恢复；缓存里的值不合法则回落到第一个页签 */
@@ -100,9 +110,12 @@ export function PlanPage() {
   /** 只看未完成：隐藏已勾选走完的路线。状态存在本机缓存（jejuolle100k.ui），刷新后仍然保持 */
   const hideDone = ui.planHideDone
   const setHideDone = (v: boolean) => updateUi({ planHideDone: v })
-  /** 行程位置地图上的住宿标（紫）：默认显示，勾掉就整张图不画住宿。同样存本机缓存 */
-  const showHotels = ui.planMapHotels
-  const setShowHotels = (v: boolean) => updateUi({ planMapHotels: v })
+  /**
+   * 行程位置地图的住宿模式：只画路径 / 路径+全量住宿 / 路径+已确认住宿。
+   * 默认 `all`（与改造前「显示住宿」默认勾选的行为一致），存本机缓存。
+   */
+  const stayMode = ui.planMapStayMode
+  const setStayMode = (v: PlanMapStayMode) => updateUi({ planMapStayMode: v })
 
   const metrics = useMemo(() => new Map(routes.map((r) => [r.id, computeMetrics(r)])), [routes])
   /** 住宿候选池：跨全部路线收集，由 hotel.id 去重 */
@@ -171,6 +184,85 @@ export function PlanPage() {
   )
   const planHotels = useMemo(() => rows.flatMap((r) => r.route.hotels ?? []), [rows])
   const planSights = useMemo(() => rows.flatMap((r) => r.route.sights ?? []), [rows])
+
+  /**
+   * 「已确认住宿」：在「按天」里点「住这家」锁定下来的那些，出发前一晚也算一晚。
+   * 只认 `lockedHotel` —— 没锁定的那些是系统推荐，不算确认过。
+   * 按「前夜 → 第 1 天 → 第 2 天…」的顺序排，跟行程单上的顺序一致。
+   */
+  const confirmedHotels = useMemo(() => {
+    const out: Hotel[] = []
+    const seen = new Set<string>()
+    const push = (h: Hotel | undefined) => {
+      if (h && !seen.has(h.id)) {
+        seen.add(h.id)
+        out.push(h)
+      }
+    }
+    push(prevNight?.lockedHotel)
+    days.forEach((d) => push(stays.get(d.day)?.lockedHotel))
+    return out
+  }, [prevNight, days, stays])
+
+  /**
+   * 已确认住宿画在紫标上的短标签：`hotel.id` → 「前夜」「第2天」「第1-2天」「第1、3天」。
+   *
+   * ⚠️ 只有**天号紧挨着**才算连住、才能并成区间。第 1 天和第 3 天住同一家、
+   * 中间那晚没定（或住了别家）时，必须写成「第1、3天」：
+   * 并成「第1-3天」等于凭空多出第 2 天那一晚，标签直接对不上行程单。
+   *
+   * 天序用 `day = 0` 表示出发前一晚，排在第一天之前。
+   */
+  const confirmedBadges = useMemo(() => {
+    /** 每家住宿都定在哪些晚（升序；0 = 出发前一晚） */
+    const nights = new Map<string, number[]>()
+    const add = (h: Hotel | undefined, day: number) => {
+      if (!h) return
+      const list = nights.get(h.id)
+      if (list) list.push(day)
+      else nights.set(h.id, [day])
+    }
+    add(prevNight?.lockedHotel, 0)
+    days.forEach((d) => add(stays.get(d.day)?.lockedHotel, d.day))
+
+    /** 一段连住 → 文本；前夜只能出现在段首，且不与「第 N 天」共用一个「第…天」壳 */
+    const segText = ([from, to]: [number, number]) => {
+      if (from === 0) return to === 0 ? '前夜' : `前夜-第${to}天`
+      return from === to ? `第${from}天` : `第${from}-${to}天`
+    }
+
+    const out: Record<string, string> = {}
+    nights.forEach((list, id) => {
+      // 按「天号 +1」切连续段 —— 只看数组相邻项同 id 是不够的，中间那一晚可能压根没定住宿
+      const segs: [number, number][] = []
+      list.forEach((day) => {
+        const last = segs[segs.length - 1]
+        if (last && day === last[1] + 1) last[1] = day
+        else segs.push([day, day])
+      })
+      // 段数多到写不下就截断：药丸宽度随字数涨，全列出来会把地图糊住
+      const shown = segs.slice(0, 3)
+      out[id] = shown.map(segText).join('、') + (segs.length > shown.length ? '、…' : '')
+    })
+    return out
+  }, [prevNight, days, stays])
+
+  /** 已确认住宿标悬停时补的一行小字：把短标签摊开说清楚，读得懂是哪一晚定下的 */
+  const confirmedNotes = useMemo(() => {
+    const map: Record<string, string> = {}
+    Object.entries(confirmedBadges).forEach(([id, label]) => {
+      map[id] = `${label} · 已确认`
+    })
+    return map
+  }, [confirmedBadges])
+
+  /**
+   * 地图上实际要画的住宿：由当前模式决定。
+   * 只有「已确认」模式才带标签与小字 —— 全量住宿十几家都写「第 N 天」没有意义（它们还没被选过）。
+   */
+  const mapHotels = stayMode === 'all' ? planHotels : stayMode === 'confirmed' ? confirmedHotels : []
+  const mapHotelBadges = stayMode === 'confirmed' ? confirmedBadges : undefined
+  const mapHotelNotes = stayMode === 'confirmed' ? confirmedNotes : undefined
 
   const total = rows.reduce((s, r) => s + r.km, 0)
   const target = plan?.targetKm ?? 100
@@ -251,7 +343,7 @@ export function PlanPage() {
         '',
       )
       if (prevNight) {
-        const locked = prevNight.lockedHotel ? ` —— 已定：${prevNight.lockedHotel.name}` : ''
+        const locked = prevNight.lockedHotel ? ` —— 已定：${stayName(prevNight.lockedHotel)}` : ''
         lines.push(`🛏 建议住：**${prevNight.area}**${locked}`, '', `> ${prevNight.reason}`)
         lines.push('')
       } else {
@@ -273,7 +365,7 @@ export function PlanPage() {
       lines.push('')
       const stay = stays.get(d.day) ?? null
       if (stay) {
-        const locked = stay.lockedHotel ? ` —— 已定：${stay.lockedHotel.name}` : ''
+        const locked = stay.lockedHotel ? ` —— 已定：${stayName(stay.lockedHotel)}` : ''
         lines.push(
           `🛏 建议住：**${stay.area}**${d.isLast ? '（最后一晚）' : ''}${locked}`,
           '',
@@ -450,19 +542,20 @@ export function PlanPage() {
             <section className="section">
               <div className="section-head">
                 <h2>行程位置</h2>
-                {/* 住宿标一次能有十几个，压在线上看不清路线时用它整批收起来 */}
-                {planHotels.length > 0 && (
-                  <label
-                    className={`${styles['map-toggle']}`}
-                    title="取消勾选后，地图上不再画住宿（紫标），只看路线与编号"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={showHotels}
-                      onChange={(e) => setShowHotels(e.target.checked)}
-                    />
-                    显示住宿
-                  </label>
+                {/* 住宿标一次能有十几个，压在线上看不清路线时切「仅路径」整批收起来 */}
+                {(planHotels.length > 0 || confirmedHotels.length > 0) && (
+                  <div className={`${styles['map-modes']}`} role="group" aria-label="地图住宿显示模式">
+                    {MAP_STAY_MODES.map((m) => (
+                      <button
+                        key={m.key}
+                        className={`btn btn-sm${stayMode === m.key ? ' is-active' : ''}`}
+                        onClick={() => setStayMode(m.key)}
+                        title={m.hint}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
               <p className="muted">
@@ -470,15 +563,23 @@ export function PlanPage() {
                 标识落在每段线中间，避开相邻路线共享的端点；有真实轨迹的按轨迹画线，
                 其余连途经点。<strong>虚线（灰绿）= 这条线还没有实测轨迹</strong>，
                 只是把近似坐标连起来示意，走向不作数。
-                住宿标太密时可用右上角的「显示住宿」整批收起。
+                住宿标太密时用右上角的模式按钮切到「仅路径」或「已确认住宿」。
+                「已确认住宿」模式下紫标是带字的药丸（前夜 / 第2天 / 第1-2天），一眼看清哪一晚住哪家。
                 底图加载失败时自动降级为离线示意图，位置信息不受影响。
               </p>
+              {stayMode === 'confirmed' && confirmedHotels.length === 0 && (
+                <p className="muted" style={{ fontSize: 13, marginTop: -4 }}>
+                  还没有确认任何住宿 —— 切到「按天」，在每晚的住宿卡上点「住这家」锁定后，这里就会出现。
+                </p>
+              )}
               <RouteMap
                 trails={planTrails}
                 lines={planLines}
                 approxLines={planApprox}
                 badges={planBadges}
-                hotels={showHotels ? planHotels : []}
+                hotels={mapHotels}
+                hotelBadges={mapHotelBadges}
+                hotelNotes={mapHotelNotes}
                 sights={planSights}
                 height={380}
                 fixedZoom={10}
@@ -557,6 +658,7 @@ export function PlanPage() {
                 rows={dayRows}
                 days={days}
                 stays={stays}
+                hotels={hotels}
                 prevNight={prevNight}
                 prevLabel={prevLabel}
                 prevNote={plan.prevStayNote ?? ''}

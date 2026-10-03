@@ -144,6 +144,64 @@
 .list-link:hover {
   text-decoration: underline;
 }
+
+/* 酒店介绍：默认介绍 + 就地编辑保存（见 src/lib/stayIntro.ts） */
+.hotel-intro {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.hotel-intro .list-note {
+  flex: 1;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+.hotel-intro-edit-btn {
+  flex: none;
+  border: none;
+  background: none;
+  color: var(--brand);
+  font-size: 12.5px;
+  cursor: pointer;
+  padding: 2px 4px;
+  white-space: nowrap;
+}
+.hotel-intro-edit-btn:hover {
+  text-decoration: underline;
+}
+.hotel-intro-edit {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.hotel-intro-edit .input {
+  width: 100%;
+  resize: vertical;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.hotel-intro-actions {
+  display: flex;
+  gap: 8px;
+}
+.hotel-intro-add {
+  grid-column: 1 / -1;
+  align-self: flex-start;
+  border: 1px dashed var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.hotel-intro-add:hover {
+  border-color: var(--brand);
+  color: var(--brand-dark);
+}
 .grid-sights {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));

@@ -6,6 +6,8 @@ dist/
 # env / logs（防止密钥或本地日志误提交）
 .env
 .env.*
+# 例外：模板要提交，里面只有空键名，不含真实密钥
+!.env.example
 *.log
 
 # python / script 本地缓存

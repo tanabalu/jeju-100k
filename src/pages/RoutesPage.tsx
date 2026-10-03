@@ -19,6 +19,7 @@ export function RoutesPage() {
   const metrics = useMemo(() => new Map(routes.map((r) => [r.id, computeMetrics(r)])), [routes])
 
   const list = useMemo(() => {
+    // 检索不区分大小写：关键词与候选字段都统一小写后再比较
     const kw = q.trim().toLowerCase()
     let out = routes.filter((r) => {
       if (!kw) return true

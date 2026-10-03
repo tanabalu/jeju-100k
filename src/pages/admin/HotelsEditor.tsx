@@ -40,7 +40,16 @@ export function HotelsEditor({ route, onPatch }: Props) {
                       className="input"
                       value={h.nameZh ?? ''}
                       onChange={(e) => patch(h.id, { nameZh: e.target.value })}
-                      placeholder="中文名（音译，待核对）"
+                      placeholder="自动补的可靠中文，待核对"
+                    />
+                  </label>
+                  <label className="field">
+                    <span>英文名</span>
+                    <input
+                      className="input"
+                      value={h.nameEn ?? ''}
+                      onChange={(e) => patch(h.id, { nameEn: e.target.value })}
+                      placeholder="OSM 未记录则留空"
                     />
                   </label>
                   <label className="field">
