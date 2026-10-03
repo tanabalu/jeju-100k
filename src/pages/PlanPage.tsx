@@ -307,18 +307,23 @@ export function PlanPage() {
   const buildMarkdown = () => {
     if (!plan) return ''
     const used = days.filter((d) => d.rows.length > 0)
+    // 空天（无偶来徒步路线但写了当天备注）也随行程单带走；days 本就按天号升序，过滤后仍是升序
+    const hasDayNote = (d: { day: number }) => (plan.dayNotes?.[d.day] ?? '').trim().length > 0
+    const printedDays = days.filter((d) => d.rows.length > 0 || hasDayNote(d))
+    const freeWithNote = printedDays.filter((d) => d.rows.length === 0)
+    const printedNights = printedDays.length > 0 ? printedDays.length + 1 : 0
     const lines = [
       `# ${plan.name}`,
       '',
       `- 目标里程：${target} km`,
       `- 当前合计：**${formatKm(total)} km** ${done ? '✅ 已达标' : `（还差 ${formatKm(gap)} km）`}`,
     ]
-    if (plan.startDate && used.length) lines.push(`- 出发日：${plan.startDate}`)
-    if (used.length) {
-      lines.push(`- 天数：${used.length} 天`)
+    if (plan.startDate && printedDays.length) lines.push(`- 出发日：${plan.startDate}`)
+    if (printedDays.length) {
+      lines.push(`- 天数：${printedDays.length} 天`)
       lines.push(
-        `- 住宿：${nights} 晚（出发前一晚 + 每一天当晚${
-          used.length > 1 ? '，含最后一天' : ''
+        `- 住宿：${printedNights} 晚（出发前一晚 + 每一天当晚${
+          printedDays.length > 1 ? '，含最后一天' : ''
         }）`,
       )
     } else {
@@ -376,6 +381,17 @@ export function PlanPage() {
       } else {
         lines.push('🛏 暂无住宿数据可推荐', '')
       }
+      const note = plan.dayNotes?.[d.day]
+      if (note) lines.push(`备注：${note}`, '')
+    })
+
+    /* 空天（没有偶来徒步路线但写了当天备注）：自由活动 / 交通 / 休整，
+       备注随行程单带走，不绑任何路线 */
+    freeWithNote.forEach((d) => {
+      const tail = d.dateISO ? ` · ${d.dateISO} ${d.weekday ?? ''}`.trimEnd() : ''
+      lines.push(`## 第 ${d.day} 天${tail} · 自由活动 / 交通 / 休整`, '')
+      lines.push(`> 当天未安排偶来徒步路线。`)
+      lines.push('')
       const note = plan.dayNotes?.[d.day]
       if (note) lines.push(`备注：${note}`, '')
     })

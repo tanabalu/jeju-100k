@@ -91,11 +91,17 @@ export function PlanPrintSheet({
   const totalKm = rows.reduce((s, r) => s + r.km, 0)
   const gains = rows.map((r) => r.gainM).filter((g): g is number => typeof g === 'number' && Number.isFinite(g))
   const totalGain = gains.length ? gains.reduce((a, b) => a + b, 0) : null
-  const usedDays = days.filter((d) => d.rows.length > 0)
-  const dayCount = usedDays.length
-  const first = usedDays[0]
-  const lastFn = [...usedDays].reverse()[0]
-  // 住几晚：出发前一晚 + 已排每一天当晚（最后一天也算 —— 那晚也要落脚）
+  // 有徒步路线的天：用于「出发前一晚」的「次日从哪开走」引用（必须有路线才有起点）
+  const routeDays = days.filter((d) => d.rows.length > 0)
+  // 真正要印进行程单的天：有路线的天 + 没有路线但写了「当天备注」的空天
+  // （自由活动 / 交通 / 休整日，不绑任何偶来徒步，但备注要随行程单带走）
+  const hasDayNote = (day: number) => (plan.dayNotes?.[day] ?? '').trim().length > 0
+  const printDays = days.filter((d) => d.rows.length > 0 || hasDayNote(d.day))
+  const dayCount = printDays.length
+  const firstRouteDay = routeDays[0]
+  const firstPrintDay = printDays[0]
+  const lastFn = [...printDays].reverse()[0]
+  // 住几晚：出发前一晚 + 印进行程单的每一天当晚（最后一天也算 —— 那晚也要落脚）
   const nights = dayCount > 0 ? dayCount + 1 : 0
 
   return (
@@ -103,24 +109,24 @@ export function PlanPrintSheet({
       <div className={`${styles.head}`}>
         <h1>{plan.name}</h1>
         <div className={`${styles.sub}`}>
-          {first?.dateISO && <span>出发日 {first.dateISO}（{first.weekday}）</span>}
+          {firstPrintDay?.dateISO && <span>出发日 {firstPrintDay.dateISO}（{firstPrintDay.weekday}）</span>}
           <span>共 {dayCount} 天</span>
           <span><b>{formatKm(totalKm)}</b> km</span>
           {totalGain !== null && <span>累计爬升 {Math.round(totalGain)} m</span>}
           <span>{nights} 晚住宿</span>
-          {lastFn?.dateISO && lastFn.dateISO !== first?.dateISO && <span>至 {lastFn.dateISO}</span>}
+          {lastFn?.dateISO && lastFn.dateISO !== firstPrintDay?.dateISO && <span>至 {lastFn.dateISO}</span>}
         </div>
       </div>
 
       {/* 出发前一晚：单独一栏 —— 它不属于任何一天，第二天一早就要从第一天起点开走 */}
-      {first && (
+      {firstRouteDay && (
         <section className={`${styles.day} ${styles['day-prev']}`}>
           <div className={`${styles['day-head']}`}>
             <span className={`${styles['day-title']}`}>出发前一晚</span>
             {prevLabel && <span className={`${styles['day-ends']}`}>· {prevLabel}</span>}
           </div>
           <div className={`${styles['day-ends']}`}>
-            次日从「{first.rows[0].route.startPoint?.name ?? first.rows[0].route.name}」开走
+            次日从「{firstRouteDay.rows[0].route.startPoint?.name ?? firstRouteDay.rows[0].route.name}」开走
           </div>
           {prevNight ? (
             <>
@@ -148,7 +154,29 @@ export function PlanPrintSheet({
         </section>
       )}
 
-      {usedDays.map((d, idx) => {
+      {printDays.map((d, idx) => {
+        /* 空天（无偶来徒步路线）：只印当天备注，作为「自由活动 / 交通 / 休整」单独成节，
+           不依赖任何路线 —— 彻底解耦「没排路线的天就看不到备注」的旧行为 */
+        if (d.rows.length === 0) {
+          return (
+            <section
+              className={`${styles.day} ${styles['day-free']} ${styles[`c${idx % 6}`]}`}
+              key={d.day}
+            >
+              <div className={`${styles['day-head']}`}>
+                <span className={`${styles['day-title']}`}>
+                  Day {d.day} · <em>自由活动 / 交通 / 休整</em>
+                </span>
+                {d.dateISO && (
+                  <span className={`${styles['day-date']}`}>{d.dateISO} {d.weekday}</span>
+                )}
+              </div>
+              {plan.dayNotes?.[d.day] && (
+                <div className={`${styles['day-note']}`}>📝 备注：{plan.dayNotes[d.day]}</div>
+              )}
+            </section>
+          )
+        }
         const stay = stays.get(d.day) ?? null
         const firstRow = d.rows[0]
         const lastRow = d.rows[d.rows.length - 1]
