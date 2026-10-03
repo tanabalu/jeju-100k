@@ -240,11 +240,8 @@ export function PrepPage() {
       <div className={`${styles['prep-head']}`}>
         <h1 className="detail-title">行前准备 · 济州岛</h1>
         <p className="muted">
-          出发前逐项打勾，进度保存在本机浏览器。政策与价格会变，标「<span className={`${styles['verify-tag']}`}>临行复核</span>」
-          的项目请自己再确认一遍。光看一行字不知道怎么动手的条目（比如便利店充值 T-money），右侧有
-          「<b>图文教程</b>」，点一下就在条目下方展开分步骤图解，再点收起。分组点标题即可折叠，折叠状态会记住。
-          装备、性别、拍摄设备这些因人而异的，到下面「<b>徒步装备 / 女士常用 / 男士常用 / 大疆 / 相机 / 无人机</b>」
-          几份备选清单里挑着加入 —— 徒步装备也在里面，按你要走的季节和路段挑。
+          逐项打勾，进度存在本机浏览器。标「<span className={`${styles['verify-tag']}`}>临行复核</span>」
+          的请出发前再确认一遍；不会动手的条目点右侧「<b>图文教程</b>」看分步骤图解。因人而异的装备 / 拍摄器材，到下方备选清单挑着加入。
         </p>
       </div>
 
@@ -325,7 +322,6 @@ export function PrepPage() {
           </button>
         </div>
         <div className="btn-row">
-          <span className="muted">分组显示</span>
           <button
             className="btn btn-sm"
             disabled={collapsedGroups.length === 0}
@@ -340,7 +336,6 @@ export function PrepPage() {
           >
             全部折叠
           </button>
-          <span className="muted">点分组标题即可折叠 / 展开</span>
         </div>
       </section>
 
@@ -513,9 +508,7 @@ export function PrepPage() {
       <section id="prep-presets" className="section">
         <h2>按需加入备选清单</h2>
         <p className="muted">
-          前面那些分组是通用项；下面这几份是分装备、分性别、分拍摄设备的补充项，<b>不要求全加</b>。
-          点「加入」就并进上面的总清单、一起算进度；加错了随时移除。清单里已经有同一件事时会标成「已在清单」，不会重复加。
-          「徒步装备」按你要走的季节和路段挑，别整份全背；「无人机」那份大半是能不能飞的<b>规定</b>——先看完再决定这次带不带。
+          下面是分装备 / 性别 / 拍摄设备的补充项，<b>不要求全加</b>；点「加入」并进总清单一起算进度，加错随时移除，重复项会标「已在清单」。
         </p>
         <div className={`${styles['grid-preset']}`}>
           {PREP_PRESETS.map((p) => {
@@ -680,10 +673,7 @@ export function PrepPage() {
 
       {/* ---------- 吃喝住行 ---------- */}
       <h2 className={`${styles['prep-h2']}`}>吃喝住行速查</h2>
-      <p className="muted">
-        按品类给方向，不推荐具体店名 —— 没核实过的名字不写，请自己在 Kakao / Naver 地图上看实时评价。
-        价格是公开攻略里的常见区间，只用来估预算。
-      </p>
+      <p className="muted">按品类给方向，不推荐具体店名；价格仅作预算参考。</p>
       {GUIDE_SECTIONS.map((s) => (
         <section id={`prep-s-${s.id}`} className="section" key={s.id}>
           <div className="section-head">
@@ -733,9 +723,7 @@ export function PrepPage() {
         <div className={`${styles['callout']}`}>
           <b>数据来源与边界</b>
           <p className="muted">
-            内容与价格参考偶来小路官网（jejuolle.org）、韩国旅游发展局公开资料、公开游记，以及个人实测经验，
-            整理于 2026-09。签证、K-ETA、IDP 与票价政策会调整，出发前请以官方公告为准；住宿与餐饮价格以预订平台和门店实时信息为准。
-            公交与支付的操作细节（开卡费、换乘口径、iOS 开卡限制、打车支付方式等）变动更快，只作为方向参考。
+            内容整理于 2026-09，参考偶来小路官网、韩国旅游发展局公开资料与个人实测。签证 / 票价 / 住宿餐饮价格 / 公交支付等政策会调整，出发前请以官方实时信息为准。
           </p>
         </div>
       </section>
