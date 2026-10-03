@@ -17,6 +17,9 @@ const AdminPage = lazy(() => import('./pages/AdminPage').then((m) => ({ default:
 const SettingsPage = lazy(() =>
   import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
 )
+const ReceivePage = lazy(() =>
+  import('./pages/ReceivePage').then((m) => ({ default: m.ReceivePage })),
+)
 
 const NAV = [
   { to: '/', label: '路线' },
@@ -133,6 +136,7 @@ function PageRoutes() {
           <Route path="/prep" element={<PrepPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/receive" element={<ReceivePage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>

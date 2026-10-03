@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useData } from '../store/DataContext'
 import { exportBackup, importBackup, clearAllLocalData } from '../lib/storage'
+import { generateTransferQr, type TransferResult } from '../lib/transfer'
 import type { MapStyle } from '../types'
 import { useConfirm, useToast } from '../components/Feedback'
 import { Select } from '../components/Select'
+import { Modal } from '../components/Modal'
 import styles from './SettingsPage.module.less'
 
 /** 重载通常一两帧就跑完了，不留一档下限的话旋转只是闪一下，跟文案闪跳没区别 */
@@ -18,6 +20,11 @@ export function SettingsPage() {
   /** 「重新加载数据」按下的瞬间置真；等 context 的 loading 回落即视为完成 */
   const [reloading, setReloading] = useState(false)
   const spinStartedAt = useRef(0)
+  /** 扫码迁移弹窗状态 */
+  const [transferOpen, setTransferOpen] = useState(false)
+  const [transferBusy, setTransferBusy] = useState(false)
+  const [transferErr, setTransferErr] = useState('')
+  const [qr, setQr] = useState<TransferResult | null>(null)
 
   useEffect(() => {
     if (!reloading || loading) return
@@ -63,6 +70,21 @@ export function SettingsPage() {
       toast(`导入失败：${err instanceof Error ? err.message : String(err)}`, 'error')
     } finally {
       if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  const openTransfer = async () => {
+    setTransferOpen(true)
+    setQr(null)
+    setTransferErr('')
+    setTransferBusy(true)
+    try {
+      const r = await generateTransferQr()
+      setQr(r)
+    } catch (err) {
+      setTransferErr(err instanceof Error ? err.message : String(err))
+    } finally {
+      setTransferBusy(false)
     }
   }
 
@@ -130,7 +152,14 @@ export function SettingsPage() {
             ]}
             ariaLabel="导入方式"
           />
+          <button className="btn btn-sm" onClick={openTransfer} aria-busy={transferBusy}>
+            扫码迁移到手机
+          </button>
         </div>
+        <p className="muted">
+          扫码迁移：PC 端生成二维码，手机在同 WiFi 下扫码即可把路线/行程篮/设置导入手机
+          （需先在 PC 终端运行 <code>npm run relay</code> 启动一次性局域网中继）。
+        </p>
         <div className="btn-row">
           <button className="btn" onClick={handleReload} aria-busy={reloading}>
             <svg
@@ -166,6 +195,32 @@ export function SettingsPage() {
           </button>
         </div>
       </section>
+
+      <Modal open={transferOpen} title="扫码迁移到手机" onClose={() => setTransferOpen(false)}>
+        {transferBusy && <p className="muted">正在生成本机数据二维码…</p>}
+        {transferErr && (
+          <p className="muted" style={{ color: 'var(--danger)' }}>
+            {transferErr}
+          </p>
+        )}
+        {qr && (
+          <div style={{ textAlign: 'center' }}>
+            <img
+              src={qr.qrDataUrl}
+              alt="迁移二维码"
+              style={{ width: 280, height: 280, maxWidth: '100%' }}
+            />
+            <p className="muted">
+              用手机扫码，在<b>同一 WiFi</b>下打开链接，即可把 PC 上的路线 / 行程篮 / 设置导入手机。
+            </p>
+            <p className="muted">若扫码失败，可在手机浏览器手动打开：</p>
+            <p style={{ wordBreak: 'break-all', fontSize: 12, color: 'var(--muted)' }}>
+              {qr.receiveUrl}
+            </p>
+            <p className="muted">中继为一次性，约 5 分钟后自动关闭。</p>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }
