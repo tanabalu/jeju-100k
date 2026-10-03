@@ -39,10 +39,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   private reset = () => this.setState({ error: null, componentStack: undefined })
 
-  private goHome = () => {
-    this.reset()
-    window.location.hash = '#/'
-  }
+  private reload = () => window.location.reload()
 
   render() {
     const { error, componentStack } = this.state
@@ -53,7 +50,7 @@ export class ErrorBoundary extends Component<Props, State> {
         componentStack={componentStack}
         scope={this.props.scope ?? 'page'}
         onRetry={this.reset}
-        onGoHome={this.goHome}
+        onReload={this.reload}
       />
     )
   }
@@ -64,13 +61,13 @@ function ErrorView({
   componentStack,
   scope,
   onRetry,
-  onGoHome,
+  onReload,
 }: {
   error: Error
   componentStack?: string
   scope: 'app' | 'page'
   onRetry: () => void
-  onGoHome: () => void
+  onReload: () => void
 }) {
   const [showStack, setShowStack] = useState(false)
   const [copied, setCopied] = useState<'idle' | 'ok' | 'fail'>('idle')
@@ -111,8 +108,8 @@ function ErrorView({
           <button className="btn btn-primary" onClick={onRetry}>
             重试
           </button>
-          <button className="btn" onClick={onGoHome}>
-            回到首页
+          <button className="btn" onClick={onReload}>
+            刷新页面
           </button>
           <button className="btn" onClick={copy}>
             {copied === 'ok' ? '已复制' : copied === 'fail' ? '复制失败' : '复制错误信息'}
@@ -154,7 +151,7 @@ function ErrorView({
           会删除这台浏览器里保存的全部路线、行程篮、行前清单和上传的图片，并重置默认素材，
           <b>无法恢复</b>。确定要继续吗？
         </p>
-        <p className="muted">建议先试「重试」和「回到首页」；都不行再走这一步。</p>
+        <p className="muted">建议先试「重试」和「刷新页面」；都不行再走这一步。</p>
       </Modal>
     </div>
   )
