@@ -152,14 +152,7 @@ export function SettingsPage() {
             ]}
             ariaLabel="导入方式"
           />
-          <button className="btn btn-sm" onClick={openTransfer} aria-busy={transferBusy}>
-            扫码迁移到手机
-          </button>
         </div>
-        <p className="muted">
-          扫码迁移：PC 端生成二维码，手机在同 WiFi 下扫码即可把路线/行程篮/设置导入手机
-          （需先在 PC 终端运行 <code>npm run relay</code> 启动一次性局域网中继）。
-        </p>
         <div className="btn-row">
           <button className="btn" onClick={handleReload} aria-busy={reloading}>
             <svg
@@ -194,6 +187,24 @@ export function SettingsPage() {
             清空全部数据
           </button>
         </div>
+      </section>
+
+      <section className="section">
+        <h2>高级</h2>
+        <p className="muted">
+          以下功能面向<b>下载源码并在本地运行</b>的开发者 / 自托管用户；已部署的在线版本不提供这些能力。
+          普通用户请使用上方的「导出 / 导入 JSON」在设备间迁移数据。
+        </p>
+        <div className={`${styles['backup-bar']}`}>
+          <button className="btn btn-sm" onClick={openTransfer} aria-busy={transferBusy}>
+            扫码迁移到手机
+          </button>
+        </div>
+        <p className="muted">
+          扫码迁移：在本地源码目录下终端运行 <code>npm run relay</code> 启动一次性局域网中继后，
+          点此生成二维码，手机在同 WiFi 下扫码即可把路线 / 行程篮 / 设置导入手机。
+          中继约 5 分钟无操作自动关闭。在线部署版不含此能力。
+        </p>
       </section>
 
       <Modal open={transferOpen} title="扫码迁移到手机" onClose={() => setTransferOpen(false)}>

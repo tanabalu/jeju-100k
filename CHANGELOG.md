@@ -6,6 +6,22 @@
 
 ---
 
+## 2026-10-03
+
+### 新增：扫码把 PC 本地数据迁移到手机（方案 A · 局域网直传，零后端）
+- 动机：用户想在手机上扫 PC 端二维码，把 PC 浏览器里的本地数据导入手机。可行性结论：二维码只当"连接凭证"（容量上限 ~2.9KB，真实备份远超），数据走局域网中转。
+- 实现：
+  - `scripts/transfer-relay.mjs`：Node 原生 http 一次性中继，`/info`（返回局域网 IP）、`/push`（PC 推备份）、`/api/data`（手机一次性拉取，取走即删）、`/`（状态页）；含 CORS `*` 与 TTL 自毁（拉取后 3s / 无操作 5min）。默认端口 18080（可 `TRANSFER_PORT` 覆盖）。
+  - `src/lib/transfer.ts`：`pingRelay` / `makeToken` / `generateTransferQr`（把 `exportBackup()` 推到中继，拼出 `<app-base>#/receive?src=<中继地址>` 二维码）。
+  - `src/pages/ReceivePage.tsx`：手机扫码落点，拉取 `src` 调 `importBackup(text,'merge')` 写进手机 localStorage。
+  - `App.tsx` 注册 `/receive` 路由（懒加载）；`SettingsPage` 加「扫码迁移到手机」按钮 + `Modal` 二维码弹窗；`package.json` 加 `relay` 脚本与 `qrcode` 依赖。
+- 已知缺口（本期未做）：`exportBackup` 只含 routes/plans/settings；用户上传图片在 IndexedDB、按 `ImageRef{kind:'local'}` 引用，换设备 key 失效 → 图片不随迁移过来，接收端回落占位图。要带图迁移需另做 base64 打包。
+- 使用约束：手机与 PC 必须同 WiFi；App 须以 http 在局域网内打开（https 页面拉取 http 中继会触发混合内容拦截）；公共 WiFi 的 AP 隔离 / PC 防火墙可能挡端口。
+- 验证：`tsc` 通过；中继冒烟测试 info/push/一次性拉取/CORS 均正常。
+- **定位（2026-10-03 澄清）**：此功能面向**下载源码并在本地运行**的开发者 / 自托管用户，已收进设置页「高级（开发者 / 自托管）」分区；已部署的在线版本**不提供**该能力（无后端中转），普通用户请使用「导出 / 导入 JSON」在设备间迁移数据。
+
+---
+
 ## 2026-10-02（续·2）
 
 ### 新增住宿：枫树酒店（메이플 호텔 / Maple Hotel）
